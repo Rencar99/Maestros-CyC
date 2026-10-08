@@ -1,0 +1,35 @@
+# Maestro de Clientes y Responsables — qué NO entra al repositorio.
+# Las reglas propias de cada parte viven en app/backend/.gitignore y
+# app/frontend/.gitignore; aquí va lo que es del equipo y del entorno.
+
+# Dependencias y compilados
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.vite/
+.venv/
+
+# Secretos y datos locales. En este proyecto las llaves (secret.key,
+# session.secret) y la base viven en app/backend/data/, que su propio
+# .gitignore ya excluye. Se repite aquí para que nada se cuele por otra ruta.
+.env
+*.key
+*.secret
+*.db
+*.sqlite3
+data/
+
+# Windows y Google Drive: esta carpeta se sincroniza, y Drive y Explorer
+# dejan sus propios archivos.
+desktop.ini
+Thumbs.db
+*.lnk
+
+# Temporales de Office: al abrir un .xlsx queda un ~$ al lado.
+~$*
+
+# Respaldos puntuales que se hacen antes de reemplazar un archivo.
+*.respaldo-*
+*.bak
+*.bak.*
