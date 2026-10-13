@@ -114,6 +114,20 @@ export function SecTitle({ icon, children }: { icon: string; children: ReactNode
   );
 }
 
+/* ---------------- Interruptor (toggle) sí/no ------------------------------ */
+export function Toggle({ checked, onChange, label, color = "blue", disabled, title }: {
+  checked: boolean; onChange: (v: boolean) => void; label?: ReactNode;
+  color?: "blue" | "green"; disabled?: boolean; title?: string;
+}) {
+  return (
+    <label className={"tgl" + (checked ? " on " + color : "") + (disabled ? " dis" : "")} title={title}>
+      {label && <span className="tgl-lb">{label}</span>}
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span className="tgl-tr"><span className="tgl-kn" /></span>
+    </label>
+  );
+}
+
 /* ---------------- Toast ---------------------------------------------------- */
 type ToastFn = (msg: string, err?: boolean) => void;
 const ToastCtx = createContext<ToastFn>(() => {});
@@ -169,20 +183,18 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           <div ref={cardRef} className={"confirm-card" + (nudge ? " nudge" : "")} onMouseDown={(e) => e.stopPropagation()}
                role="alertdialog" aria-modal="true" aria-labelledby="cfm-title" aria-describedby="cfm-msg"
                onAnimationEnd={() => nudge && setNudge(false)}>
-            <div className="confirm-head">
-              <div className={"confirm-ic" + (st.peligro ? " peligro" : "")}>
-                <Icon name={st.peligro ? "trash" : "info"} size={20} />
+            <div className="modal-head">
+              <img className="mh-brand" src="/assets/logo-icono-ocre.png" alt="" aria-hidden="true" />
+              <div className="mh-txt"><div className="mh-t" id="cfm-title">{st.titulo || (st.peligro ? "Confirmar eliminación" : "Confirmar")}</div></div>
+              <div className="mh-acts">
+                {!st.soloAceptar && <button className="mh-act" data-cyc-cancel onClick={() => cerrar("cancelar")} aria-label={st.cancelar || "Cancelar"}><Icon name="x" size={18} /><span className="mh-tip">{st.cancelar || "Cancelar"}</span></button>}
+                {st.descartar && <button className="mh-btn" onClick={() => cerrar("no")}>{st.descartar}</button>}
+                <button className={"mh-btn " + (st.peligro ? "danger" : "save")} data-cyc-primary onClick={() => cerrar("si")}>
+                  <Icon name={st.peligro ? "trash" : "check"} size={15} />{st.confirmar || "Aceptar"}
+                </button>
               </div>
-              <h3 id="cfm-title">{st.titulo || (st.peligro ? "Confirmar eliminación" : "Confirmar")}</h3>
             </div>
-            <p className="confirm-msg" id="cfm-msg">{st.mensaje}</p>
-            <div className="confirm-foot">
-              {!st.soloAceptar && <button className="btn" data-cyc-cancel onClick={() => cerrar("cancelar")}>{st.cancelar || "Cancelar"}</button>}
-              {st.descartar && <button className="btn ghost-danger" onClick={() => cerrar("no")}>{st.descartar}</button>}
-              <button className={"btn " + (st.peligro ? "danger" : "primary")} data-cyc-primary onClick={() => cerrar("si")}>
-                <Icon name={st.peligro ? "trash" : "check"} size={15} />{st.confirmar || "Aceptar"}
-              </button>
-            </div>
+            <div className="confirm-body"><p className="confirm-msg" id="cfm-msg">{st.mensaje}</p></div>
           </div>
         </div>
       )}

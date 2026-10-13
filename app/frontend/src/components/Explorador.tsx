@@ -41,22 +41,12 @@ export function Explorador({ modo, onSelect, onClose, libre = true }: {
     return r;
   };
 
-  const footer = (
-    <>
-      <span className="hint" style={{ marginRight: "auto" }}>
-        {modo === "carpeta" ? "Clic para entrar; «Seleccionar» toma la carpeta actual." : "Clic en un archivo para elegirlo."}
-      </span>
-      <button className="btn" onClick={onClose}>Cancelar</button>
-      {modo === "carpeta" && (
-        <button className="btn primary" disabled={!data?.ruta} onClick={() => { if (data?.ruta) { onSelect(data.ruta); onClose(); } }}>
-          <Icon name="check" size={16} />Seleccionar esta carpeta
-        </button>
-      )}
-    </>
-  );
   return (
     <Modal title={modo === "carpeta" ? "Elegir carpeta" : "Elegir archivo"} icon="folder" size="md"
-           onClose={onClose} footer={footer}>
+           onClose={onClose}
+           aviso={modo === "carpeta" ? "Clic para entrar; «Seleccionar» toma la carpeta actual." : "Clic en un archivo para elegirlo."}
+           onSave={modo === "carpeta" ? () => { if (data?.ruta) { onSelect(data.ruta); onClose(); } } : undefined}
+           canSave={!!data?.ruta} saveLabel="Seleccionar esta carpeta" saveIcon="check">
       <div className="expl-bar">
         <button className="btn sm" disabled={!data || data.es_raiz} onClick={() => data && cargar(data.padre)} title="Subir">
           <Icon name="arrow-up" size={15} />

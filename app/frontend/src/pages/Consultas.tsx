@@ -535,7 +535,7 @@ export function Consultas() {
 
       {renombrando && (
         <Modal title="Renombrar consulta" icon="edit" size="md" onClose={() => setRenombrando(false)}
-               footer={<button className="btn primary" onClick={confirmarRenombrar}><Icon name="check" size={15} />Guardar</button>}>
+               onSave={confirmarRenombrar}>
           <div className="cq-form">
             <label className="cq-fld">
               <span>Nombre</span>
@@ -549,7 +549,7 @@ export function Consultas() {
 
       {showGuardar && (
         <Modal title="Guardar consulta" icon="save" size="md" onClose={() => setShowGuardar(false)}
-               footer={<button className="btn primary" onClick={guardarConsulta}><Icon name="check" size={15} />Guardar</button>}>
+               onSave={guardarConsulta}>
           <div className="cq-form">
             <label className="cq-fld">
               <span>Nombre</span>

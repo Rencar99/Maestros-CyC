@@ -310,7 +310,8 @@ td.center,th.center{text-align:center}
 .toggle input:checked + .tg-track{background:var(--ok)}
 .toggle input:checked + .tg-track .tg-thumb{left:20px}
 .tg-lbl{font-size:13px;font-weight:600;color:var(--ink)}
-.fg-head{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:12px}
+.fg-head{position:relative;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--ink-3);padding-bottom:9px;margin-bottom:15px}
+.fg-head::after{content:"";position:absolute;left:0;bottom:-1px;width:34px;height:2px;background:#f7931e}
 .fg-head h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-2);margin:0;padding:0;border:none}
 .fact-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:4px 0 10px}
 .fact-tots{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -367,17 +368,19 @@ td.center,th.center{text-align:center}
 
 /* Varios */
 .confirm-ov{position:fixed;inset:0;background:rgba(15,25,40,.5);z-index:200;display:grid;place-items:center;padding:20px;animation:cf-fade .15s ease}
-.confirm-card{background:var(--card);border-radius:16px;box-shadow:0 24px 60px rgba(15,25,40,.35);width:min(460px,94vw);padding:22px 24px 18px;animation:cf-rise .2s cubic-bezier(.2,.7,.2,1)}
-.confirm-head{display:flex;align-items:center;gap:13px;margin-bottom:12px}
-.confirm-ic{width:42px;height:42px;flex:0 0 42px;border-radius:11px;display:grid;place-items:center;background:var(--info-bg);color:var(--primary)}
-.confirm-ic.peligro{background:var(--err-bg);color:var(--err)}
-.confirm-ic svg{stroke-width:1.9}
-.confirm-head h3{font-size:17px;font-weight:800;color:var(--ink);line-height:1.2}
-.confirm-msg{font-size:13.5px;color:var(--ink-2);line-height:1.55;white-space:pre-line}
-.confirm-foot{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
-.confirm-foot .btn{min-width:112px;justify-content:center}
+.confirm-card{background:var(--card);border-radius:14px;overflow:hidden;box-shadow:0 24px 60px rgba(15,25,40,.35);width:min(470px,94vw);animation:cf-rise .2s cubic-bezier(.2,.7,.2,1)}
+.confirm-body{padding:18px 20px}
+.confirm-msg{font-size:13.5px;color:var(--ink-2);line-height:1.55;white-space:pre-line;margin:0}
 .btn.ghost-danger{color:var(--err);border-color:var(--err);background:none}
 .btn.ghost-danger:hover{background:var(--err-bg)}
+/* Botón de acción CON TEXTO en el encabezado azul (confirmaciones: Aceptar/Eliminar) */
+.mh-btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 13px;border-radius:7px;border:1px solid rgba(255,255,255,.62);background:rgba(255,255,255,.08);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s}
+.mh-btn:hover{background:rgba(255,255,255,.18)}
+.mh-btn svg{stroke:currentColor;fill:none;stroke-width:1.9}
+.mh-btn.save{background:#d99b2b;border-color:#d99b2b;color:#062d65}
+.mh-btn.save:hover{background:#e5aa3d;border-color:#e5aa3d}
+.mh-btn.danger{background:#b42318;border-color:#b42318;color:#fff}
+.mh-btn.danger:hover{background:#912018;border-color:#912018}
 @keyframes cf-fade{from{opacity:0}to{opacity:1}}
 @keyframes cf-rise{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;opacity:0;transition:.25s;z-index:80;box-shadow:var(--shadow-2)}
@@ -705,7 +708,7 @@ tfoot .grid-total .grid-total-lbl{color:var(--ink-2);text-transform:uppercase;le
 /* ===================== Modal centrado (ficha) ===================== */
 .modal-ov{position:fixed;inset:0;background:rgba(9,17,32,.5);display:flex;align-items:center;justify-content:center;z-index:90;padding:24px;animation:fade .16s ease}
 .modal-card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-2);display:flex;flex-direction:column;max-height:90vh;width:100%;overflow:hidden;animation:modalRise .2s cubic-bezier(.2,.7,.2,1)}
-.modal-card.lg{max-width:1140px;width:96vw;height:min(94vh,940px)}
+.modal-card.lg{max-width:1340px;width:96vw;height:min(94vh,940px)}
 .modal-card.xl{max-width:1640px;width:97vw;height:min(94vh,960px)}
 .modal-card.md{max-width:720px}
 @keyframes modalRise{from{opacity:0;transform:translateY(12px) scale(.99)}to{opacity:1;transform:none}}
@@ -722,9 +725,32 @@ tfoot .grid-total .grid-total-lbl{color:var(--ink-2);text-transform:uppercase;le
 @media (prefers-reduced-motion: reduce){
   .modal-card,.confirm-card,.modal-ov,.confirm-ov,.modal-card.nudge,.confirm-card.nudge{animation:none !important}
 }
-.modal-head{display:flex;align-items:flex-start;gap:14px;padding:17px 22px;border-bottom:1px solid var(--line);background:var(--card)}
-.modal-head .mh-t{font-size:16px;font-weight:800;color:var(--ink)}
-.modal-head .mh-s{font-size:12px;color:var(--ink-3);margin-top:2px}
+/* Estándar Modal CyC: encabezado AZUL + símbolo CyC blanco + acciones por ícono
+   (primaria DORADA) + franja inferior crema (divisor superior dorado). */
+.modal-head{display:flex;align-items:center;gap:12px;padding:8px 12px 8px 16px;min-height:52px;background:#062d65;color:#fff}
+.modal-head .mh-t{font-size:16px;font-weight:700;color:#fff;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modal-head .mh-s{font-size:12px;color:rgba(255,255,255,.72);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mh-brand{width:26px;height:26px;object-fit:contain;flex:none;filter:brightness(0) invert(1)}
+.mh-txt{min-width:0;margin-right:auto}
+.mh-acts{display:flex;align-items:center;gap:7px;flex:none}
+.mh-sep{width:1px;height:22px;background:rgba(255,255,255,.28);margin:0 1px;flex:none}
+.mh-act{position:relative;width:34px;height:34px;border-radius:7px;border:1px solid rgba(255,255,255,.62);background:rgba(255,255,255,.08);color:#fff;cursor:pointer;display:grid;place-items:center;flex:none;transition:.15s}
+.mh-act:hover:not(:disabled){background:rgba(255,255,255,.18)}
+.mh-act:disabled{opacity:.48;cursor:not-allowed}
+.mh-act svg{stroke:currentColor;fill:none;stroke-width:1.9}
+.mh-act.save{background:#d99b2b;border-color:#d99b2b;color:#062d65}
+.mh-act.save:hover:not(:disabled){background:#e5aa3d;border-color:#e5aa3d}
+.mh-act.danger{background:#b42318;border-color:#b42318;color:#fff}
+.mh-act.danger:hover:not(:disabled){background:#912018;border-color:#912018}
+.mh-tip{position:absolute;top:calc(100% + 8px);right:0;background:#172033;color:#fff;font-size:11px;font-weight:600;padding:5px 7px;border-radius:4px;white-space:nowrap;opacity:0;pointer-events:none;transform:translateY(-3px);transition:.12s;z-index:20}
+.mh-act:hover .mh-tip{opacity:1;transform:none}
+/* Franja inferior SOLO para avisos: crema con divisor superior dorado; ícono dorado */
+.modal-aviso{display:flex;align-items:center;gap:9px;padding:10px 20px;min-height:46px;font-size:12px;font-weight:600;border-top:1px solid #e7c982;background:#fffbf2;color:#667085}
+.modal-aviso.info{color:#0a3a7a}
+.modal-aviso.warn{color:#a15c07}
+.modal-aviso.err{color:#b42318}
+.modal-aviso.ok{color:#0f766e}
+.modal-aviso svg{color:#d99b2b;stroke:currentColor;fill:none;stroke-width:1.8;flex:none}
 .modal-x{margin-left:auto;width:32px;height:32px;border-radius:8px;border:1px solid var(--line-2);background:var(--card);color:var(--ink-3);cursor:pointer;font-size:14px;line-height:1;flex:none}
 .modal-x:hover{background:var(--err-bg);color:var(--err);border-color:transparent}
 /* Navegación entre registros (← →) en la cabecera del modal */
@@ -813,11 +839,27 @@ tfoot .grid-total .grid-total-lbl{color:var(--ink-2);text-transform:uppercase;le
 /* Ficha compacta (sin scroll): modal más ancho + espacios reducidos */
 .modal-card.md{max-width:860px}
 .modal-body{padding:20px 24px}
-.modal-body .fieldgroup{margin-bottom:12px}
-.modal-body .fieldgroup>h4{margin-bottom:12px;padding-bottom:6px}
+.modal-body .fieldgroup{margin-bottom:18px}
+.modal-body .fieldgroup>h4{position:relative;margin-bottom:15px;padding-bottom:9px;border-bottom:1px solid var(--ink-3);color:var(--ink-2)}
+.modal-body .fieldgroup:not(:first-child)>h4{margin-top:4px}
+.modal-body .fieldgroup>h4::after{content:"";position:absolute;left:0;bottom:-1px;width:34px;height:2px;background:#f7931e}
 .modal-body .grid2,.modal-body .grid3{gap:9px 16px}
-.modal-body .fieldgroup>h4{color:var(--ink-2)}
 .modal-body .chk-row{padding-top:4px}
+/* Ícono de acción dentro del encabezado (label) de un campo, p.ej. "buscar archivo" */
+.f label .lbl-ic{display:inline-flex;align-items:center;justify-content:center;width:22px;height:18px;margin-left:6px;vertical-align:-3px;border:none;background:none;color:var(--azul-vivo);cursor:pointer;padding:0}
+.f label .lbl-ic:hover{color:var(--primary-h, #33506f)}
+.f label .lbl-ic svg{stroke:currentColor;fill:none;stroke-width:1.9}
+/* Interruptor (toggle) sí/no */
+.tgl{display:inline-flex;align-items:center;gap:11px;cursor:pointer;font-size:13px;color:var(--ink);user-select:none}
+.tgl.dis{cursor:not-allowed;opacity:.55}
+.tgl>input{position:absolute;opacity:0;width:0;height:0;pointer-events:none}
+.tgl-lb{font-weight:500}
+.tgl-tr{width:42px;height:23px;border-radius:23px;background:var(--line-2);position:relative;transition:.16s;flex:none}
+.tgl-kn{position:absolute;top:2.5px;left:2.5px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.16s;box-shadow:0 1px 2px rgba(15,23,42,.28)}
+.tgl.on .tgl-tr{background:var(--azul-vivo)}
+.tgl.on.green .tgl-tr{background:var(--ok)}
+.tgl.on .tgl-kn{left:21.5px}
+.tgl>input:focus-visible + .tgl-tr{box-shadow:0 0 0 3px rgba(8,54,199,.22)}
 
 /* ===== Calendario de Obligaciones ===== */
 .cal-wrap{display:flex;flex-direction:column;gap:14px}

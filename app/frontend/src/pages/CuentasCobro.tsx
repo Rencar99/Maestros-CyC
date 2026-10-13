@@ -6,7 +6,8 @@ import { Column, DataGrid } from "../components/DataGrid";
 interface Row {
   item_id: number; cliente: string; concepto: string; valor: number | null;
   emisor: string; tiene_emisor: boolean; correo: string;
-  numero: string | null; estado: string; enviado_at: string | null;
+  numero: string | null; proximo_numero: string | null; ruta: string;
+  estado: string; enviado_at: string | null;
 }
 
 const MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio",
@@ -39,12 +40,14 @@ export function CuentasCobro({ active }: { active: boolean }) {
     if (!fid) return;
     if ((await confirmar({
       titulo: "Generar cuenta de cobro",
-      mensaje: `Se asignará el número definitivo a «${r.cliente}» y se consumirá el consecutivo del emisor. No se puede deshacer.`,
+      mensaje: `Se generará la cuenta de cobro N° ${r.proximo_numero || "—"} para «${r.cliente}» por $ ${fmt(r.valor)} (emisor: ${r.emisor || "—"}).`
+        + (r.ruta ? `\n\nEl PDF se guardará en:\n${r.ruta}` : "\n\n(No hay carpeta configurada: no se guardará el PDF en disco.)")
+        + `\n\nSe consume el consecutivo del emisor. No se puede deshacer.`,
       confirmar: "Generar",
     })) !== "si") return;
     try {
       const x = await api.post(`/facturacion/${fid}/item/${r.item_id}/cuenta-cobro`, {});
-      toast(x.nueva ? `Generada ${x.numero} ✓` : `Ya existía (${x.numero})`);
+      toast(x.nueva ? `Generada ${x.numero} ✓${x.ruta ? " · PDF guardado" : ""}` : `Ya existía (${x.numero})`);
       cargar();
     } catch (e: any) { toast(e.message, true); }
   };
@@ -54,7 +57,9 @@ export function CuentasCobro({ active }: { active: boolean }) {
     if (!pend) { toast("No hay cuentas de cobro pendientes por generar (con emisor)."); return; }
     if ((await confirmar({
       titulo: "Generar cuentas de cobro",
-      mensaje: `Se asignará número definitivo a ${pend} cuenta(s) de cobro y se consumirán los consecutivos de sus emisores. No se puede deshacer.`,
+      mensaje: `Se asignará número definitivo a ${pend} cuenta(s) de cobro y se consumirán los consecutivos de sus emisores.`
+        + (rows.some((r) => !r.numero && r.tiene_emisor && r.ruta) ? " Los PDF se guardarán en la carpeta configurada." : "")
+        + " No se puede deshacer.",
       confirmar: "Generar todas",
     })) !== "si") return;
     try {
@@ -111,7 +116,7 @@ export function CuentasCobro({ active }: { active: boolean }) {
       render: (r) => r.tiene_emisor ? <span>{r.emisor}</span>
         : <span className="cc-nocorreo"><Icon name="alert" size={13} />sin emisor</span>,
     },
-    { key: "valor", label: "Valor", type: "money", sortable: true, total: true, value: (r) => r.valor || 0, render: (r) => <span>$ {fmt(r.valor)}</span> },
+    { key: "valor", label: "Valor", type: "money", sortable: true, total: true, value: (r) => r.valor || 0, formatter: (v) => "$ " + fmt(Number(v) || 0), render: (r) => <span>$ {fmt(r.valor)}</span> },
     {
       key: "numero", label: "N°", width: "100px", align: "center", value: (r) => r.numero || "",
       render: (r) => r.numero ? <span className="pill cc-num">{r.numero}</span> : <span style={{ color: "var(--ink-3)" }}>—</span>,

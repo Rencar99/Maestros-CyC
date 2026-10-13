@@ -100,49 +100,85 @@ def construir_html(*, numero: str, fecha: date, deudor: str, deudor_doc: str,
                    emisor_nombre: str, emisor_cedula: str, emisor_direccion: str,
                    emisor_celular: str, nota_383: bool, concepto: str, valor,
                    pago_banco: str, pago_tipo: str, pago_numero: str, pago_titular: str) -> str:
+    """HTML de la cuenta de cobro con diseño: encabezado del EMISOR (quien cobra),
+    secciones en marcos, valor destacado, nota 383 condicional y firma del emisor."""
     f = fecha
     fecha_txt = f"{f.day:02d}/{f.month:02d}/{f.year}"
     letras = num_a_letras(valor)
-    nota = (f'<p class="nota">{escape(_NOTA_383)}</p>') if nota_383 else ""
+    ini = ("".join(p[0] for p in emisor_nombre.split()[:2]).upper()) or "·"
+    nota = (f'<div class="nota"><b>Nota (art. 383 ET):</b> {escape(_NOTA_383)}</div>') if nota_383 else ""
+    firma_extra = ""
+    if emisor_direccion.strip():
+        firma_extra += f"<br>Dirección: {escape(emisor_direccion)}"
+    if emisor_celular.strip():
+        firma_extra += f"<br>Celular: {escape(emisor_celular)}"
     return f"""<!doctype html><html lang="es"><head><meta charset="utf-8">
 <style>
-  @page {{ size: Letter; margin: 2.4cm 2.6cm; }}
-  * {{ box-sizing: border-box; }}
-  body {{ font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a1a; font-size: 13.5px; line-height: 1.9; }}
-  .fecha {{ text-align: right; margin-bottom: 4px; }}
-  .tit {{ font-weight: 700; font-size: 15px; margin: 2px 0 22px; }}
-  .lbl {{ color: #555; margin: 14px 0 2px; }}
-  .val {{ margin: 0; }}
-  .suma b {{ font-size: 14.5px; }}
-  .pago {{ margin-top: 22px; font-size: 12.5px; color: #333; }}
-  .nota {{ margin-top: 12px; font-size: 11.5px; color: #555; }}
-  .firma {{ margin-top: 54px; }}
-  .firma .linea {{ width: 260px; border-top: 1px solid #333; padding-top: 4px; font-size: 12.5px; line-height: 1.6; }}
+  @page {{ size: Letter; margin: 0; }}
+  * {{ box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+  body {{ font-family: 'Segoe UI', Arial, sans-serif; color: #1a2332; font-size: 13px; margin: 0; }}
+  .hd {{ background: #062d65; color: #fff; padding: 24px 40px; display: flex; align-items: center; justify-content: space-between; }}
+  .hd .em {{ display: flex; align-items: center; gap: 14px; }}
+  .hd .ava {{ width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,.12); display: flex; align-items: center; justify-content: center; color: #f7931e; font-weight: 700; font-size: 16px; }}
+  .hd .emn {{ font-size: 16.5px; font-weight: 600; }}
+  .hd .emc {{ font-size: 11.5px; color: rgba(255,255,255,.72); margin-top: 2px; }}
+  .hd .doc {{ text-align: right; }}
+  .hd .kic {{ font-size: 11px; letter-spacing: 2.5px; color: #f7931e; font-weight: 600; }}
+  .hd .num {{ font-size: 23px; font-weight: 700; line-height: 1.1; }}
+  .hd .fec {{ font-size: 11.5px; color: rgba(255,255,255,.78); margin-top: 3px; }}
+  .bd {{ padding: 28px 40px; }}
+  .box {{ border: 1px solid #e2e6ec; border-radius: 9px; padding: 12px 16px; margin-bottom: 15px; }}
+  .lbl {{ font-size: 10px; letter-spacing: 1px; color: #8792a3; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }}
+  .box.deu {{ border-left: 3px solid #062d65; }}
+  .nm {{ font-weight: 700; font-size: 14.5px; }}
+  .sub {{ font-size: 12.5px; color: #5d6b7e; margin-top: 3px; }}
+  .suma {{ border-color: #cfe0f2; background: #f3f8fd; display: flex; align-items: baseline; justify-content: space-between; gap: 18px; }}
+  .suma .lbl {{ color: #185fa5; }}
+  .suma .let {{ font-size: 12.5px; color: #5d6b7e; margin-top: 4px; font-style: italic; }}
+  .suma .amt {{ font-size: 27px; font-weight: 800; color: #062d65; white-space: nowrap; }}
+  .box.pago {{ background: #fafbfc; }}
+  .pago-tx {{ font-size: 12.5px; color: #44474b; line-height: 1.65; }}
+  .nota {{ font-size: 11px; color: #667085; line-height: 1.6; border-top: 1px dashed #e2e6ec; padding-top: 12px; margin-bottom: 4px; }}
+  .nota b {{ color: #854f0b; }}
+  .firma {{ margin-top: 30px; }}
+  .firma .cor {{ font-size: 12.5px; color: #5d6b7e; margin-bottom: 34px; }}
+  .firma .ln {{ border-top: 1px solid #333; width: 280px; padding-top: 6px; font-size: 12.5px; line-height: 1.7; }}
 </style></head><body>
-  <div class="fecha">{fecha_txt}</div>
-  <div class="tit">Cuenta de cobro N° {escape(numero)}</div>
-
-  <p class="val"><b>{escape(deudor)}</b><br>{escape(deudor_doc)}</p>
-
-  <p class="lbl">Debe a:</p>
-  <p class="val">{escape(emisor_nombre)}<br>Identificada con cédula de ciudadanía N° {escape(emisor_cedula)}</p>
-
-  <p class="lbl">La suma de:</p>
-  <p class="val suma"><b>$ {_miles(valor)}</b> ({escape(letras)})</p>
-
-  <p class="lbl">Por concepto de:</p>
-  <p class="val">{escape(concepto)}</p>
-
-  <p class="pago">Por favor efectuar el pago en: consignación en la cuenta de {escape(pago_tipo)} N° {escape(pago_numero)} a nombre de {escape(pago_titular)} del banco {escape(pago_banco)}.</p>
-  {nota}
-
-  <p class="lbl" style="margin-top:22px">Cordialmente,</p>
-  <div class="firma"><div class="linea">
-    {escape(emisor_nombre)}<br>
-    C.C. {escape(emisor_cedula)}<br>
-    Dirección: {escape(emisor_direccion)}<br>
-    Celular: {escape(emisor_celular)}
-  </div></div>
+  <div class="hd">
+    <div class="em">
+      <div class="ava">{escape(ini)}</div>
+      <div><div class="emn">{escape(emisor_nombre)}</div><div class="emc">C.C. {escape(emisor_cedula)}</div></div>
+    </div>
+    <div class="doc">
+      <div class="kic">CUENTA DE COBRO</div>
+      <div class="num">N° {escape(numero)}</div>
+      <div class="fec">{fecha_txt}</div>
+    </div>
+  </div>
+  <div class="bd">
+    <div class="box deu">
+      <div class="lbl">Deudor</div>
+      <div class="nm">{escape(deudor)}</div>
+      <div class="sub">{escape(deudor_doc)}</div>
+    </div>
+    <div class="box suma">
+      <div><div class="lbl">La suma de</div><div class="let">{escape(letras)}</div></div>
+      <div class="amt">$ {_miles(valor)}</div>
+    </div>
+    <div class="box">
+      <div class="lbl">Por concepto de</div>
+      <div style="font-size:13.5px">{escape(concepto)}</div>
+    </div>
+    <div class="box pago">
+      <div class="lbl">Forma de pago</div>
+      <div class="pago-tx">Consignación en la cuenta de <b>{escape(pago_tipo)} N° {escape(pago_numero)}</b> del banco <b>{escape(pago_banco)}</b> a nombre de <b>{escape(pago_titular)}</b>.</div>
+    </div>
+    {nota}
+    <div class="firma">
+      <div class="cor">Cordialmente,</div>
+      <div class="ln"><b>{escape(emisor_nombre)}</b><br>C.C. {escape(emisor_cedula)}{firma_extra}</div>
+    </div>
+  </div>
 </body></html>"""
 
 

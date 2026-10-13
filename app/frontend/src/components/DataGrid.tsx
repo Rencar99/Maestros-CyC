@@ -4,6 +4,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 // vive en «./Icon» y en Maestros en «../ui». Sin esta indirección, la misma
 // copia no sirve para las dos y vuelven a bifurcarse. Ver cyc-grid-deps.ts.
 import { Icon, exportarExcel, toast } from "./cyc-grid-deps";
+// Lo que el componente necesita para cumplir el estándar por sí mismo: el asa
+// de columnas y el menú de totales. El resto de la tabla sigue vistiéndose con
+// la hoja del aplicativo.
+import "./cyc-grid-react.css";
 
 /** Tipo de columna: define alineación y formato por defecto (Estándar C&C §8). */
 export type ColType = "text" | "code" | "date" | "money" | "status" | "actions";
@@ -155,14 +159,23 @@ function SortRow(props: { dir: "asc" | "desc" | null; onSort: (d: "asc" | "desc"
 }
 
 /** Casilla "Totalizar columna" (solo aparece si la columna admite totales). */
-function TotalRow(props: { on: boolean; onToggle: () => void }) {
-  return (
-    <label className="fp-totrow">
-      <input type="checkbox" checked={props.on} onChange={props.onToggle} />
-      Totalizar columna
-    </label>
-  );
-}
+/* Totales por columna (Estándar §2.6). Suma, Máximo, Mínimo y Promedio solo
+   tienen sentido donde hay valores; los dos recuentos sirven en cualquier
+   columna, también de texto, que es donde más se usan en un maestro. */
+export type FuncionTotal = "suma" | "maximo" | "minimo" | "promedio" | "recuento" | "recuento_unico";
+
+const MENU_VALORES = ["suma", "-", "maximo", "minimo", "-", "promedio",
+  "-", "recuento", "recuento_unico", "-", "ninguno"] as const;
+const MENU_TEXTO = ["recuento", "recuento_unico", "-", "ninguno"] as const;
+
+/** La marca que queda en el encabezado cuando la columna está totalizada. */
+const MARCA_TOTAL: Record<FuncionTotal, string> = {
+  suma: "Σ", maximo: "máx", minimo: "mín", promedio: "x̄", recuento: "n", recuento_unico: "n≠",
+};
+const ETIQUETA_TOTAL: Record<FuncionTotal, string> = {
+  suma: "Suma", maximo: "Máximo", minimo: "Mínimo", promedio: "Promedio",
+  recuento: "Recuento", recuento_unico: "Recuento único",
+};
 
 /** Popover de filtro: lista los valores DISTINTOS de la columna (multi-selección)
  *  más un buscador para acotar cuando hay muchos (autofiltro tipo Excel, §5). */
@@ -177,9 +190,6 @@ function FilterPop(props: {
   onClear: () => void;
   sortDir: "asc" | "desc" | null;
   onSort: (d: "asc" | "desc") => void;
-  colTotal: boolean;
-  totalOn: boolean;
-  onToggleTotal: () => void;
 }) {
   const [q, setQ] = useState("");
   const ref = useRef<HTMLInputElement>(null);
@@ -212,7 +222,6 @@ function FilterPop(props: {
           </div>
         </>
       )}
-      {props.colTotal && <TotalRow on={props.totalOn} onToggle={props.onToggleTotal} />}
     </div>
   );
 }
@@ -240,9 +249,6 @@ function DateFilterPop(props: {
   onClear: () => void;
   sortDir: "asc" | "desc" | null;
   onSort: (d: "asc" | "desc") => void;
-  colTotal: boolean;
-  totalOn: boolean;
-  onToggleTotal: () => void;
 }) {
   const esFecha = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
   const fechas = props.distintos.filter((d) => esFecha(d.valor));
@@ -331,7 +337,6 @@ function DateFilterPop(props: {
           </label>
         ))}
       </div>
-      {props.colTotal && <TotalRow on={props.totalOn} onToggle={props.onToggleTotal} />}
     </div>
   );
 }
@@ -352,8 +357,11 @@ export function DataGrid<T>({
   const [anchor, setAnchor] = useState<{ r: number; c: number } | null>(null);
   const [copiado, setCopiado] = useState(0);
   const [tip, setTip] = useState<{ t: string; x: number; y: number } | null>(null);  // tooltip azul en celda truncada
-  const [totals, setTotals] = useState<Record<string, boolean>>(
-    () => Object.fromEntries((defaultTotals || []).map((k) => [k, true])));  // columnas totalizadas
+  // Qué función tiene puesta cada columna. `defaultTotals` sigue recibiendo
+  // keys y significa Suma, que es lo que hacía antes de existir el menú.
+  const [totals, setTotals] = useState<Record<string, FuncionTotal>>(
+    () => Object.fromEntries((defaultTotals || []).map((k) => [k, "suma" as FuncionTotal])));
+  const [menuTotal, setMenuTotal] = useState<string | null>(null);  // ▼ abierto en el pie
   const [q, setQ] = useState("");                 // buscador global (solo si searchable)
   const [expOpen, setExpOpen] = useState(false);  // menú del botón Exportar
   const draggingRef = useRef(false);
@@ -394,7 +402,23 @@ export function DataGrid<T>({
     try { localStorage.setItem(WKEY, JSON.stringify(colW)); } catch { /* ignore */ }
   }, [colW, WKEY]);
 
-  // Orden de columnas (reordenable arrastrando la etiqueta del encabezado). Persiste por grilla.
+  // La función de total elegida se recuerda por pantalla (Estándar §2.6).
+  const TOTKEY = storageKey ? "mx_coltot_" + storageKey : "";
+  useEffect(() => {
+    if (!TOTKEY) return;
+    try {
+      const guardado = JSON.parse(localStorage.getItem(TOTKEY) || "null");
+      if (guardado && typeof guardado === "object") setTotals(guardado);
+    } catch { /* ignore */ }
+    // Solo al montar: después manda lo que elija el usuario.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [TOTKEY]);
+  useEffect(() => {
+    if (!TOTKEY) return;
+    try { localStorage.setItem(TOTKEY, JSON.stringify(totals)); } catch { /* ignore */ }
+  }, [totals, TOTKEY]);
+
+  // Orden de columnas (reordenable desde el asa del encabezado). Persiste por grilla.
   const ORDKEY = storageKey ? "mx_colord_" + storageKey : "";
   const [colOrder, setColOrder] = useState<string[]>(() => {
     if (!ORDKEY) return columns.map((c) => c.key);
@@ -416,14 +440,29 @@ export function DataGrid<T>({
   }, [columns, colOrder]);
   const dragKey = useRef<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
+  // La columna de acciones queda fija al final: ni se mueve ni recibe otra
+  // encima (Estándar §2.5).
+  const esAccion = (col: Column<T>) => col.type === "actions";
   const reordenar = (destino: string) => {
     const origen = dragKey.current;
     if (!origen || origen === destino) return;
+    const colDestino = ocols.find((c) => c.key === destino);
+    if (colDestino && esAccion(colDestino)) return;
     const base = ocols.map((c) => c.key);
     const sinOrigen = base.filter((k) => k !== origen);
     const idx = sinOrigen.indexOf(destino);
     sinOrigen.splice(idx < 0 ? sinOrigen.length : idx, 0, origen);
     setColOrder(sinOrigen);
+  };
+  // Mover con el teclado: ← y → cuando el asa tiene el foco (Estándar §2.5).
+  const moverCon = (key: string, paso: -1 | 1) => {
+    const base = ocols.map((c) => c.key);
+    const i = base.indexOf(key);
+    const j = i + paso;
+    if (i < 0 || j < 0 || j >= base.length) return;
+    if (esAccion(ocols[j])) return;
+    [base[i], base[j]] = [base[j], base[i]];
+    setColOrder(base);
   };
   const resetGrid = () => {
     setColW({}); setColOrder(columns.map((c) => c.key));
@@ -533,6 +572,18 @@ export function DataGrid<T>({
     document.addEventListener("keydown", onEsc);
     return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onEsc); };
   }, [openFilter]);
+
+  // El ▼ del pie se cierra igual que el del encabezado: clic fuera o Escape.
+  useEffect(() => {
+    if (!menuTotal) return;
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest(".cyc-grid-summary")) setMenuTotal(null);
+    };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuTotal(null); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onEsc);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onEsc); };
+  }, [menuTotal]);
 
   useEffect(() => {
     if (!expOpen) return;
@@ -692,13 +743,28 @@ export function DataGrid<T>({
   };
 
   // ---- Fila de totales (columnas marcadas con total / totalizadas por el usuario) ----
-  const hayTotales = columns.some((c) => totals[c.key]);
-  const sumaDe = (col: Column<T>) =>
-    view.reduce((acc, row) => {
-      const raw = col.value ? col.value(row) : (row as Record<string, unknown>)[col.key];
-      const n = typeof raw === "number" ? raw : Number(String(raw ?? "").replace(/[^\d.-]/g, ""));
-      return acc + (isNaN(n) ? 0 : n);
-    }, 0);
+  const crudoDe = (col: Column<T>, row: T) =>
+    col.value ? col.value(row) : (row as Record<string, unknown>)[col.key];
+  const numerosDe = (col: Column<T>) =>
+    view.map((row) => {
+      const raw = crudoDe(col, row);
+      return typeof raw === "number" ? raw : Number(String(raw ?? "").replace(/[^\d.-]/g, ""));
+    }).filter((n) => !isNaN(n));
+  /* Los recuentos cuentan LO QUE SE VE y sin las celdas vacías (Estándar §2.6).
+     Todo se calcula sobre `view`, que ya trae búsqueda y filtros aplicados. */
+  const textosDe = (col: Column<T>) =>
+    view.map((row) => String(crudoDe(col, row) ?? "").trim()).filter((t) => t !== "");
+
+  const totalDe = (col: Column<T>, fn: FuncionTotal): { valor: number; entero: boolean } => {
+    if (fn === "recuento") return { valor: textosDe(col).length, entero: true };
+    if (fn === "recuento_unico") return { valor: new Set(textosDe(col)).size, entero: true };
+    const ns = numerosDe(col);
+    if (!ns.length) return { valor: 0, entero: false };
+    if (fn === "suma") return { valor: ns.reduce((a, n) => a + n, 0), entero: false };
+    if (fn === "maximo") return { valor: Math.max(...ns), entero: false };
+    if (fn === "minimo") return { valor: Math.min(...ns), entero: false };
+    return { valor: ns.reduce((a, n) => a + n, 0) / ns.length, entero: false };
+  };
 
   // Resalta la coincidencia del buscador global en celdas de texto (sin render propio).
   const resaltar = (txt: string): ReactNode => {
@@ -766,14 +832,12 @@ export function DataGrid<T>({
                   ? (sortKey === col.key ? (sortDir === "asc" ? "ascending" : "descending") : "none")
                   : undefined;
                 const thW = colW[col.key] ? `${colW[col.key]}px` : col.width;
-                const conMenu = col.filterable || admiteTotal(col);
+                const conMenu = !!col.filterable;
                 const f = fz(ci);
                 return (
                   <th key={col.key} scope="col" aria-sort={ariaSort as never}
                       className={[col.sortable ? "sortable" : "", "th-move", dragOver === col.key ? "th-drag-over" : "", f?.cls].filter(Boolean).join(" ") || undefined}
                       style={{ textAlign: alignOf(col), width: thW, minWidth: col.minWidth, left: f?.left }}
-                      draggable
-                      onDragStart={(e) => { dragKey.current = col.key; e.dataTransfer.effectAllowed = "move"; }}
                       onDragOver={(e) => { e.preventDefault(); if (dragKey.current && dragKey.current !== col.key) setDragOver(col.key); }}
                       onDragLeave={() => setDragOver((k) => (k === col.key ? null : k))}
                       onDrop={(e) => { e.preventDefault(); reordenar(col.key); setDragOver(null); dragKey.current = null; }}
@@ -783,6 +847,13 @@ export function DataGrid<T>({
                       <button type="button" className="th-sort" onClick={() => toggleSort(col)}
                               disabled={!col.sortable}>
                         {col.label}
+                        {/* Qué hay en la fila de totales, sin bajar a mirarla. */}
+                        {totals[col.key] && (
+                          <span className="cyc-grid-summary-mark"
+                                title={`${ETIQUETA_TOTAL[totals[col.key]]} en la fila de totales`}>
+                            {MARCA_TOTAL[totals[col.key]]}
+                          </span>
+                        )}
                         {col.sortable && (
                           <span className="sort-arrow" aria-hidden="true">
                             {sortKey === col.key ? (sortDir === "asc" ? "▲" : "▼") : ""}
@@ -794,6 +865,22 @@ export function DataGrid<T>({
                                 aria-label={`Menú de ${col.label}`} aria-expanded={openFilter?.key === col.key}
                                 title="Filtrar / ordenar" onClick={(e) => clickFilter(e, col.key)}>▼</button>
                       )}
+                      {/* El encabezado completo NO se arrastra: competía con el clic
+                          para ordenar y un arrastre corto terminaba ordenando la
+                          tabla sola. Se mueve desde el asa (Estándar §2.5). */}
+                      {esAccion(col)
+                        ? <span className="cyc-grid-move-hueco" aria-hidden="true" />
+                        : (
+                          <span className="cyc-grid-move" draggable role="button" tabIndex={0}
+                                title={`Mover la columna ${col.label} · flechas ← → con el foco aquí`}
+                                aria-label={`Mover la columna ${col.label}`}
+                                onDragStart={(e) => { dragKey.current = col.key; e.dataTransfer.effectAllowed = "move"; }}
+                                onKeyDown={(e) => {
+                                  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+                                  e.preventDefault(); e.stopPropagation();
+                                  moverCon(col.key, e.key === "ArrowLeft" ? -1 : 1);
+                                }}>⋮⋮</span>
+                        )}
                       </>)}
                     </span>
                     <span className="col-resizer" role="separator" aria-hidden="true"
@@ -860,23 +947,67 @@ export function DataGrid<T>({
               </tr>
             )}
           </tbody>
-          {hayTotales && view.length > 0 && (
+          {/* Fila de totales como la del Liquidador: TODA columna lleva su ▼
+              abajo a la izquierda —también las de texto, donde sirven los
+              recuentos— y el valor va solo, alineado como su columna. El menú
+              del encabezado es solo filtro; el total no se elige desde ahí. */}
+          {view.length > 0 && (
             <tfoot>
               <tr className="grid-total">
                 {ocols.map((col, i) => {
                   const f = fz(i);
-                  if (f && !totals[col.key]) return <td key={col.key} className={"tot " + f.cls} style={{ left: f.left }}>{i === 0 ? "Total" : ""}</td>;
-                  if (totals[col.key]) {
-                    const s = sumaDe(col);
-                    // El total se escribe con el mismo formato que las celdas de su columna.
-                    const txt = col.formatter ? col.formatter(s, undefined as unknown as T)
-                      : col.type === "money" ? "$ " + nfMoney.format(s) : nfInt.format(s);
-                    const a = alignOf(col);
-                    return <td key={col.key} className={"tot " + (a === "right" || col.type === "money" ? "al-r" : a === "center" ? "al-c" : "")}>{txt}</td>;
+                  const estilo = f ? { left: f.left } : undefined;
+                  if (esAccion(col)) {
+                    return <td key={col.key} className={"cyc-grid-summary-empty " + (f?.cls || "")} style={estilo} />;
                   }
-                  return <td key={col.key} className="tot">{i === 0 ? "Total" : ""}</td>;
+                  const fn = totals[col.key];
+                  const conValores = admiteTotal(col);
+                  let txt = "";
+                  if (fn) {
+                    const { valor, entero } = totalDe(col, fn);
+                    /* Un recuento es una cantidad de filas: entero, aunque la
+                       columna sea de dinero. Lo demás, con el formato de su
+                       columna. */
+                    txt = entero ? nfInt.format(valor)
+                      : col.formatter ? col.formatter(valor, undefined as unknown as T)
+                      : col.type === "money" ? "$ " + nfMoney.format(valor) : nfInt.format(valor);
+                  }
+                  const opciones = conValores ? MENU_VALORES : MENU_TEXTO;
+                  return (
+                    <td key={col.key} className={"cyc-grid-summary-cell " + (fn ? "active " : "") + (f?.cls || "")} style={estilo}>
+                      <div className={"cyc-grid-summary" + (conValores ? " numeric" : "")}>
+                        <button type="button" className={fn ? "active" : undefined}
+                                aria-expanded={menuTotal === col.key}
+                                title={`Elegir qué mostrar en la fila de totales de ${col.label}`}
+                                aria-label={`Elegir qué mostrar en la fila de totales de ${col.label}`}
+                                onClick={(e) => { e.stopPropagation(); setMenuTotal((k) => (k === col.key ? null : col.key)); }}>▼</button>
+                        <strong title={fn ? `${ETIQUETA_TOTAL[fn]} de ${col.label}: ${txt}` : ""}>{txt}</strong>
+                        {menuTotal === col.key && (
+                          <div className="cyc-grid-summary-menu" role="menu">
+                            {opciones.map((modo, j) => modo === "-"
+                              ? <div key={`sep${j}`} className="cyc-grid-summary-sep" />
+                              : (
+                                <button key={modo} type="button" role="menuitem"
+                                        className={(fn || "ninguno") === modo ? "elegida" : undefined}
+                                        onClick={() => {
+                                          setTotals((t) => {
+                                            const siguiente = { ...t };
+                                            if (modo === "ninguno") delete siguiente[col.key];
+                                            else siguiente[col.key] = modo as FuncionTotal;
+                                            return siguiente;
+                                          });
+                                          setMenuTotal(null);
+                                        }}>
+                                  {modo === "ninguno" ? "Ninguno" : ETIQUETA_TOTAL[modo as FuncionTotal]}
+                                </button>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  );
                 })}
-                {actions && <td className="tot" />}
+                {actions && <td className="cyc-grid-summary-empty" />}
               </tr>
             </tfoot>
           )}
@@ -893,9 +1024,6 @@ export function DataGrid<T>({
           onClear={() => setSel(openFilter.key, [])}
           sortDir={sortKey === openFilter.key ? sortDir : null}
           onSort={(d) => sortByKey(openFilter.key, d)}
-          colTotal={!!colMenu && admiteTotal(colMenu)}
-          totalOn={!!totals[openFilter.key]}
-          onToggleTotal={() => setTotals((t) => ({ ...t, [openFilter.key]: !t[openFilter.key] }))}
         />
       ) : (
         <FilterPop
@@ -914,9 +1042,6 @@ export function DataGrid<T>({
           onClear={() => setSel(openFilter.key, [])}
           sortDir={sortKey === openFilter.key ? sortDir : null}
           onSort={(d) => sortByKey(openFilter.key, d)}
-          colTotal={!!colMenu && admiteTotal(colMenu)}
-          totalOn={!!totals[openFilter.key]}
-          onToggleTotal={() => setTotals((t) => ({ ...t, [openFilter.key]: !t[openFilter.key] }))}
         />
       ))}
       {copiado > 0 && (

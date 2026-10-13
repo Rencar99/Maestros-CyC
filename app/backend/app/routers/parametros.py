@@ -20,6 +20,7 @@ _COBRO_DEF = {
     "cobro_tipo_cuenta": "Ahorros",
     "cobro_numero_cuenta": "78400013127",
     "cobro_titular": "Cardona & Cardona Consultores S.A.S",
+    "cobro_carpeta": "",     # carpeta base donde se guardan los PDF de las cuentas de cobro
 }
 
 
@@ -42,6 +43,7 @@ class CobroIn(BaseModel):
     tipo_cuenta: str = ""
     numero_cuenta: str = ""
     titular: str = ""
+    carpeta: str = ""
 
 
 def _cobro(session: Session) -> dict:
@@ -50,6 +52,7 @@ def _cobro(session: Session) -> dict:
         "tipo_cuenta": _get(session, "cobro_tipo_cuenta", _COBRO_DEF["cobro_tipo_cuenta"]),
         "numero_cuenta": _get(session, "cobro_numero_cuenta", _COBRO_DEF["cobro_numero_cuenta"]),
         "titular": _get(session, "cobro_titular", _COBRO_DEF["cobro_titular"]),
+        "carpeta": _get(session, "cobro_carpeta", _COBRO_DEF["cobro_carpeta"]),
     }
 
 
@@ -66,6 +69,7 @@ def guardar_cobro(data: CobroIn, session: Session = Depends(get_session),
     _set(session, "cobro_tipo_cuenta", data.tipo_cuenta.strip())
     _set(session, "cobro_numero_cuenta", data.numero_cuenta.strip())
     _set(session, "cobro_titular", data.titular.strip())
+    _set(session, "cobro_carpeta", data.carpeta.strip())
     session.commit()
     return _cobro(session)
 

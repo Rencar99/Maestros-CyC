@@ -7,6 +7,7 @@ agregar filas manuales (Año/Eventual), guarda el histórico y exporta a Excel.
 from __future__ import annotations
 
 import io
+import os
 import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -588,6 +589,20 @@ def _cc_html(cc: "CuentaCobro") -> str:
         pago_numero=cc.pago_numero, pago_titular=cc.pago_titular)
 
 
+def _slug_archivo(s: str) -> str:
+    """Nombre de archivo seguro (sin caracteres inválidos de Windows)."""
+    return re.sub(r'[\\/:*?"<>|\r\n\t]+', " ", (s or "")).strip()[:70] or "cliente"
+
+
+def _ruta_cc(carpeta: str, numero: str, cliente: str, anio: int, mes: int) -> str:
+    """Ruta destino del PDF dentro de la carpeta base (organizada por año):
+    «<carpeta>\\<año>\\<N°> - CC - <cliente> - <AAAA MM>.pdf». '' si no hay carpeta."""
+    if not (carpeta or "").strip():
+        return ""
+    nombre = f"{numero} - CC - {_slug_archivo(cliente)} - {anio} {mes:02d}.pdf"
+    return os.path.join(carpeta.strip(), str(anio), nombre)
+
+
 def _generar_cc(session: Session, fid: int, item_id: int, creado_por: str) -> "tuple[CuentaCobro, bool]":
     """Genera la cuenta de cobro EN FIRME (consume el consecutivo del emisor y
     guarda la foto). Idempotente por la identidad de negocio (año, mes, cliente,
@@ -631,6 +646,20 @@ def _generar_cc(session: Session, fid: int, item_id: int, creado_por: str) -> "t
     session.add(cc)
     session.commit()
     session.refresh(cc)
+    # Guarda el PDF en la carpeta configurada (si hay). No rompe la generación si falla.
+    ruta = _ruta_cc(pago.get("carpeta", ""), numero, cc.deudor, cc.anio, cc.mes)
+    if ruta:
+        try:
+            from ..cuenta_cobro import html_a_pdf
+            os.makedirs(os.path.dirname(ruta), exist_ok=True)
+            with open(ruta, "wb") as fh:
+                fh.write(html_a_pdf(_cc_html(cc)))
+            cc.ruta_pdf = ruta
+            session.add(cc)
+            session.commit()
+            session.refresh(cc)
+        except Exception:  # noqa: BLE001
+            pass
     return cc, True
 
 
@@ -638,6 +667,8 @@ def filas_cc(session: Session, fac: Facturacion) -> list[dict]:
     """Una fila por ítem CC de la facturación, con su número (si ya se generó),
     estado de envío, emisor y correo del cliente. Reutilizado por la sección
     'Cuentas de cobro' (módulo cobros)."""
+    from .parametros import _cobro
+    carpeta = _cobro(session).get("carpeta", "")
     items = session.exec(select(FacturacionItem).where(
         FacturacionItem.facturacion_id == fac.id)).all()
     # Cuentas de cobro del mes, indexadas por la identidad de negocio (cliente, concepto).
@@ -651,12 +682,19 @@ def filas_cc(session: Session, fac: Facturacion) -> list[dict]:
         cli = session.get(Cliente, it.cliente_id) if it.cliente_id else None
         em = session.get(Emisor, cli.emisor_id) if (cli and cli.emisor_id) else None
         cc = ccs.get((it.cliente_id, it.concepto))
+        # N° definitivo (si ya se generó) o el próximo que se asignaría (vista previa).
+        proximo = (cc.numero if cc else
+                   (f"{em.prefijo}-{em.consecutivo + 1}" if (em and em.prefijo)
+                    else (str(em.consecutivo + 1) if em else None)))
+        ruta = (cc.ruta_pdf if (cc and cc.ruta_pdf)
+                else (_ruta_cc(carpeta, proximo, it.nombre, fac.anio, fac.mes) if proximo else ""))
         out.append({
             "item_id": it.id, "cliente": it.nombre, "concepto": it.concepto,
             "valor": float(it.valor) if it.valor is not None else None,
             "emisor": em.nombre if em else "", "tiene_emisor": bool(em),
             "correo": (cli.email or "").strip() if cli else "",
             "numero": cc.numero if cc else None,
+            "proximo_numero": proximo, "ruta": ruta,
             "estado": cc.estado if cc else "pendiente",
             "enviado_at": cc.enviado_at.isoformat() if (cc and cc.enviado_at) else None,
         })
@@ -678,7 +716,7 @@ def generar_cuenta_cobro(fid: int, item_id: int, session: Session = Depends(get_
                          u: Usuario = Depends(require_perm("facturacion.editar"))):
     """Genera EN FIRME la cuenta de cobro de un ítem (quema el consecutivo)."""
     cc, nueva = _generar_cc(session, fid, item_id, u.nombre or u.usuario or "")
-    return {"item_id": item_id, "numero": cc.numero, "estado": cc.estado, "nueva": nueva}
+    return {"item_id": item_id, "numero": cc.numero, "estado": cc.estado, "nueva": nueva, "ruta": cc.ruta_pdf}
 
 
 @router.post("/{fid}/cuentas-cobro/generar")

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { Responsable } from "../types";
-import { Icon, SecTitle, useConfirm, useToast } from "../ui";
+import { Icon, SecTitle, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal } from "../components/Modal";
 import { Cat, CatSelect } from "../components/CatSelect";
@@ -180,15 +180,33 @@ function Ficha({ resp, esSuper, puede, cargos, onCargo, formaciones, prevId, nex
       onClose={onClose}
       onPrev={!nuevo && prevId != null ? () => navegar(prevId) : undefined}
       onNext={!nuevo && nextId != null ? () => navegar(nextId) : undefined}
-      footer={<>
-        {!nuevo && puede("responsables.eliminar") && <button className="btn danger" onClick={borrar}><Icon name="trash" size={15} />Eliminar</button>}
-        <span style={{ marginLeft: "auto" }} />
-        <button className="btn" onClick={onClose}><Icon name="x" size={15} />Cancelar</button>
-        <button className="btn primary" onClick={guardar}><Icon name={nuevo ? "check" : "save"} size={16} />{nuevo ? "Crear" : "Guardar cambios"}</button>
-      </>}
+      onSave={guardar} saveLabel={nuevo ? "Crear" : "Guardar cambios"} saveIcon={nuevo ? "check" : "save"}
+      extraActions={!nuevo && puede("responsables.eliminar")
+        ? <button className="mh-act danger" onClick={borrar} aria-label="Eliminar"><Icon name="trash" size={18} /><span className="mh-tip">Eliminar</span></button>
+        : undefined}
     >
           <div className="fieldgroup"><h4>Datos del responsable</h4>
-            <div className="resp-top">
+            <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
+              <div style={{ flex: 1, display: "grid", gridTemplateColumns: "150px 1fr 150px", gap: "11px 14px" }}>
+                <div className="f" style={{ gridColumn: "span 2" }}><label>Nombre <span className="req">*</span></label>
+                  <input value={r.nombre} onChange={(e) => { const v = e.target.value; set("nombre", v); if (apodoAuto) set("apodo", sugApodo(v)); }} /></div>
+                <div className="f"><label>Apodo</label>
+                  <input value={r.apodo} maxLength={3} placeholder={sugApodo(r.nombre) || "—"}
+                    style={{ width: 92, textTransform: "uppercase", textAlign: "center", letterSpacing: 2, fontWeight: 700 }}
+                    title="Iniciales para mostrar en las grillas (sugerido: nombre + apellidos)"
+                    onChange={(e) => { setApodoAuto(false); set("apodo", e.target.value.toUpperCase().replace(/[^A-ZÑ]/g, "").slice(0, 3)); }} /></div>
+
+                <div className="f"><label>Cédula</label><input value={r.cedula} onChange={(e) => set("cedula", e.target.value)} /></div>
+                <div className="f"><label>Cargo{interno ? "" : " (solo interno)"}</label>
+                  <CatSelect path="cargo" by="descripcion" items={cargos} onItems={onCargo} value={r.cargo} onChange={(v) => set("cargo", v ?? "")} disabled={!interno} /></div>
+                <div className="f"><label>Tarjeta profesional</label><input value={r.tarjeta_profesional} onChange={(e) => set("tarjeta_profesional", e.target.value)} /></div>
+
+                <div className="f"><label>Formación académica</label><select value={r.formacion_academica} onChange={(e) => set("formacion_academica", Number(e.target.value))}>{Object.entries(FORM).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+                <div className="f" style={{ gridColumn: "span 2" }}><label>Nombre de la formación</label><input value={r.formacion_nombre} list="form-list" placeholder="Ej: Contador Público" onChange={(e) => set("formacion_nombre", e.target.value)} /><datalist id="form-list">{formaciones.map((f) => <option key={f} value={f} />)}</datalist></div>
+
+                <div className="f"><label>Teléfono</label><input value={fmtTel(r.telefono)} placeholder="999-9999999" onChange={(e) => set("telefono", soloDig(e.target.value))} /></div>
+                <div className="f" style={{ gridColumn: "span 2" }}><label>Email corporativo</label><input type="email" value={r.email_corporativo} onChange={(e) => set("email_corporativo", e.target.value)} /></div>
+              </div>
               <div className="foto-up">
                 <label className="foto-drop" title="Cargar / cambiar foto">
                   {r.foto ? <img src={r.foto} alt="foto" /> : <span className="foto-ph"><Icon name="user" size={30} /></span>}
@@ -197,46 +215,17 @@ function Ficha({ resp, esSuper, puede, cargos, onCargo, formaciones, prevId, nex
                 </label>
                 {r.foto && <button type="button" className="foto-clr" title="Quitar foto" onClick={() => set("foto", "")}><Icon name="broom" size={15} /></button>}
               </div>
-              <div className="grid2" style={{ flex: 1 }}>
-                <div className="f wide">
-                  <div style={{ display: "flex", gap: 14 }}>
-                    <div className="f" style={{ flex: 1 }}><label>Nombre <span className="req">*</span></label>
-                      <input value={r.nombre} onChange={(e) => { const v = e.target.value; set("nombre", v); if (apodoAuto) set("apodo", sugApodo(v)); }} /></div>
-                    <div className="f" style={{ flex: "0 0 92px" }}><label>Apodo</label>
-                      <input value={r.apodo} maxLength={3} placeholder={sugApodo(r.nombre) || "—"}
-                        style={{ textTransform: "uppercase", textAlign: "center", letterSpacing: 2, fontWeight: 700 }}
-                        title="Iniciales para mostrar en las grillas (sugerido: nombre + apellidos)"
-                        onChange={(e) => { setApodoAuto(false); set("apodo", e.target.value.toUpperCase().replace(/[^A-ZÑ]/g, "").slice(0, 3)); }} /></div>
-                  </div>
-                </div>
-                <div className="f wide">
-                  <div style={{ display: "flex", gap: 14 }}>
-                    <div className="f" style={{ flex: "0 0 150px" }}><label>Cédula</label><input value={r.cedula} onChange={(e) => set("cedula", e.target.value)} /></div>
-                    <div className="f" style={{ flex: 1 }}><label>Cargo{interno ? "" : " (solo interno)"}</label>
-                      <CatSelect path="cargo" by="descripcion" items={cargos} onItems={onCargo}
-                        value={r.cargo} onChange={(v) => set("cargo", v ?? "")} disabled={!interno} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="grid3" style={{ marginTop: 14 }}>
-              <div className="f"><label>Formación académica</label><select value={r.formacion_academica} onChange={(e) => set("formacion_academica", Number(e.target.value))}>{Object.entries(FORM).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-              <div className="f"><label>Nombre de la formación</label><input value={r.formacion_nombre} list="form-list" placeholder="Ej: Contador Público" onChange={(e) => set("formacion_nombre", e.target.value)} /><datalist id="form-list">{formaciones.map((f) => <option key={f} value={f} />)}</datalist></div>
-              <div className="f"><label>Tarjeta profesional</label><input value={r.tarjeta_profesional} onChange={(e) => set("tarjeta_profesional", e.target.value)} /></div>
-              <div className="f"><label>Teléfono</label><input value={fmtTel(r.telefono)} placeholder="999-9999999" onChange={(e) => set("telefono", soloDig(e.target.value))} /></div>
-              <div className="f" style={{ gridColumn: "span 2" }}><label>Email corporativo</label><input type="email" value={r.email_corporativo} onChange={(e) => set("email_corporativo", e.target.value)} /></div>
             </div>
           </div>
           <div className="fieldgroup"><h4>Estado</h4>
-            <div className="chk-row">
-              <label className="chk"><input type="checkbox" checked={r.tipo === "Int"} onChange={(e) => set("tipo", e.target.checked ? "Int" : "Ext")} /> Interno de la firma</label>
-              <label className="chk"><input type="checkbox" checked={r.activo} onChange={(e) => set("activo", e.target.checked)} /> Activo</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 300 }}>
+              <Toggle label="Interno de la firma" checked={r.tipo === "Int"} onChange={(v) => set("tipo", v ? "Int" : "Ext")} />
+              <Toggle label="Activo" color="green" checked={r.activo} onChange={(v) => set("activo", v)} />
             </div>
           </div>
           <div className="fieldgroup"><h4>Acceso al aplicativo</h4>
             {interno ? (
-              <div className="grid3">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 190px 220px", gap: "9px 16px" }}>
                 {/* Señuelos ocultos: absorben el autocompletado del navegador para que no rellene la clave real */}
                 <input type="text" name="usuario-decoy" tabIndex={-1} autoComplete="username" style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none" }} />
                 <input type="password" name="clave-decoy" tabIndex={-1} autoComplete="new-password" style={{ position: "absolute", opacity: 0, height: 0, width: 0, pointerEvents: "none" }} />

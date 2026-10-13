@@ -98,7 +98,7 @@ export function ServidorConfig({ variant, onListo, onClose }: {
   if (variant === "modal") {
     return (
       <Modal title="Servidor de datos" sub="IP/host y puerto de la Postgres de la firma" icon="gear" size="md"
-        onClose={onClose || (() => {})} footer={<button className="btn" onClick={onClose}><Icon name="x" size={15} />Cerrar</button>}>
+        onClose={onClose || (() => {})}>
         {cuerpo}
       </Modal>
     );

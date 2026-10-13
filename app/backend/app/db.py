@@ -132,6 +132,9 @@ def _ensure_columns() -> None:
         # IF NOT EXISTS es defensivo para instalaciones nuevas, no re-hace el backfill).
         conn.execute(text(
             "ALTER TABLE obligaciontipo ADD COLUMN IF NOT EXISTS familia VARCHAR NOT NULL DEFAULT 'otras'"))
+        # Cuenta de cobro: ruta donde se guardó el PDF al generar en firme.
+        conn.execute(text(
+            "ALTER TABLE cuentacobro ADD COLUMN IF NOT EXISTS ruta_pdf VARCHAR NOT NULL DEFAULT ''"))
 
 
 def get_session() -> Iterator[Session]:

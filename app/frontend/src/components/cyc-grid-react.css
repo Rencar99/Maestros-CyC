@@ -1,0 +1,179 @@
+/* Grilla CyC (React) — estilos propios del componente.
+ *
+ * Hasta el 8-oct-2026 esta implementación no traía CSS: dependía por completo
+ * del index.css de cada aplicativo, que es otra vía por la que las copias se
+ * separan. Aquí vive lo que el componente necesita para cumplir el estándar por
+ * sí mismo; lo demás (tabla, encabezado, filas) sigue en la hoja del aplicativo.
+ *
+ * Los valores son los MISMOS de grilla/cyc-grid.css, a propósito: las dos
+ * implementaciones tienen que verse iguales. Si hay que cambiar un número, se
+ * cambia en las dos.
+ *
+ * Lo importa DataGrid.tsx, así que viaja con él en el Sync.
+ */
+
+/* --- Asa para mover la columna (§2.5) ------------------------------------- */
+/* El encabezado completo no se arrastra: competía con el clic para ordenar. */
+.cyc-grid-move {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  padding: 0 1px;
+  color: #93a4bb;
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: -2px;
+  cursor: grab;
+  user-select: none;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+.cyc-grid-move:hover { color: #0836c7; background: #e8edf7; }
+.cyc-grid-move:focus-visible { outline: 2px solid #0836c7; outline-offset: 1px; color: #0836c7; }
+.cyc-grid-move:active { cursor: grabbing; }
+
+/* La columna de acciones no se mueve: ocupa el mismo hueco para que los
+   encabezados no bailen. */
+.cyc-grid-move-hueco { display: inline-block; width: 11px; flex: 0 0 auto; }
+
+th.th-drag-over { box-shadow: inset 3px 0 0 #0836c7; }
+
+/* --- Fila de totales (§2.6) ----------------------------------------------- */
+/* El ▼ va siempre a la izquierda, igual en todas las columnas, y el total se
+   alinea como su columna. Ambos van en la fila 1: fijar solo la columna deja que
+   el navegador empuje el segundo elemento a una fila nueva, y el total aparece
+   pegado al borde de arriba. */
+.cyc-grid-summary {
+  position: relative;
+  display: grid;
+  grid-template-columns: 19px minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  height: 22px;
+}
+
+.cyc-grid-summary strong {
+  grid-row: 1;
+  grid-column: 2;
+  overflow: hidden;
+  padding-left: 4px;
+  color: #062d65;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Columna de valor: el total termina donde terminan sus celdas. */
+.cyc-grid-summary.numeric strong {
+  padding-right: 5px;
+  padding-left: 0;
+  text-align: right;
+}
+
+.cyc-grid-summary > button {
+  grid-row: 1;
+  grid-column: 1;
+  width: 17px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #53657c;
+  cursor: pointer;
+  font-size: 8px;
+}
+
+/* La columna que tiene total puesto se reconoce por el ámbar de la casa. */
+.cyc-grid-summary > button.active {
+  background: #d99b2b;
+  color: #062d65;
+}
+
+.cyc-grid-summary-menu {
+  position: absolute;
+  right: 0;
+  bottom: 20px;
+  z-index: 20;
+  min-width: 105px;
+  padding: 4px;
+  border: 1px solid #aebdce;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 8px 20px #20324f33;
+}
+
+.cyc-grid-summary-menu button {
+  display: block;
+  width: 100%;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 0;
+  background: #fff;
+  color: #25334a;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cyc-grid-summary-menu button:hover { background: #eef3f8; color: #062d65; }
+
+.cyc-grid-summary-menu button.elegida {
+  font-weight: 700;
+  color: #062d65;
+  background: #eef3f8;
+}
+.cyc-grid-summary-menu button.elegida::after { content: " ✓"; }
+
+/* El menú separa los grupos donde cambia la pregunta: cuánto vale, cuántos hay. */
+.cyc-grid-summary-sep {
+  height: 1px;
+  margin: 3px 0;
+  background: #d5dde8;
+}
+
+/* Marca de la función que muestra la fila de totales (Σ, máx, mín, x̄). */
+.cyc-grid-summary-mark {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: #d5e3f4;
+  color: #0a3a7a;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  vertical-align: middle;
+}
+
+/* --- La celda del pie (§2.10) ---------------------------------------------
+ * Hasta el 9-oct-2026 el kit vestía el CONTENIDO del total pero no la celda:
+ * cada aplicativo le ponía su propio fondo y su propio borde, que es
+ * exactamente la divergencia que este kit existe para evitar. Lo pidió la
+ * sesión de Maestros, que lo tenía resuelto en local.
+ *
+ * Los valores NO son una propuesta nueva: son los de grilla/cyc-grid.css, para
+ * que las dos implementaciones se vean iguales. Si cambia un número, cambia en
+ * las dos.
+ *
+ * `overflow: visible` es obligatorio: el menú de totales se despliega hacia
+ * arriba desde la celda y con overflow oculto queda cortado.
+ */
+tfoot tr.grid-total td {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  height: 23px;
+  padding: 0 2px;
+  overflow: visible;
+  border-top: 1px solid #aebdce;
+  border-right: 0;
+  border-bottom: 0;
+  background: #dbe5f2;
+}
+
+/* Una columna congelada va por encima del resto del pie al desplazarse en
+   horizontal, y por debajo del encabezado. */
+tfoot tr.grid-total td.col-frozen { z-index: 3; }

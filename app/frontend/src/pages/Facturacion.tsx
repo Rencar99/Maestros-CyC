@@ -29,6 +29,8 @@ const fmt = (v: string | number) => {
   return n.toLocaleString("es-CO");
 };
 const num = (v: string) => Math.round(Number(String(v).replace(/[^\d.-]/g, "")) || 0);
+// Formato de dinero de las grillas (celda y total) a 0 decimales, estilo Maestros.
+const money$ = (v: string | number) => "$ " + fmt(v);
 
 export function Facturacion({ usuario, active = true, goFacturacion }: { usuario: string; active?: boolean; goFacturacion?: () => void }) {
   const toast = useToast();
@@ -186,7 +188,7 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
         onChange={(e) => setF(filas.indexOf(f), { concepto: e.target.value })} />,
     },
     {
-      key: "valor", label: "Valor", type: "money", sortable: true, filterable: true, total: true, value: (f) => num(f.valor),
+      key: "valor", label: "Valor", type: "money", sortable: true, filterable: true, total: true, value: (f) => num(f.valor), formatter: money$,
       render: (f) => <input className="cell-input" style={{ textAlign: "right" }} value={fmt(f.valor)} onMouseDown={stop}
         onChange={(e) => setValor(filas.indexOf(f), e.target.value)} />,
     },
@@ -194,9 +196,9 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
       key: "forma", label: "Tipo Cobro", type: "status", filterable: true, value: (f) => f.forma,
       render: (f) => <span className={"tag " + (f.forma === "CC" ? "ext" : "int")}>{f.forma}</span>,
     },
-    { key: "iva", label: "IVA", type: "money", sortable: true, filterable: true, total: true, value: (f) => num(f.iva) },
+    { key: "iva", label: "IVA", type: "money", sortable: true, filterable: true, total: true, value: (f) => num(f.iva), formatter: money$ },
     {
-      key: "reteiva", label: "ReteIVA", type: "money", sortable: true, filterable: true, total: true,
+      key: "reteiva", label: "ReteIVA", type: "money", sortable: true, filterable: true, total: true, formatter: money$,
       value: (f) => (f.forma === "Fa" && f.rete) ? num(f.reteiva) : 0,
       render: (f) => (f.forma === "Fa" && f.rete)
         ? <span>$ {fmt(f.reteiva)}</span>
@@ -212,17 +214,17 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
     { key: "num_id", label: "Id", type: "code", sortable: true, width: "12ch", value: (g) => g.num_id || "", render: (g) => <span className="pill">{g.num_id || "—"}</span> },
     { key: "nombre", label: "Cliente", sortable: true, filterable: true, value: (g) => g.nombre || "" },
     { key: "n", label: "Servicios", type: "status", sortable: true, filterable: true, total: true, value: (g) => g.n },
-    { key: "valor", label: "Valor", type: "money", sortable: true, filterable: true, total: true, value: (g) => g.valor },
-    { key: "iva", label: "IVA", type: "money", sortable: true, filterable: true, total: true, value: (g) => g.iva },
-    { key: "reteiva", label: "ReteIVA", type: "money", sortable: true, filterable: true, total: true, value: (g) => g.reteiva },
-    { key: "neto", label: "Neto a facturar", type: "money", sortable: true, filterable: true, total: true, value: (g) => g.valor + g.iva - g.reteiva },
+    { key: "valor", label: "Valor", type: "money", sortable: true, filterable: true, total: true, value: (g) => g.valor, formatter: money$ },
+    { key: "iva", label: "IVA", type: "money", sortable: true, filterable: true, total: true, value: (g) => g.iva, formatter: money$ },
+    { key: "reteiva", label: "ReteIVA", type: "money", sortable: true, filterable: true, total: true, value: (g) => g.reteiva, formatter: money$ },
+    { key: "neto", label: "Neto a facturar", type: "money", sortable: true, filterable: true, total: true, value: (g) => g.valor + g.iva - g.reteiva, formatter: money$ },
   ];
 
   // Columnas de la lista "Facturaciones guardadas" (Grilla CyC).
   const listCols: Column<Cab>[] = [
     { key: "etiqueta", label: "Mes", sortable: true, filterable: true, value: (c) => c.etiqueta, render: (c) => <b>{c.etiqueta}</b> },
     { key: "n_items", label: "Filas", type: "status", sortable: true, align: "center", value: (c) => c.n_items },
-    { key: "total_valor", label: "Total valor", type: "money", sortable: true, total: true, value: (c) => num(c.total_valor) },
+    { key: "total_valor", label: "Total valor", type: "money", sortable: true, total: true, value: (c) => num(c.total_valor), formatter: money$ },
     { key: "creado_por", label: "Generada por", sortable: true, filterable: true, value: (c) => c.creado_por || "" },
     {
       key: "aprob", label: "Aprobación", sortable: true, filterable: true,
@@ -380,15 +382,10 @@ function AgregarServicios({ etiqueta, yaEnGrilla, onAgregar, onClose }: {
     if (!nuevas.length) { toast("Marca al menos un servicio.", true); return; }
     onAgregar(nuevas); onClose();
   };
-  const footer = (
-    <>
-      <span className="hint" style={{ marginRight: "auto" }}>Los ✓ ya están en la grilla. Marca los que facturarás este mes y ajusta el valor.</span>
-      <button className="btn" onClick={onClose}>Cancelar</button>
-      <button className="btn primary" onClick={agregar} disabled={!nSel}><Icon name="check" size={16} />Agregar {nSel || ""}</button>
-    </>
-  );
   return (
-    <Modal title="Agregar servicios (Año / Eventual)" icon="plus" size="md" onClose={onClose} footer={footer}>
+    <Modal title="Agregar servicios (Año / Eventual)" icon="plus" size="md" onClose={onClose}
+           aviso="Los ✓ ya están en la grilla. Marca los que facturarás este mes y ajusta el valor."
+           onSave={agregar} canSave={!!nSel} saveLabel={`Agregar ${nSel || ""}`.trim()} saveIcon="check">
       <div className="search" style={{ maxWidth: 360, margin: "0 0 10px" }}><Icon name="search" size={15} />
         <input placeholder="Buscar cliente o concepto…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
@@ -459,7 +456,8 @@ function FilaLibreModal({ etiqueta, clientes, pctRete, onAgregar, onClose }: {
 
   return (
     <Modal title="Fila libre" sub={etiqueta} icon="edit" size="md" onClose={onClose}
-      footer={<button className="btn primary" onClick={guardar}><Icon name="check" size={16} />Agregar</button>}>
+      onSave={guardar} saveLabel="Agregar" saveIcon="check"
+      aviso={`Valor $ ${fmt(valorN)}${forma === "Fa" ? ` · IVA $ ${fmt(iva)}${reteOn ? ` · ReteIVA $ ${fmt(reteiva)}` : ""}` : " · sin IVA (no es factura)"}`}>
       <div className="obl-cli-form">
         <label className="cq-fld"><span>Cliente (opcional)</span>
           {cli
@@ -550,20 +548,11 @@ function ImportarCobros({ onClose, onListo }: { onClose: () => void; onListo: ()
   };
 
   const R = prev?.resumen;
-  const footer = (
-    <>
-      {R && <span className="hint" style={{ marginRight: "auto" }}>
-        {R.filas_error > 0 ? `Se importarán solo las ${R.filas_ok} filas válidas; las ${R.filas_error} con error se omiten.` : "Todas las filas son válidas."}
-      </span>}
-      <button className="btn" onClick={onClose} disabled={guardando}>Cancelar</button>
-      <button className="btn primary" onClick={confirmar} disabled={!prev?.ok.length || guardando}>
-        <Icon name={guardando ? "hourglass" : "check"} size={16} />
-        {guardando ? "Creando…" : `Crear ${R?.cobros_a_crear || ""} cobro(s)`}
-      </button>
-    </>
-  );
   return (
-    <Modal title="Importar cobros desde Excel" icon="upload" size="lg" onClose={onClose} footer={footer} busy={guardando}>
+    <Modal title="Importar cobros desde Excel" icon="upload" size="lg" onClose={onClose} saving={guardando}
+           aviso={R ? (R.filas_error > 0 ? `Se importarán solo las ${R.filas_ok} filas válidas; las ${R.filas_error} con error se omiten.` : "Todas las filas son válidas.") : undefined}
+           avisoTone={R && R.filas_error > 0 ? "warn" : "info"}
+           onSave={confirmar} canSave={!!prev?.ok.length} saveLabel={`Crear ${R?.cobros_a_crear || ""} cobro(s)`} saveIcon="check">
       <div className="hint" style={{ marginBottom: 12 }}>
         Se identifican los clientes por <b>NIT</b> y los servicios por <b>nombre del rol</b>. Columnas esperadas
         (el encabezado puede variar): <b>nit</b>, nombre, <b>rol</b>, forma (Fa/CC), <b>periodo</b> (AAAA-MM),
@@ -659,27 +648,27 @@ function ValidarModal({ cab, rep, validando, carpeta, onRepick, onClose }: {
   const cols: Column<any>[] = [
     { key: "nit", label: "ID", type: "code", align: "left", sortable: true, filterable: true, width: "12ch", value: (f) => f.nit || "", render: (f) => <span className="mono">{f.nit}</span> },
     { key: "nombre", label: "Cliente", sortable: true, filterable: true, width: "36ch", value: (f) => f.nombre || "" },
-    { key: "base_esp", label: "Valor aprob.", type: "money", sortable: true, value: (f) => f.base_esp },
-    { key: "base_emi", label: "Valor emit.", type: "money", sortable: true, value: (f) => f.base_emi },
-    { key: "dif_base", label: "Dif", type: "money", sortable: true, value: (f) => f.dif_base, render: (f) => difCol(f.dif_base) },
-    { key: "iva_esp", label: "IVA aprob.", type: "money", sortable: true, value: (f) => f.iva_esp },
-    { key: "iva_emi", label: "IVA emit.", type: "money", sortable: true, value: (f) => f.iva_emi },
-    { key: "dif_iva", label: "Dif IVA", type: "money", sortable: true, value: (f) => f.dif_iva, render: (f) => difCol(f.dif_iva) },
+    { key: "base_esp", label: "Valor aprob.", type: "money", sortable: true, value: (f) => f.base_esp, formatter: money$ },
+    { key: "base_emi", label: "Valor emit.", type: "money", sortable: true, value: (f) => f.base_emi, formatter: money$ },
+    { key: "dif_base", label: "Dif", type: "money", sortable: true, value: (f) => f.dif_base, formatter: money$, render: (f) => difCol(f.dif_base) },
+    { key: "iva_esp", label: "IVA aprob.", type: "money", sortable: true, value: (f) => f.iva_esp, formatter: money$ },
+    { key: "iva_emi", label: "IVA emit.", type: "money", sortable: true, value: (f) => f.iva_emi, formatter: money$ },
+    { key: "dif_iva", label: "Dif IVA", type: "money", sortable: true, value: (f) => f.dif_iva, formatter: money$, render: (f) => difCol(f.dif_iva) },
     { key: "estado", label: "Estado", type: "status", filterable: true, value: (f) => EST[f.estado]?.lbl || f.estado, render: (f) => <span className={"val-estado " + EST[f.estado].cls}>{EST[f.estado].lbl}</span> },
     { key: "docs", label: "Fact/CC", width: "20ch", value: (f) => `${f.tipo} ${(f.numeros || []).join(", ")}`, render: (f) => <span style={{ fontSize: 11.5 }}><span className={"tipo-tag " + (f.tipo === "CC" ? "t-cc" : "t-fa")}>{f.tipo}</span> <span style={{ color: "var(--ink-3)" }}>{(f.numeros || []).join(", ")}</span></span> },
   ];
 
-  const footer = rep ? (
+  const acciones = rep ? (
     <>
-      <span style={{ marginRight: "auto", fontSize: 12, color: "var(--ink-3)" }}>Emitido — Facturas: <b>{m(R.base_emi)}</b> (IVA {m(R.iva_emi)}) · CC: <b>{m(R.cc_base_emi)}</b></span>
-      <button className="btn" onClick={onRepick}><Icon name="folder" size={15} />Otra carpeta</button>
-      <button className="btn" onClick={() => api.downloadPost("/facturacion/validar/excel", { etiqueta: cab.etiqueta, resumen: R, filas: rep.filas, filas_cc: rep.filas_cc }, `Validacion ${cab.etiqueta}.xlsx`).catch(() => {})}><Icon name="down" size={15} />Exportar Excel</button>
-      <button className="btn primary" onClick={onClose}><Icon name="check" size={15} />Cerrar</button>
+      <button className="mh-act" onClick={onRepick} aria-label="Otra carpeta"><Icon name="folder" size={18} /><span className="mh-tip">Otra carpeta</span></button>
+      <button className="mh-act" aria-label="Exportar Excel"
+        onClick={() => api.downloadPost("/facturacion/validar/excel", { etiqueta: cab.etiqueta, resumen: R, filas: rep.filas, filas_cc: rep.filas_cc }, `Validacion ${cab.etiqueta}.xlsx`).catch(() => {})}><Icon name="down" size={18} /><span className="mh-tip">Exportar Excel</span></button>
     </>
   ) : undefined;
 
   return (
-    <Modal icon="clipboard-check" size="xl" onClose={onClose} footer={footer}
+    <Modal icon="clipboard-check" size="xl" onClose={onClose} extraActions={acciones}
+      aviso={rep ? <>Emitido — Facturas: <b>{m(R.base_emi)}</b> (IVA {m(R.iva_emi)}) · CC: <b>{m(R.cc_base_emi)}</b></> : undefined}
       title={`Validar ${cab.etiqueta} · aprobada vs facturas emitidas`}>
       {carpeta && <div className="hint" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <Icon name="folder" size={14} /><span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", direction: "rtl", textAlign: "left" }}>{carpeta}</span>

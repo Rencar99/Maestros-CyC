@@ -545,6 +545,8 @@ class CuentaCobro(SQLModel, table=True):
     pago_numero: str = ""
     pago_titular: str = ""
 
+    ruta_pdf: str = ""                     # ruta donde se guardó el PDF al generar (si hay carpeta configurada)
+
     # --- Envío ---
     estado: str = "generada"               # "generada" | "enviada" | "error"
     enviado_at: Optional[datetime] = None

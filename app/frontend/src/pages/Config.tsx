@@ -4,14 +4,16 @@ import { Icon, SecTitle, useToast } from "../ui";
 import { RolesPermisos } from "./RolesPermisos";
 import { ManualUsuario } from "../components/ManualUsuario";
 import { ServidorConfig } from "../components/ServidorConfig";
+import { Explorador } from "../components/Explorador";
 
-/** Datos de pago (banco/cuenta/titular) que salen en las cuentas de cobro. Editable
- *  solo por Super; los guarda como parámetros (clave-valor) en la base compartida. */
+/** Datos de pago (banco/cuenta/titular) + carpeta donde se guardan los PDF, que usan
+ *  las cuentas de cobro. Editable solo por Super; guardado como parámetros clave-valor. */
 function DatosCobroCard() {
   const toast = useToast();
-  const [f, setF] = useState({ banco: "", tipo_cuenta: "Ahorros", numero_cuenta: "", titular: "" });
+  const [f, setF] = useState({ banco: "", tipo_cuenta: "Ahorros", numero_cuenta: "", titular: "", carpeta: "" });
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [explorar, setExplorar] = useState(false);
   useEffect(() => {
     api.get("/config/cobro").then((d: any) => setF(d)).catch((e: any) => toast(e.message, true)).finally(() => setCargando(false));
   }, []); // eslint-disable-line
@@ -33,6 +35,10 @@ function DatosCobroCard() {
               <div className="f"><label>Número de cuenta</label><input value={f.numero_cuenta} onChange={(e) => set({ numero_cuenta: e.target.value })} placeholder="Ej. 78400013127" /></div>
               <div className="f"><label>Titular</label><input value={f.titular} onChange={(e) => set({ titular: e.target.value })} placeholder="Ej. Cardona & Cardona Consultores S.A.S" /></div>
             </div>
+            <div className="f" style={{ marginTop: 10 }}><label>Carpeta de las cuentas de cobro
+              <button type="button" className="lbl-ic" title="Elegir carpeta…" onClick={() => setExplorar(true)}><Icon name="folder" size={14} /></button></label>
+              <input value={f.carpeta} onChange={(e) => set({ carpeta: e.target.value })} placeholder="Carpeta base donde se guardan los PDF (se organiza por año)" />
+            </div>
             <div style={{ marginTop: 14, padding: "10px 12px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: 8, fontSize: 12.5, lineHeight: 1.6, color: "var(--ink-2)" }}>
               <b>Así saldrá en la cuenta de cobro:</b><br />
               Por favor efectuar el pago en: consignación en la cuenta de {f.tipo_cuenta || "—"} N° {f.numero_cuenta || "—"} a nombre de {f.titular || "—"} del banco {f.banco || "—"}.
@@ -41,6 +47,7 @@ function DatosCobroCard() {
           </>
         )}
       </div>
+      {explorar && <Explorador modo="carpeta" onSelect={(ruta) => set({ carpeta: ruta })} onClose={() => setExplorar(false)} />}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { Fragment, ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { CatItem } from "../types";
-import { Icon, useConfirm, useToast } from "../ui";
+import { Icon, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal } from "../components/Modal";
 
@@ -316,7 +316,8 @@ function ObligacionModal({ obl, entidades, onEntidadCreada, onClose, onSaved }: 
   return (
     <Modal title={editando ? "Editar obligación" : "Nueva obligación"} icon="clipboard-check" size="md"
            onClose={onClose}
-           footer={<button className="btn primary" onClick={guardar}><Icon name="check" size={15} />Guardar</button>}>
+           onSave={guardar}
+           aviso={editando ? "El código y el ente son la llave estable: no se cambian en una obligación existente." : undefined}>
       <div className="obl-grid">
         <label className="cq-fld"><span>Código</span>
           <input value={f.codigo} disabled={editando} style={{ textTransform: "uppercase" }} autoFocus={!editando}
@@ -367,8 +368,8 @@ function ObligacionModal({ obl, entidades, onEntidadCreada, onClose, onSaved }: 
             <input type="number" min={1} value={f.paso_dias_habiles}
               onChange={(e) => set({ paso_dias_habiles: Number(e.target.value) || 1 })} /></label>
         </>}
-        <label className="cq-fld obl-check">
-          <input type="checkbox" checked={f.activo} onChange={(e) => set({ activo: e.target.checked })} /><span>Activa</span></label>
+        <div className="obl-wide" style={{ marginTop: 2 }}>
+          <Toggle label="Activa" color="green" checked={f.activo} onChange={(v) => set({ activo: v })} /></div>
       </div>
     </Modal>
   );
@@ -447,9 +448,9 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
         onEntidadCreada={(e) => setEntidades((prev) => [...prev, e].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")))}
         onClose={() => setEdit(null)} onSaved={load} />}
       {batchOpen && <Modal title="Revisar obligaciones DIAN — todos los clientes" icon="check-circle" size="md"
-        onClose={() => setBatchOpen(false)} footer={<button className="btn" onClick={() => setBatchOpen(false)}>Cerrar</button>}>
+        onClose={() => setBatchOpen(false)}
+        aviso={batch ? `${batch.clientes} clientes · ${batch.sin_rut} sin RUT (omitidos) · las manuales no se tocan.` : "Calculando…"}>
         {!batch ? <div className="rev-ok" style={{ color: "var(--ink-3)" }}>Calculando…</div> : <>
-          <p className="rev-note" style={{ margin: "0 0 12px" }}>{batch.clientes} clientes · {batch.sin_rut} sin RUT (omitidos). Las manuales no se tocan.</p>
           <div className="rev-sec">
             <div className="rev-h add"><Icon name="plus" size={14} />Faltan<span className="n">{batch.faltan_total}</span><span className="sp" />
               <button className="btn add sm" disabled={batchBusy || batch.faltan_total === 0} onClick={aplicarAgregarTodos}><Icon name="plus" size={14} />Agregar faltantes a todos</button></div>
@@ -486,14 +487,14 @@ function EntidadModal({ ent, onClose, onSaved }: { ent: EntidadItem; onClose: ()
   };
   return (
     <Modal title={editando ? "Editar entidad" : "Nueva entidad"} icon="landmark" size="md" onClose={onClose}
-           footer={<button className="btn primary" onClick={guardar}><Icon name="check" size={15} />Guardar</button>}>
+           onSave={guardar}>
       <div className="obl-grid">
         <label className="cq-fld obl-wide"><span>Nombre</span>
           <input value={f.nombre} autoFocus onChange={(e) => set({ nombre: e.target.value })} placeholder="Ej. DIAN" /></label>
         <label className="cq-fld"><span>Sigla</span>
           <input value={f.sigla} onChange={(e) => set({ sigla: e.target.value })} placeholder="Ej. DIAN" /></label>
-        <label className="cq-fld obl-check">
-          <input type="checkbox" checked={f.activo} onChange={(e) => set({ activo: e.target.checked })} /><span>Activa</span></label>
+        <div className="obl-wide" style={{ marginTop: 2 }}>
+          <Toggle label="Activa" color="green" checked={f.activo} onChange={(v) => set({ activo: v })} /></div>
       </div>
     </Modal>
   );
@@ -556,14 +557,14 @@ function FormularioModal({ f0, onClose, onSaved }: { f0: FormularioItem; onClose
   };
   return (
     <Modal title={editando ? "Editar formulario" : "Nuevo formulario"} icon="file" size="md" onClose={onClose}
-           footer={<button className="btn primary" onClick={guardar}><Icon name="check" size={15} />Guardar</button>}>
+           onSave={guardar}>
       <div className="obl-grid">
         <label className="cq-fld obl-wide"><span>Nombre</span>
           <input value={f.nombre} autoFocus onChange={(e) => set({ nombre: e.target.value })} placeholder="Ej. Formulario 350 (Rete Renta)" /></label>
         <label className="cq-fld obl-wide"><span>Código Calendario</span>
           <input value={f.codigo_calendario} onChange={(e) => set({ codigo_calendario: e.target.value })} placeholder="Ej. Rete_Renta" /></label>
-        <label className="cq-fld obl-check">
-          <input type="checkbox" checked={f.activo} onChange={(e) => set({ activo: e.target.checked })} /><span>Activo</span></label>
+        <div className="obl-wide" style={{ marginTop: 2 }}>
+          <Toggle label="Activo" color="green" checked={f.activo} onChange={(v) => set({ activo: v })} /></div>
       </div>
     </Modal>
   );
@@ -627,7 +628,8 @@ function EmisorModal({ em, onClose, onSaved }: { em: EmisorItem; onClose: () => 
   };
   return (
     <Modal title={editando ? "Editar emisor" : "Nuevo emisor"} icon="user" size="md" onClose={onClose}
-           footer={<button className="btn primary" onClick={guardar}><Icon name="check" size={15} />Guardar</button>}>
+           onSave={guardar}
+           aviso={`Próximo N° de cuenta de cobro: ${(f.prefijo.trim().toUpperCase() || "—")}-${Math.max(0, Number(f.consecutivo) || 0) + 1}`}>
       <div className="obl-grid">
         <label className="cq-fld obl-wide"><span>Nombre completo</span>
           <input value={f.nombre} autoFocus onChange={(e) => set({ nombre: e.target.value })} placeholder="Ej. María Bernarda Fernández Garrido" /></label>
@@ -641,10 +643,10 @@ function EmisorModal({ em, onClose, onSaved }: { em: EmisorItem; onClose: () => 
           <input value={f.prefijo} maxLength={6} onChange={(e) => set({ prefijo: e.target.value.toUpperCase() })} placeholder="Ej. MB" /></label>
         <label className="cq-fld"><span>Consecutivo (último usado)</span>
           <input type="number" min={0} value={f.consecutivo} onChange={(e) => set({ consecutivo: Number(e.target.value) })} title="El siguiente N° será este + 1" /></label>
-        <label className="cq-fld obl-check">
-          <input type="checkbox" checked={f.nota_383} onChange={(e) => set({ nota_383: e.target.checked })} /><span>Incluye nota art. 383 ET</span></label>
-        <label className="cq-fld obl-check">
-          <input type="checkbox" checked={f.activo} onChange={(e) => set({ activo: e.target.checked })} /><span>Activo</span></label>
+        <div className="obl-wide" style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 320, marginTop: 2 }}>
+          <Toggle label="Activo" color="green" checked={f.activo} onChange={(v) => set({ activo: v })} />
+          <Toggle label="Incluye nota art. 383 ET" checked={f.nota_383} onChange={(v) => set({ nota_383: v })} />
+        </div>
       </div>
     </Modal>
   );

@@ -74,7 +74,7 @@ const SECCIONES: Sec[] = [
   },
   {
     id: "clientes", titulo: "Clientes", icono: "clientes",
-    texto: "contribuyente nit documento dv rut casilla 53 regimen simple 47 periodicidad iva responsables obligaciones revisar por revisar logo cliente desde clasificacion tributaria comparar rut pestañas identificacion rep legal tributario comercial municipios ica claves gestion minimizar quitar responsabilidad navegar",
+    texto: "contribuyente nit documento dv rut casilla 53 regimen simple 47 periodicidad iva responsables obligaciones revisar por revisar representante legal sigla software objeto social contacto cliente desde clasificacion tributaria comparar rut pestañas identificacion tributario comercial municipios ica claves gestion minimizar quitar responsabilidad navegar confidencial emisor cuenta de cobro",
     cuerpo: (
       <>
         <P>👥 Catálogo general de los clientes de la firma. Cada cliente es un <b>contribuyente</b> (persona natural o jurídica) con su documento/NIT, datos de contacto, clasificación tributaria, responsables asignados, servicios, claves y obligaciones.</P>
@@ -93,8 +93,7 @@ const SECCIONES: Sec[] = [
 
         <H e="🗂️">Las pestañas de la ficha</H>
         <L>
-          <li><b>Identificación:</b> tipo, documento + DV, nombre/razón social, estado (activo/inactivo), grupo económico y <i>"cliente desde"</i>.</li>
-          <li><b>Rep. legal:</b> representante legal de las jurídicas (documento, nombre, código de representación), sigla, software contable y objeto social.</li>
+          <li><b>Identificación:</b> tipo de contribuyente, documento + DV (NIT/ID), nombre o razón social, el <b>representante legal</b> de las jurídicas (documento, nombre, código de representación), sigla, software contable, objeto social, grupo económico y los datos de contacto/ubicación.</li>
           <li><b>Tributario:</b> clasificación tributaria y responsabilidades del RUT (ver siguiente bloque).</li>
           <li><b>Comercial:</b> servicios contratados y cobros programados (alimentan <i>Facturación</i>).</li>
           <li><b>Municipios ICA:</b> municipios donde el cliente tiene ICA/ReteICA (para el calendario municipal).</li>
@@ -232,6 +231,30 @@ const SECCIONES: Sec[] = [
 
         <Nota tipo="tip">Cada facturación guarda una <b>foto</b> de los datos del momento: el histórico <b>no cambia</b> aunque luego edites el cliente.</Nota>
         <Nota tipo="tip">El editor se puede <b>minimizar</b> (botón <b>─</b>) para consultar otra pantalla y volver al borrador sin perderlo.</Nota>
+      </>
+    ),
+  },
+  {
+    id: "cobros", titulo: "Cuentas de cobro", icono: "file",
+    texto: "cuentas de cobro cc emisor emisores consecutivo prefijo nota 383 generar en firme pdf revisar enviar correo microsoft deudor nit periodo datos de cobro banco cuenta titular vista previa lote",
+    cuerpo: (
+      <>
+        <P>🧾 Genera las <b>cuentas de cobro</b> (los ítems con forma <code>CC</code>) en <b>PDF</b> y, próximamente, las <b>envía por correo</b> a los clientes. Las CC <b>no pasan</b> por el servicio automático de la DIAN (ese es solo para las facturas), por eso se manejan aquí.</P>
+
+        <H e="🖋️">Emisores (quién firma la cuenta de cobro)</H>
+        <P>Cada CC la <b>emite y firma</b> una persona (el <b>emisor</b>), con su propio <b>consecutivo</b>: un <b>prefijo</b> + número (ej. <code>MB-421</code>). Se administran en <b>Catálogos → Emisores</b> (prefijo, último consecutivo usado, nota del art. 383) y se <b>asignan por cliente</b> en la ficha → pestaña <b>Comercial</b> → <i>"Emisor de la cuenta de cobro"</i>.</P>
+
+        <H e="▶️">Paso a paso</H>
+        <OL>
+          <li>Carga el <b>emisor</b> en Catálogos → Emisores y <b>asígnalo</b> al cliente (ficha → Comercial).</li>
+          <li>En <b>Cuentas de cobro</b>, elige el <b>período</b> (mes/año). Verás los ítems <code>CC</code> de la <b>facturación guardada</b> de ese mes.</li>
+          <li><b>Generar en firme</b> 📋: asigna el <b>número definitivo</b> y <b>consume</b> el consecutivo del emisor (<i>"Generar todas"</i> lo hace en lote). No se puede deshacer.</li>
+          <li><b>Revisar</b> 📄: abre el <b>PDF</b> de la cuenta de cobro (número definitivo si ya está en firme, o <b>vista previa</b> con el siguiente número si aún no).</li>
+          <li><b>Enviar por correo</b> ✉️: <i>próximamente</i> — adjuntará el PDF al correo del cliente.</li>
+        </OL>
+
+        <Nota tipo="tip">El PDF toma los <b>datos de pago</b> (banco, tipo y N° de cuenta, titular) de <b>Configuración → Datos de cobro</b>, y la <b>nota del art. 383</b> si el emisor la tiene activada.</Nota>
+        <Nota tipo="warn">Para que una CC aparezca y se pueda generar, el mes debe tener su <b>facturación guardada</b> (de ahí salen el concepto y el valor) y el cliente debe tener un <b>emisor asignado</b>.</Nota>
       </>
     ),
   },

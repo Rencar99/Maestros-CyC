@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { CatItem, Cliente, ClienteClave, ClienteListItem, MunicipioIca, Obligacion, Responsable, Servicio } from "../types";
-import { Icon, money, SecTitle, useConfirm, useToast } from "../ui";
+import { Icon, money, SecTitle, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { CiiuCombo } from "../components/CiiuCombo";
 import { MunicipioCombo } from "../components/MunicipioCombo";
@@ -38,16 +38,12 @@ function ReplicarModal({ base, onOk, onClose }: {
   return (
     <Modal title="Replicar cobro" sub={base ? `Desde ${base}` : "Sin período base"} icon="copy" size="md"
       onClose={onClose}
-      footer={<>
-        <button className="btn" onClick={onClose}>Cancelar</button>
-        <button className="btn primary" disabled={!base || !n} onClick={() => onOk(n)}>
-          <Icon name="check" size={16} />Crear {n} período{n === 1 ? "" : "s"}</button>
-      </>}>
+      onSave={() => onOk(n)} canSave={!!base && !!n} saveLabel={`Crear ${n} período${n === 1 ? "" : "s"}`} saveIcon="check"
+      avisoTone={base ? "info" : "warn"}
+      aviso={!base ? "Este cobro no tiene período base."
+        : periodos.length ? `Se crearán ${n} período(s): ${periodos[0]} → ${periodos[periodos.length - 1]} · se copia rol, forma, valor, vendedor y % comisión; los que ya existan se omiten.`
+        : "Indica cuántos períodos crear."}>
       <div style={{ display: "grid", gap: 12 }}>
-        <p className="hint" style={{ margin: 0 }}>
-          Se crean los períodos <b>consecutivos (mensuales)</b> a partir del período base,
-          copiando rol, factura, valor, vendedor y % comisión. Los períodos que ya existan se omiten.
-        </p>
         <label style={{ display: "grid", gap: 4, maxWidth: 220 }}>
           <span className="hint">¿Cuántos períodos?</span>
           <input type="number" min={1} max={60} value={txt} autoFocus
@@ -93,10 +89,9 @@ function NuevoServicioModal({ roles, setRoles, onOk, onClose }: {
   };
   return (
     <Modal title="Nuevo cobro" sub="Se agrega a los servicios contratados" icon="plus" size="md" onClose={onClose}
-      footer={<>
-        <button className="btn" onClick={onClose}>Cancelar</button>
-        <button className="btn primary" disabled={!puede} onClick={crear}><Icon name="check" size={16} />Crear cobro</button>
-      </>}>
+      onSave={crear} canSave={puede} saveLabel="Crear cobro" saveIcon="check"
+      avisoTone={!periodoOk ? "warn" : "info"}
+      aviso={!periodoOk ? "El período debe tener formato AAAA-MM." : `Cobro ${forma} para el período ${periodo}${valor ? ` · $ ${fmtMiles(valor)}` : ""}`}>
       <div style={{ display: "grid", gap: 12 }}>
         <div className="f"><label>Rol del servicio</label>
           <CatSelect path="rol-servicio" items={roles} onItems={(n) => setRoles((p) => [...p, n])}
@@ -148,11 +143,9 @@ function ClaveModal({ portales, setPortales, clave, getClave, onOk, onClose }: {
   useEffect(() => { if (getClave) getClave().then((v) => setPass(v || "")).catch(() => {}); }, []); // eslint-disable-line
   return (
     <Modal title={editando ? "Editar clave" : "Nueva clave"} icon="lock" size="md" onClose={onClose}
-      footer={<>
-        <button className="btn" onClick={onClose}>Cancelar</button>
-        <button className="btn primary" onClick={() => onOk({ portal_id: portalId, usuario: usuario.trim(), comentario: comentario.trim(), clave: pass })}>
-          <Icon name="check" size={16} />{editando ? "Guardar" : "Crear"}</button>
-      </>}>
+      onSave={() => onOk({ portal_id: portalId, usuario: usuario.trim(), comentario: comentario.trim(), clave: pass })}
+      saveLabel={editando ? "Guardar" : "Crear"} saveIcon={editando ? "save" : "check"}
+      aviso={editando ? "La clave se guarda cifrada · dejarla vacía conserva la actual." : "La clave se guarda cifrada en el servidor."}>
       <div style={{ display: "grid", gap: 12 }}>
         <div className="f"><label>Portal</label>
           <CatSelect path="portal" items={portales} onItems={(n) => setPortales((p) => [...p, n])}
@@ -205,7 +198,7 @@ function ClavesClienteModal({ cliente, onClose }: { cliente: ClienteListItem; on
   ];
   return (
     <Modal title={`Claves — ${cliente.nombre}`} sub={cliente.num_id} icon="lock" size="md" onClose={onClose}
-      footer={<button className="btn primary" onClick={onClose}><Icon name="check" size={16} />Cerrar</button>}>
+      aviso={`${claves.length} credencial(es) registrada(s)`}>
       <DataGrid columns={cols} rows={claves} getKey={(k) => k.id} label="Claves del cliente"
         emptyLabel="Este cliente no tiene claves registradas." scrollClass="claves-modal-scroll" />
     </Modal>
@@ -409,7 +402,7 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
   );
 }
 
-const TABS = [["ident", "Identificación"], ["rep", "Rep. legal"], ["trib", "Tributario"], ["comercial", "Comercial"], ["ica", "Municipios ICA"], ["obligaciones", "Obligaciones"], ["claves", "Claves"], ["gestion", "Gestión"]] as const;
+const TABS = [["ident", "Identificación"], ["trib", "Tributario"], ["comercial", "Comercial"], ["ica", "Municipios ICA"], ["obligaciones", "Obligaciones"], ["claves", "Claves"], ["gestion", "Gestión"]] as const;
 
 interface RutDiff { label: string; actual: string; propuesto: string; check: boolean; apply: (o: Cliente) => Cliente; info?: boolean; }
 
@@ -462,7 +455,6 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   const [repIdx, setRepIdx] = useState<number | null>(null);   // fila que se está replicando
   const [soloPend, setSoloPend] = useState(false);             // grilla Comercial: solo cobros pendientes
   const [nuevoSrv, setNuevoSrv] = useState(false);             // abrir modal "Nuevo cobro"
-  const [srvSort, setSrvSort] = useState<{ key: string; dir: 1 | -1 } | null>({ key: "periodo", dir: 1 });
   const [gruposCat, setGruposCat] = useState<CatItem[]>([]);   // catálogo de grupos económicos
   const [portalesCat, setPortalesCat] = useState<CatItem[]>([]);          // catálogo de portales
   const [claves, setClaves] = useState<ClienteClave[]>([]);              // claves del cliente
@@ -527,28 +519,25 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   const addSrvObj = (s: Servicio) => setC((o) => ({ ...o, servicios: [...o.servicios, s] }));
   // Grilla de servicios en modo lectura: nombre del rol, orden y vista ordenada+filtrada.
   const rolName = (id: number | null | undefined) => roles.find((r) => r.id === id)?.descripcion || "—";
-  const toggleSort = (key: string) => setSrvSort((o) => (o?.key === key ? { key, dir: (o.dir === 1 ? -1 : 1) } : { key, dir: 1 }));
-  const srvVista = (() => {
-    const arr = srv.map((s, i) => ({ s, i })).filter(({ s }) => !soloPend || !s.facturacion_id);
-    if (srvSort) {
-      const { key, dir } = srvSort;
-      const val = (s: Servicio): string | number => {
-        switch (key) {
-          case "rol": return rolName(s.rol_servicio_id).toLowerCase();
-          case "factura": return s.forma_facturacion || "";
-          case "periodo": return s.periodo || "";
-          case "valor": return Number(s.valor_servicio || 0);
-          case "vendedor": return (s.vendedor || "").toLowerCase();
-          case "pct": return Number(s.pct_comision || 0);
-          case "estado": return s.facturacion_id ? 1 : 0;
-          default: return "";
-        }
-      };
-      arr.sort((a, b) => { const va = val(a.s), vb = val(b.s); return va < vb ? -dir : va > vb ? dir : 0; });
-    }
-    return arr;
-  })();
-  const arrow = (k: string) => (srvSort?.key === k ? <span style={{ opacity: .7, marginLeft: 3 }}>{srvSort.dir === 1 ? "▲" : "▼"}</span> : null);
+  // Filtra (Solo pendientes) y ordena por período por defecto; el DataGrid re-ordena al clic.
+  const srvVista = srv.map((s, i) => ({ s, i }))
+    .filter(({ s }) => !soloPend || !s.facturacion_id)
+    .sort((a, b) => (a.s.periodo || "").localeCompare(b.s.periodo || ""));
+  const srvCols: Column<{ s: Servicio; i: number }>[] = [
+    { key: "rol", label: "Rol del servicio", sortable: true, filterable: true, minWidth: "210px", value: (r) => rolName(r.s.rol_servicio_id) },
+    { key: "factura", label: "Factura", type: "status", sortable: true, filterable: true, width: "84px", align: "center", value: (r) => r.s.forma_facturacion || "" },
+    { key: "periodo", label: "Periodo", sortable: true, filterable: true, align: "center", width: "100px", value: (r) => r.s.periodo || "" },
+    { key: "valor", label: "Valor", type: "money", sortable: true, total: true, value: (r) => Number(r.s.valor_servicio) || 0, formatter: (v) => "$ " + Math.round(Number(v) || 0).toLocaleString("es-CO"), render: (r) => <span>{fmtMiles(r.s.valor_servicio) || "—"}</span> },
+    { key: "vendedor", label: "Vendedor", sortable: true, filterable: true, minWidth: "150px", value: (r) => r.s.vendedor || "" },
+    { key: "pct", label: "% Com.", align: "right", width: "80px", sortable: true, value: (r) => Number(r.s.pct_comision) || 0, render: (r) => <span>{r.s.pct_comision ?? "—"}</span> },
+    {
+      key: "estado", label: "Estado", type: "status", align: "center", width: "92px", sortable: true, filterable: true,
+      value: (r) => r.s.facturacion_id ? "Facturado" : "Pendiente",
+      render: (r) => r.s.facturacion_id
+        ? <span className="pill" style={{ background: "var(--ok)", color: "#fff" }} title="Facturado en este período">Fact</span>
+        : <span className="pill" title="Pendiente por facturar">Pend</span>,
+    },
+  ];
   // Replica el cobro de la fila `i` a N períodos mensuales consecutivos desde su
   // período base (omite los períodos que ya existan para el mismo rol).
   const replicarSrv = (i: number, n: number) => setC((o) => {
@@ -821,12 +810,6 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     toast("Cambios aplicados. Revisa las obligaciones y pulsa «Guardar cambios».");
   };
   const [explorar, setExplorar] = useState<{ modo: "carpeta" | "archivo"; key: keyof Cliente } | null>(null);
-  const onLogo = (file?: File) => {
-    if (!file) return;
-    const rd = new FileReader();
-    rd.onload = (e) => set("logo", String(e.target?.result || ""));
-    rd.readAsDataURL(file);
-  };
 
   const guardarRaw = async (): Promise<boolean> => {
     if (c.email_responsable_cliente && !emailOk(c.email_responsable_cliente)) {
@@ -887,18 +870,13 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
       onClose={onClose}
       onPrev={!nuevo && prevId != null ? () => navegar(prevId) : undefined}
       onNext={!nuevo && nextId != null ? () => navegar(nextId) : undefined}
-      footer={<>
-        {!nuevo && <button className="btn danger" onClick={borrar}><Icon name="trash" size={15} />Eliminar</button>}
-        <button className="btn" onClick={() => rutFileRef.current?.click()} disabled={rutCargando} title="Leer un RUT en PDF y comparar"><Icon name="upload" size={15} />Comparar con RUT</button>
-        {rutCargando
-          ? <span className="rut-cargando" title="Leyendo el RUT…"><Icon name="hourglass" size={16} />Leyendo el RUT…</span>
-          : <span className={"rut-fecha" + (c.rut_actualizado ? "" : " nunca")} title="Última toma del RUT">
-              {c.rut_actualizado ? `Actualizado: ${fmtFecha(c.rut_actualizado)}` : "Nunca comparado con RUT"}
-            </span>}
-        <span style={{ marginLeft: "auto" }} />
-        <button className="btn" onClick={onClose}><Icon name="x" size={15} />Cancelar</button>
-        <button className="btn primary" onClick={guardar}><Icon name={nuevo ? "check" : "save"} size={16} />{nuevo ? "Crear" : "Guardar cambios"}</button>
+      onSave={guardar} saveLabel={nuevo ? "Crear" : "Guardar cambios"} saveIcon={nuevo ? "check" : "save"}
+      extraActions={<>
+        {!nuevo && <button className="mh-act danger" onClick={borrar} aria-label="Eliminar"><Icon name="trash" size={18} /><span className="mh-tip">Eliminar</span></button>}
+        <button className="mh-act" onClick={() => rutFileRef.current?.click()} disabled={rutCargando} aria-label="Comparar con RUT"><Icon name="upload" size={18} /><span className="mh-tip">Comparar con RUT</span></button>
       </>}
+      avisoTone={c.rut_actualizado ? "info" : "warn"}
+      aviso={rutCargando ? "Leyendo el RUT…" : (c.rut_actualizado ? `RUT comparado: ${fmtFecha(c.rut_actualizado)}` : "Nunca comparado con RUT")}
     >
       <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
       {/* Señuelos ocultos: absorben el autocompletado del navegador (Edge/Chrome). */}
@@ -918,12 +896,17 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
           {tab === "ident" && (
             <>
             <div className="fieldgroup"><h4>Identificación</h4>
-              <div className="grid3">
+              <div style={{ display: "grid", gridTemplateColumns: "148px 118px minmax(150px,1fr) minmax(180px,1.3fr)", gap: 14, alignItems: "start" }}>
                 <div className="f"><label>Tipo de contribuyente</label><select value={c.tipo_contribuyente} onChange={(e) => setTipo(e.target.value as any)}><option value="Nat">Natural</option><option value="Jur">Jurídica</option></select></div>
                 {jur
                   ? <div className="f"><label>Tipo de documento</label><input value="NT" readOnly /></div>
                   : <div className="f"><label>Tipo de documento</label><CodeSelect path="tipo-documento" items={tiposDoc} onItems={(n) => setTiposDoc((p) => [...p, n])} value={c.tipo_documento} onChange={(v) => set("tipo_documento", v)} /></div>}
-                <div className="f"><label>Número <span className="req">*</span></label><div className="row"><div className="pw-wrap" style={{ flex: 1 }}><input style={{ paddingRight: 34 }} value={c.num_id} onChange={(e) => set("num_id", e.target.value)} /><button type="button" className="pw-eye" title="Copiar número" onClick={() => copiarId(c.num_id)}><Icon name="copy" size={15} /></button></div><input readOnly style={{ width: 56, textAlign: "center" }} value={calcDV(c.num_id)} title="DV automático" /></div></div>
+                <div className="f"><label>Número ID <span className="req">*</span></label><div className="row"><div className="pw-wrap" style={{ flex: 1 }}><input style={{ paddingRight: 34 }} value={c.num_id} onChange={(e) => set("num_id", e.target.value)} /><button type="button" className="pw-eye" title="Copiar número" onClick={() => copiarId(c.num_id)}><Icon name="copy" size={15} /></button></div><input readOnly style={{ width: 40, textAlign: "center" }} value={calcDV(c.num_id)} title="DV automático" /></div></div>
+                <div className="f"><label>Grupo económico</label>
+                  <CatSelect path="grupo-economico" items={gruposCat} onItems={(n) => setGruposCat((p) => [...p, n])}
+                    by="descripcion" value={c.grupo || ""} onChange={(v) => set("grupo", (v as string) || "")}
+                    placeholder="— Sin grupo —" />
+                </div>
               </div>
               <div className="grid2" style={{ marginTop: 14 }}>
                 {jur
@@ -936,14 +919,22 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                     <div className="f wide"><label>Nombre (como se guardará)</label><input readOnly value={componer(c) || c.nombre} /></div>
                   </>}
               </div>
-              <div className="grid2" style={{ marginTop: 14 }}>
-                <div className="f"><label>Grupo económico</label>
-                  <CatSelect path="grupo-economico" items={gruposCat} onItems={(n) => setGruposCat((p) => [...p, n])}
-                    by="descripcion" value={c.grupo || ""} onChange={(v) => set("grupo", (v as string) || "")}
-                    placeholder="— Sin grupo —" />
-                  <small style={{ color: "var(--ink-3)", marginTop: 3, display: "block" }}>Agrupa clientes de un mismo dueño (PN/PJ). Usa ＋ para crear un grupo nuevo; también se administran en Catálogos.</small>
-                </div>
+            </div>
+            <div className="fieldgroup"><h4>Representante legal {jur ? "" : "(no aplica a Persona Natural)"}</h4>
+              <div style={{ display: "grid", gridTemplateColumns: "1.5fr 0.85fr 1.8fr 0.8fr", gap: "9px 16px" }}>
+                <div className="f"><label>Tipo doc. RL</label><CodeSelect path="tipo-documento" items={tiposDoc} onItems={(n) => setTiposDoc((p) => [...p, n])} value={c.representante_tipo_documento} onChange={(v) => set("representante_tipo_documento", v)} disabled={!jur} /></div>
+                <div className="f"><label>Número doc. RL</label><div className="pw-wrap"><input style={{ paddingRight: 34 }} autoComplete="off" value={c.representante_num_id} disabled={!jur} onChange={(e) => set("representante_num_id", e.target.value)} /><button type="button" className="pw-eye" title="Copiar número" disabled={!jur} onClick={() => copiarId(c.representante_num_id)}><Icon name="copy" size={15} /></button></div></div>
+                <div className="f"><label>Código Rep.</label><select value={c.representante_codigo} disabled={!jur} onChange={(e) => set("representante_codigo", e.target.value)}><option value="">—</option>{REP_CODES.map(([cod, desc]) => <option key={cod} value={cod}>{cod} · {desc}</option>)}</select></div>
+                <div className="f"><label>Ejerce desde</label><input autoComplete="off" value={c.representante_desde} disabled={!jur} placeholder="AAAA-MM-DD" onChange={(e) => set("representante_desde", e.target.value)} /></div>
+                <div className="f" style={{ gridColumn: "span 4" }}><label>Nombre del RL</label><input autoComplete="off" value={c.representante_nombre} disabled={!jur} onChange={(e) => set("representante_nombre", e.target.value)} /></div>
               </div>
+            </div>
+            <div className="fieldgroup"><h4>Sigla, software y objeto social</h4>
+              <div className="grid2">
+                <div className="f"><label>Sigla</label><input value={c.sigla} maxLength={3} placeholder="ABC" style={{ textTransform: "uppercase" }} onChange={(e) => set("sigla", e.target.value.toUpperCase().slice(0, 3))} /></div>
+                <div className="f"><label>Software utilizado</label><CatSelect path="software" items={software} onItems={(n) => setSoftware((p) => [...p, n])} value={c.software_id} onChange={(v) => set("software_id", v as number | null)} /></div>
+              </div>
+              <div className="f wide" style={{ marginTop: 14 }}><label>Objeto social</label><textarea rows={2} value={c.objeto_social} onChange={(e) => set("objeto_social", e.target.value)} /></div>
             </div>
             <div className="fieldgroup"><h4>Contacto y ubicación</h4>
               <div className="grid2">
@@ -955,37 +946,6 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                 <div className="f"><label>Departamento</label><input value={deptoNombre(c.departamento_dane)} readOnly placeholder="— (se toma del municipio)" /></div>
               </div>
             </div>
-            </>
-          )}
-
-          {tab === "rep" && (
-            <>
-              <div className="fieldgroup"><h4>Representante legal {jur ? "" : "(no aplica a Persona Natural)"}</h4>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: "9px 16px" }}>
-                  <div className="f"><label>Tipo doc. RL</label><CodeSelect path="tipo-documento" items={tiposDoc} onItems={(n) => setTiposDoc((p) => [...p, n])} value={c.representante_tipo_documento} onChange={(v) => set("representante_tipo_documento", v)} disabled={!jur} /></div>
-                  <div className="f"><label>Número doc. RL</label><div className="pw-wrap"><input style={{ paddingRight: 34 }} autoComplete="off" value={c.representante_num_id} disabled={!jur} onChange={(e) => set("representante_num_id", e.target.value)} /><button type="button" className="pw-eye" title="Copiar número" disabled={!jur} onClick={() => copiarId(c.representante_num_id)}><Icon name="copy" size={15} /></button></div></div>
-                  <div className="f"><label>Código Rep.</label><select value={c.representante_codigo} disabled={!jur} onChange={(e) => set("representante_codigo", e.target.value)}><option value="">—</option>{REP_CODES.map(([cod, desc]) => <option key={cod} value={cod}>{cod} · {desc}</option>)}</select></div>
-                  <div className="f"><label>Ejerce desde</label><input autoComplete="off" value={c.representante_desde} disabled={!jur} placeholder="AAAA-MM-DD" onChange={(e) => set("representante_desde", e.target.value)} /></div>
-                  <div className="f" style={{ gridColumn: "span 4" }}><label>Nombre del RL</label><input autoComplete="off" value={c.representante_nombre} disabled={!jur} onChange={(e) => set("representante_nombre", e.target.value)} /></div>
-                </div>
-              </div>
-              <div className="fieldgroup"><h4>Sigla, software y objeto social</h4>
-                <div className="grid3">
-                  <div className="f"><label>Sigla</label><input value={c.sigla} maxLength={3} placeholder="ABC" style={{ textTransform: "uppercase" }} onChange={(e) => set("sigla", e.target.value.toUpperCase().slice(0, 3))} /></div>
-                  <div className="f"><label>Software utilizado</label><CatSelect path="software" items={software} onItems={(n) => setSoftware((p) => [...p, n])} value={c.software_id} onChange={(v) => set("software_id", v as number | null)} /></div>
-                  <div className="f"><label>Logo del cliente</label>
-                    <div className="logo-uploader">
-                      <label className="logo-drop" title="Cargar / cambiar logo">
-                        {c.logo ? <img src={c.logo} alt="logo" /> : <span className="logo-ph"><Icon name="image" size={20} />Cargar logo</span>}
-                        <input type="file" accept="image/*" onChange={(e) => onLogo(e.target.files?.[0])} />
-                        {c.logo && <span className="logo-ov">Cambiar</span>}
-                      </label>
-                      {c.logo && <button type="button" className="foto-clr" title="Quitar logo" onClick={() => set("logo", "")}><Icon name="broom" size={15} /></button>}
-                    </div>
-                  </div>
-                </div>
-                <div className="f wide" style={{ marginTop: 14 }}><label>Objeto social</label><textarea rows={3} value={c.objeto_social} onChange={(e) => set("objeto_social", e.target.value)} /></div>
-              </div>
             </>
           )}
 
@@ -1034,23 +994,19 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                       <input type="month" value={c.cliente_desde || ""} max="2100-12" title="Mes/año de inicio del cliente"
                         style={{ width: 150 }} onChange={(e) => set("cliente_desde", e.target.value)} />
                     </label>
-                    <label className="toggle">
-                      <input type="checkbox" checked={c.estado === "Act"} onChange={(e) => set("estado", e.target.checked ? "Act" : "Ina")} />
-                      <span className="tg-track"><span className="tg-thumb" /></span>
-                      <span className="tg-lbl">{c.estado === "Act" ? "Activo" : "Inactivo"}</span>
-                    </label>
+                    <Toggle color="green" label={c.estado === "Act" ? "Activo" : "Inactivo"}
+                      checked={c.estado === "Act"} onChange={(v) => set("estado", v ? "Act" : "Ina")} />
                     {veConf && (
-                      <label className="toggle" title="Si está activo, SOLO los supervisores (con permiso «Ver confidenciales») verán este cliente en Maestros.">
-                        <input type="checkbox" checked={!!c.confidencial} onChange={(e) => set("confidencial", e.target.checked)} />
-                        <span className="tg-track"><span className="tg-thumb" /></span>
-                        <span className="tg-lbl">🔒 Confidencial</span>
-                      </label>
+                      <Toggle label="🔒 Confidencial" checked={!!c.confidencial}
+                        onChange={(v) => set("confidencial", v)}
+                        title="Si está activo, SOLO los supervisores (con permiso «Ver confidenciales») verán este cliente en Maestros." />
                     )}
                   </div>
                 </div>
-                <div className="grid2" style={{ marginTop: 12 }}>
-                  <div className="f"><label>Ruta Propuesta Comercial</label>
-                    <div className="filebox"><input value={c.archivo_propuesta} placeholder="ruta del archivo de propuesta…" onChange={(e) => set("archivo_propuesta", e.target.value)} /><button type="button" className="btn sm" title="Buscar archivo" onClick={() => setExplorar({ modo: "archivo", key: "archivo_propuesta" })}><Icon name="file" size={14} />Examinar…</button></div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 16, marginTop: 12 }}>
+                  <div className="f"><label>Ruta Propuesta Comercial
+                    <button type="button" className="lbl-ic" title="Buscar archivo…" onClick={() => setExplorar({ modo: "archivo", key: "archivo_propuesta" })}><Icon name="folder" size={14} /></button></label>
+                    <input value={c.archivo_propuesta} placeholder="ruta del archivo de propuesta…" onChange={(e) => set("archivo_propuesta", e.target.value)} />
                   </div>
                   <div className="f"><label>Emisor de la cuenta de cobro</label>
                     <select value={c.emisor_id ?? ""} onChange={(e) => set("emisor_id", e.target.value ? Number(e.target.value) : null)} title="Quién firma y emite la cuenta de cobro (CC) de este cliente">
@@ -1063,47 +1019,21 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
               </div>
               <div className="fieldgroup srv-group">
                 <div className="fg-head"><h4>Servicios contratados</h4>
-                  <label className="toggle" title="Ocultar los cobros ya facturados">
-                    <input type="checkbox" checked={soloPend} onChange={(e) => setSoloPend(e.target.checked)} />
-                    <span className="tg-track"><span className="tg-thumb" /></span>
-                    <span className="tg-lbl">Solo pendientes</span>
-                  </label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <Toggle label="Solo pendientes" checked={soloPend} onChange={setSoloPend} title="Ocultar los cobros ya facturados" />
+                    <button className="btn primary sm" onClick={() => setNuevoSrv(true)}><Icon name="plus" size={15} />Nuevo cobro</button>
+                  </div>
                 </div>
-                <div className="tbl-wrap srv-scroll"><table className="child"><thead><tr>
-                  <th className="sortable" style={{ minWidth: 210 }} onClick={() => toggleSort("rol")}>Rol del servicio{arrow("rol")}</th>
-                  <th className="sortable" style={{ minWidth: 74 }} onClick={() => toggleSort("factura")}>Factura{arrow("factura")}</th>
-                  <th className="sortable" style={{ width: 92 }} onClick={() => toggleSort("periodo")}>Periodo{arrow("periodo")}</th>
-                  <th className="sortable" style={{ minWidth: 110, textAlign: "right" }} onClick={() => toggleSort("valor")}>Valor{arrow("valor")}</th>
-                  <th className="sortable" style={{ minWidth: 150 }} onClick={() => toggleSort("vendedor")}>Vendedor{arrow("vendedor")}</th>
-                  <th className="sortable" style={{ width: 62, textAlign: "right" }} onClick={() => toggleSort("pct")}>% Com.{arrow("pct")}</th>
-                  <th className="sortable center" style={{ width: 62 }} onClick={() => toggleSort("estado")}>Estado{arrow("estado")}</th>
-                  <th className="center" style={{ width: 70 }}><button className="add-ic" onClick={() => setNuevoSrv(true)} title="Nuevo cobro"><Icon name="plus" size={16} /></button></th>
-                </tr></thead>
-                  <tbody>
-                    {srvVista.map(({ s, i }) => {
-                      const fact = !!s.facturacion_id;
-                      return (
-                      <tr key={i} className={fact ? "row-fact" : undefined}>
-                        <td className="ro" title={rolName(s.rol_servicio_id)}>{rolName(s.rol_servicio_id)}</td>
-                        <td className="ro">{s.forma_facturacion}</td>
-                        <td className="ro al-c">{s.periodo || "—"}</td>
-                        <td className="ro" style={{ textAlign: "right" }}>{fmtMiles(s.valor_servicio) || "—"}</td>
-                        <td className="ro" title={s.vendedor}>{s.vendedor || "—"}</td>
-                        <td className="ro" style={{ textAlign: "right" }}>{s.pct_comision ?? "—"}</td>
-                        <td className="al-c">{fact
-                          ? <span className="pill" style={{ background: "var(--ok, #2e7d32)", color: "#fff" }} title="Facturado en este período">Fact</span>
-                          : <span className="pill" title="Pendiente por facturar">Pend</span>}</td>
-                        <td className="al-c">
-                          <div className="act-btns">
-                            <button className="act-btn" onClick={() => setRepIdx(i)} title="Replicar a varios períodos" disabled={!s.periodo}><Icon name="copy" size={14} /></button>
-                            <button className="act-btn del" onClick={() => delSrv(i)} title="Quitar"><Icon name="trash" size={14} /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    );})}
-                    {!srv.length && <tr><td colSpan={8} className="empty" style={{ padding: 14 }}>Sin servicios. Usa ＋ para crear un cobro.</td></tr>}
-                    {!!srv.length && !srvVista.length && <tr><td colSpan={8} className="empty" style={{ padding: 14 }}>No hay cobros pendientes.</td></tr>}
-                  </tbody></table></div>
+                <DataGrid columns={srvCols} rows={srvVista} getKey={(r) => r.i}
+                  label="Servicios contratados" scrollClass="srv-scroll" storageKey="cli-servicios"
+                  searchable exportable={false} defaultTotals={["valor"]}
+                  emptyLabel={srv.length ? "No hay cobros pendientes." : "Sin servicios. Usa «Nuevo cobro» para crear uno."}
+                  actions={(r) => (
+                    <div className="act-btns">
+                      <button className="act-btn" onClick={() => setRepIdx(r.i)} title="Replicar a varios períodos" disabled={!r.s.periodo}><Icon name="copy" size={14} /></button>
+                      <button className="act-btn del" onClick={() => delSrv(r.i)} title="Quitar"><Icon name="trash" size={14} /></button>
+                    </div>
+                  )} />
               </div>
               {repIdx !== null && (
                 <ReplicarModal base={srv[repIdx]?.periodo || ""}
@@ -1152,7 +1082,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                 return (
                   <Modal title="Nueva obligación del cliente" icon="clipboard-check" size="md"
                     onClose={() => setOblDraft(null)}
-                    footer={<button className="btn primary" onClick={guardarObl}><Icon name="check" size={15} />Guardar</button>}>
+                    onSave={guardarObl}>
                     <div className="obl-cli-form">
                       <label className="cq-fld"><span>Obligación (del catálogo)</span>
                         <select value={oblDraft.obligacion_tipo_id ?? ""} autoFocus onChange={(e) => setOblDraft({ obligacion_tipo_id: e.target.value ? Number(e.target.value) : null })}>
@@ -1192,13 +1122,11 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                 ); };
                 const nada = !revisar.faltan.length && !revisar.sobran.length;
                 return (
-                  <Modal title="Revisar obligaciones DIAN" sub={nombreFinal} icon="check-circle" size="lg"
+                  <Modal title="Revisar obligaciones DIAN" sub={nombreFinal} icon="check-circle" size="md"
                     onClose={() => setRevisar(null)}
-                    footer={<>
-                      <span className="rev-foot-note">Los cambios entran a la grilla; recuerda <b>Guardar cambios</b>.</span>
-                      <button className="btn" onClick={() => setRevisar(null)}>Cerrar</button>
-                      {revisar.faltan.length > 0 && <button className="btn primary" onClick={agregarTodasFaltantes}><Icon name="plus" size={15} />Agregar faltantes</button>}
-                    </>}>
+                    aviso={<>Los cambios entran a la grilla; recuerda <b>Guardar cambios</b>.</>}
+                    onSave={revisar.faltan.length > 0 ? agregarTodasFaltantes : undefined}
+                    saveLabel="Agregar faltantes" saveIcon="plus">
                     {nada
                       ? <div className="rev-ok"><Icon name="check-circle" size={18} />Las obligaciones DIAN están al día.</div>
                       : <>
@@ -1337,24 +1265,24 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
       {rutItems !== null && (
         <Modal title="Conciliación con el RUT" icon="file" size="md"
                onClose={() => { setRutItems(null); setRutNit(null); }}
-               footer={rutItems.length === 0 ? (
-                 <button className="btn" onClick={() => { setRutItems(null); setRutNit(null); }}>Cerrar</button>
-               ) : (
-                 <>
-                   <button className="btn" onClick={() => setRutItems((arr) => { const t = !(arr || []).filter((y) => !y.info).every((y) => y.check); return (arr || []).map((x) => x.info ? x : { ...x, check: t }); })}>Marcar/Desmarcar todos</button>
-                   <span style={{ marginLeft: "auto" }} />
-                   <button className="btn" onClick={() => { setRutItems(null); setRutNit(null); }}>Cancelar</button>
-                   <button className="btn primary" onClick={aplicarRut} disabled={!rutItems.some((it) => it.check)}><Icon name="check" size={16} />Aplicar {rutItems.filter((it) => it.check).length} cambios</button>
-                 </>
-               )}>
-          {rutNit && !rutNit.coincide && (
-            <div className="banner warn" style={{ margin: "0 0 10px" }}>⚠ El NIT del RUT ({rutNit.leido}) no coincide con el de la ficha ({c.num_id}). Verifica que sea el RUT correcto.</div>
-          )}
+               extraActions={rutItems.length > 0 ? (
+                 <button className="mh-act" aria-label="Marcar/Desmarcar todos"
+                   onClick={() => setRutItems((arr) => { const t = !(arr || []).filter((y) => !y.info).every((y) => y.check); return (arr || []).map((x) => x.info ? x : { ...x, check: t }); })}>
+                   <Icon name="check-circle" size={18} /><span className="mh-tip">Marcar/Desmarcar todos</span></button>
+               ) : undefined}
+               onSave={rutItems.length > 0 ? aplicarRut : undefined}
+               canSave={rutItems.some((it) => it.check)}
+               saveLabel={`Aplicar ${rutItems.filter((it) => it.check).length} cambios`} saveIcon="check"
+               avisoTone={rutNit && !rutNit.coincide ? "err" : rutItems.length === 0 ? "ok" : "info"}
+               aviso={rutNit && !rutNit.coincide
+                 ? `El NIT del RUT (${rutNit.leido}) no coincide con el de la ficha (${c.num_id}). Verifica que sea el RUT correcto.`
+                 : rutItems.length === 0
+                   ? "El RUT coincide con la ficha; no hay cambios por aplicar."
+                   : `${rutItems.filter((it) => it.check).length} cambio(s) a aplicar · se traen a la ficha; luego «Guardar cambios».`}>
           {rutItems.length === 0 ? (
             <div style={{ padding: 20, textAlign: "center", color: "var(--ink-2)" }}>No hay diferencias entre el RUT y la ficha. ✓</div>
           ) : (
             <>
-              <div className="hint" style={{ marginBottom: 8 }}>Marca los campos que quieras traer del RUT. Se aplican a la ficha; luego pulsa «Guardar cambios».</div>
               <div className="tbl-wrap" style={{ maxHeight: "50vh", overflow: "auto" }}>
                 <table className="child">
                   <thead><tr><th style={{ width: 34 }}></th><th style={{ minWidth: 140 }}>Campo</th><th>En la ficha</th><th>En el RUT</th></tr></thead>

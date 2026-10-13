@@ -19,29 +19,42 @@ export function minDock(): HTMLElement {
   return _dock;
 }
 
-/** Modal centrado y limpio: cabecera (ícono + título + descripción + cerrar) ·
- *  pestañas opcionales · cuerpo con scroll · footer de acciones.
- *  Se cierra solo con Esc, la X o el footer; un clic en el fondo NO cierra
- *  (evita perder el trabajo): en su lugar hace un "shake" suave de aviso.
- *  Se puede reubicar arrastrando la cabecera con el mouse. */
-export function Modal({ title, sub, icon, onClose, onPrev, onNext, tabs, footer, children, size = "lg",
+/** Modal estándar CyC: cabecera con chip de título ÁMBAR (rojo si tone="danger"),
+ *  ACCIONES por ícono a la derecha (una sola primaria: Guardar; navegación,
+ *  minimizar y cerrar), cuerpo con scroll y franja inferior SOLO para avisos.
+ *  Cierra con Esc / la × / clic en el fondo (que hace "shake", no cierra);
+ *  Guardar también con Ctrl+Enter. `saving` bloquea cierre y doble envío.
+ *  Se arrastra por la cabecera. `footer` se conserva como compat (fichas). */
+export function Modal({ title, sub, icon, tone = "normal", onClose, onSave, saving = false, canSave = true,
+                        saveLabel = "Guardar", saveIcon = "save", extraActions, aviso, avisoTone = "info",
+                        onPrev, onNext, tabs, footer, children, size = "lg",
                         portal = false, onMinimize, minimized = false, onRestore, busy = false }: {
   title: ReactNode;
   sub?: ReactNode;
   icon?: string;
+  tone?: "normal" | "danger";    // chip del título: ámbar (normal) | rojo (danger)
   onClose: () => void;
-  onPrev?: () => void;            // navegar al registro anterior (undefined = deshabilitado)
-  onNext?: () => void;            // navegar al registro siguiente (undefined = deshabilitado)
+  onSave?: () => void;           // si se pasa, muestra la acción primaria Guardar (ícono) en la cabecera
+  saving?: boolean;              // guardando: bloquea cierre y deshabilita Guardar (anti-doble-envío, §5)
+  canSave?: boolean;             // habilita/deshabilita Guardar
+  saveLabel?: string;            // tooltip/nombre accesible de Guardar
+  saveIcon?: string;             // ícono de Guardar (por defecto "save")
+  extraActions?: ReactNode;      // íconos de acción extra en la cabecera (a la izquierda de Guardar)
+  aviso?: ReactNode;             // franja inferior SOLO para avisos
+  avisoTone?: "info" | "warn" | "err" | "ok";
+  onPrev?: () => void;           // navegar al registro anterior (undefined = deshabilitado)
+  onNext?: () => void;           // navegar al registro siguiente (undefined = deshabilitado)
   tabs?: ReactNode;
-  footer?: ReactNode;
+  footer?: ReactNode;            // (compat) footer libre; preferir onSave + aviso
   children: ReactNode;
   size?: "lg" | "md" | "xl";
-  portal?: boolean;               // renderizar en document.body (sobrevive a cambios de página)
-  onMinimize?: () => void;        // si se pasa, muestra el botón minimizar (─)
-  minimized?: boolean;            // true = colapsado a píldora flotante
-  onRestore?: () => void;         // restaurar desde la píldora
-  busy?: boolean;                 // operación en curso: bloquea Escape/cerrar (anti-doble-envío, §5)
+  portal?: boolean;              // renderizar en document.body (sobrevive a cambios de página)
+  onMinimize?: () => void;       // si se pasa, muestra el botón minimizar (─)
+  minimized?: boolean;           // true = colapsado a píldora flotante
+  onRestore?: () => void;        // restaurar desde la píldora
+  busy?: boolean;                // alias de saving (compat)
 }) {
+  const bloq = saving || busy;   // operación en curso: bloquea Escape/cerrar/Guardar
   const [nudge, setNudge] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const drag = useRef<{ ox: number; oy: number; px: number; py: number } | null>(null);
@@ -51,7 +64,13 @@ export function Modal({ title, sub, icon, onClose, onPrev, onNext, tabs, footer,
   const subId = useId();
   // §5/§6: foco atrapado, foco inicial, retorno de foco y bloqueo de scroll de fondo
   // (inactivo si está minimizado: el usuario está trabajando en otra pantalla).
-  useDialogChrome(cardRef, { active: !minimized });
+  // Foco inicial = primer campo del CUERPO (las acciones viven en la cabecera, que
+  // va antes en el DOM); si el cuerpo no tiene campos, cae al primer foco útil.
+  useDialogChrome(cardRef, {
+    active: !minimized,
+    initialFocus: () => cardRef.current?.querySelector<HTMLElement>(
+      '.modal-body input:not([disabled]):not([tabindex="-1"]),.modal-body select:not([disabled]):not([tabindex="-1"]),.modal-body textarea:not([disabled]):not([tabindex="-1"]),.modal-body a[href],.modal-body [tabindex]:not([tabindex="-1"])') || null,
+  });
 
   // Pila: este modal queda "encima" mientras esté montado y no minimizado.
   useEffect(() => {
@@ -65,13 +84,14 @@ export function Modal({ title, sub, icon, onClose, onPrev, onNext, tabs, footer,
     const onKey = (e: KeyboardEvent) => {
       if (minimized) return;      // minimizado: el usuario está en otra pantalla, no capturar teclas
       if (_modalStack[_modalStack.length - 1] !== tok.current) return;   // solo el modal de encima
-      if (e.key === "Escape") { if (!busy) onClose(); return; }   // ocupado: Escape bloqueado
+      if (e.key === "Escape") { if (!bloq) onClose(); return; }   // ocupado: Escape bloqueado
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && onSave && canSave && !bloq) { e.preventDefault(); onSave(); return; }
       if (e.altKey && e.key === "ArrowLeft") { e.preventDefault(); onPrev?.(); }
       if (e.altKey && e.key === "ArrowRight") { e.preventDefault(); onNext?.(); }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose, onPrev, onNext, minimized, busy]);
+  }, [onClose, onPrev, onNext, onSave, canSave, minimized, bloq]);
 
   const startDrag = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("button")) return;   // no arrastrar desde la X
@@ -103,26 +123,35 @@ export function Modal({ title, sub, icon, onClose, onPrev, onNext, tabs, footer,
       <div className={"modal-pos " + size} style={(pos.x || pos.y) ? { transform: `translate(${pos.x}px, ${pos.y}px)` } : undefined}>
       <div ref={cardRef} className={"modal-card " + size + (nudge ? " nudge" : "")}
            role={sub ? "alertdialog" : "dialog"} aria-modal="true"
-           aria-labelledby={titleId} aria-describedby={sub ? subId : undefined} aria-busy={busy || undefined}
+           aria-labelledby={titleId} aria-describedby={sub ? subId : undefined} aria-busy={bloq || undefined}
            onAnimationEnd={() => nudge && setNudge(false)}>
         <div className="modal-head modal-drag" onMouseDown={startDrag} title="Arrastra para mover">
-          {icon && <div className="mh-ic"><Icon name={icon} size={18} /></div>}
+          <img className="mh-brand" src="/assets/logo-icono-ocre.png" alt="" aria-hidden="true" />
           <div className="mh-txt">
             <div className="mh-t" id={titleId}>{title}</div>
             {sub && <div className="mh-s" id={subId}>{sub}</div>}
           </div>
-          {(onPrev || onNext) && (
-            <div className="mh-nav">
-              <button className="modal-nav" disabled={!onPrev} onClick={onPrev} aria-label="Anterior" title="Registro anterior (Alt+←)"><Icon name="chevron-left" size={18} /></button>
-              <button className="modal-nav" disabled={!onNext} onClick={onNext} aria-label="Siguiente" title="Registro siguiente (Alt+→)"><Icon name="chevron-right" size={18} /></button>
-            </div>
-          )}
-          {onMinimize && <button className="modal-x" onClick={onMinimize} disabled={busy} aria-label="Minimizar" title="Minimizar (seguir en otra pantalla)"><Icon name="minus" size={16} /></button>}
-          <button className="modal-x" onClick={onClose} disabled={busy} aria-label="Cerrar" title="Cerrar"><Icon name="x" size={16} /></button>
+          <div className="mh-acts" onMouseDown={(e) => e.stopPropagation()}>
+            {(onPrev || onNext) && <>
+              <button className="mh-act" disabled={!onPrev} onClick={onPrev} aria-label="Anterior"><Icon name="chevron-left" size={18} /><span className="mh-tip">Anterior · Alt+←</span></button>
+              <button className="mh-act" disabled={!onNext} onClick={onNext} aria-label="Siguiente"><Icon name="chevron-right" size={18} /><span className="mh-tip">Siguiente · Alt+→</span></button>
+              <div className="mh-sep" />
+            </>}
+            {extraActions}
+            {extraActions && <div className="mh-sep" />}
+            {onSave && (
+              <button className={"mh-act " + (tone === "danger" ? "danger" : "save")} onClick={onSave} disabled={bloq || !canSave} aria-label={saveLabel}>
+                <Icon name={saving ? "hourglass" : saveIcon} size={18} /><span className="mh-tip">{saveLabel} · Ctrl+Enter</span>
+              </button>
+            )}
+            {onMinimize && <button className="mh-act" onClick={onMinimize} disabled={bloq} aria-label="Minimizar"><Icon name="minus" size={16} /><span className="mh-tip">Minimizar</span></button>}
+            <button className="mh-act close" onClick={() => !bloq && onClose()} disabled={bloq} aria-label="Cerrar"><Icon name="x" size={18} /><span className="mh-tip">Cerrar</span></button>
+          </div>
         </div>
         {tabs && <div className="tabs">{tabs}</div>}
         <div className="modal-body">{children}</div>
-        {footer && <div className="modal-foot">{footer}</div>}
+        {aviso ? <div className={"modal-aviso " + avisoTone}><Icon name={avisoTone === "err" ? "alert" : avisoTone === "ok" ? "check" : "info"} size={15} />{aviso}</div>
+         : footer ? <div className="modal-foot">{footer}</div> : null}
       </div>
       </div>
     </div>
