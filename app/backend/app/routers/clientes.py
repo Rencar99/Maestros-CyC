@@ -53,6 +53,30 @@ def _codigos_resp(c: Cliente) -> set[str]:
     return out
 
 
+def _derivar_agente_retenedor(c: Cliente) -> None:
+    """Agente de retención sale del RUT (53): responsabilidad 07 o 23.
+
+    No se llena a mano —decisión de Renzo del 13-oct-2026—: antes era un campo
+    sin control en la pantalla, con valor solo en los clientes de la carga
+    inicial de julio y nulo en los 238 creados después. Lo que llegue en el
+    campo desde afuera se descarta.
+
+    Son los mismos dos códigos con que el Liquidador 350 decide a quién ofrece,
+    y tienen que seguir siendo los mismos: si discreparan, un cliente podría
+    figurar como agente de retención aquí y no poder liquidarse allá.
+
+    Sin responsabilidades cargadas queda en nulo, igual que `_normalizar_regimen_iva`
+    no toca el régimen sin ese dato: no se puede afirmar que alguien no es agente
+    de retención cuando lo que pasa es que no se sabe.
+
+    En Postgres lo sostiene además un disparador (`db._agente_retenedor_derivado`),
+    que cubre toda vía de escritura. Esto lo repite aquí para que valga también
+    en SQLite y para que quede probado.
+    """
+    cods = _codigos_resp(c)
+    c.agente_retenedor = bool({"07", "23"} & set(cods)) if cods else None
+
+
 def _normalizar_regimen_iva(c: Cliente) -> None:
     """Valida y ajusta Régimen y Periodicidad IVA según las responsabilidades (RUT 53):
       · 47 (RST) => Régimen "Simple" + IVA "Anual".
@@ -523,6 +547,7 @@ def crear(data: ClienteCreate, session: Session = Depends(get_session),
             setattr(c, k, "")
     _aplicar_nombre(c)
     _normalizar_regimen_iva(c)
+    _derivar_agente_retenedor(c)
     c.dv = calcular_dv(c.num_id)
     if data.password:
         c.password_enc = encrypt(data.password)
@@ -559,6 +584,7 @@ def actualizar(cid: int, data: ClienteCreate, session: Session = Depends(get_ses
             setattr(c, k, v)
     _aplicar_nombre(c)
     _normalizar_regimen_iva(c)
+    _derivar_agente_retenedor(c)
     c.dv = calcular_dv(c.num_id)
     if data.password:                       # solo si viene una clave nueva
         c.password_enc = encrypt(data.password)

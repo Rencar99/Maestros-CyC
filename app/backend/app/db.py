@@ -135,6 +135,71 @@ def _ensure_columns() -> None:
         # Cuenta de cobro: ruta donde se guardó el PDF al generar en firme.
         conn.execute(text(
             "ALTER TABLE cuentacobro ADD COLUMN IF NOT EXISTS ruta_pdf VARCHAR NOT NULL DEFAULT ''"))
+        _agente_retenedor_derivado(conn)
+
+
+def _agente_retenedor_derivado(conn) -> None:
+    """`cliente.agente_retenedor` se calcula del RUT; no se llena a mano.
+
+    Decisión de Renzo el 13-oct-2026. Antes era un campo que nadie podía
+    editar —no hay control en la pantalla de Clientes— y que solo tenía valor
+    en los 59 clientes de la carga inicial de julio; los 238 creados después
+    quedaron en nulo. Un campo así no dice la verdad y nadie puede corregirlo.
+
+    La fuente es la casilla 53 del RUT, que sí se carga del PDF: es agente de
+    retención quien declara la responsabilidad 07 (retención a título de renta)
+    o 23 (agente de retención en ventas). **Son los mismos dos códigos con que
+    el Liquidador 350 decide a quién ofrece**, y tienen que seguir siendo los
+    mismos: si discreparan, un cliente podría figurar como agente de retención
+    aquí y no poder liquidarse allá.
+
+    Va en un disparador y no en el router a propósito: así vale para toda vía
+    de escritura —la API, una carga masiva, un script— y no solo para la
+    pantalla. Lo que llegue en el campo desde afuera se ignora.
+    """
+    from .config import DB_SCHEMA
+
+    #: El criterio, escrito una sola vez: se usa en el disparador y en el
+    #: recálculo de las filas que ya estaban.
+    #:
+    #: Tres valores, no dos: nulo cuando el RUT no está cargado. Sin ese dato no
+    #: se puede afirmar que alguien NO es agente de retención —son 190 clientes
+    #: al 13-oct-2026— y es el mismo criterio que `_normalizar_regimen_iva` ya
+    #: aplica al régimen. Además así se distingue «sabemos que no» de «no
+    #: sabemos», que es justo lo que necesita quien va a cargar los RUT.
+    es_agente = """
+        CASE WHEN COALESCE(json_array_length(
+                      COALESCE({fila}responsabilidades, '[]'::json)), 0) = 0
+             THEN NULL
+             ELSE EXISTS (SELECT 1 FROM json_array_elements(
+                                        {fila}responsabilidades) item
+                           WHERE COALESCE(item->>'codigo', item#>>'{{}}')
+                                 IN ('07', '23'))
+        END"""
+
+    conn.execute(text(f"""
+        CREATE OR REPLACE FUNCTION "{DB_SCHEMA}".calcular_agente_retenedor()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            NEW.agente_retenedor := {es_agente.format(fila='NEW.')};
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql
+    """))
+    conn.execute(text(
+        f'DROP TRIGGER IF EXISTS cliente_agente_retenedor ON "{DB_SCHEMA}".cliente'))
+    conn.execute(text(f"""
+        CREATE TRIGGER cliente_agente_retenedor
+        BEFORE INSERT OR UPDATE OF responsabilidades, agente_retenedor
+            ON "{DB_SCHEMA}".cliente
+        FOR EACH ROW EXECUTE FUNCTION "{DB_SCHEMA}".calcular_agente_retenedor()
+    """))
+    # Las filas que ya estaban: se recalculan todas, incluidas las de la carga
+    # inicial. Donde la marca y el RUT discrepaban, manda el RUT.
+    conn.execute(text(f"""
+        UPDATE "{DB_SCHEMA}".cliente SET agente_retenedor = {es_agente.format(fila='')}
+         WHERE agente_retenedor IS DISTINCT FROM {es_agente.format(fila='')}
+    """))
 
 
 def get_session() -> Iterator[Session]:

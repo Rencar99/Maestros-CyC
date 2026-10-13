@@ -314,6 +314,10 @@ class Cliente(SQLModel, table=True):
     responsabilidades: list = Field(default_factory=list, sa_column=Column(JSON))  # RUT 53
     periodicidad_iva: str = ""     # "Bimestral" | "Cuatrimestral" | "Anual" (resp. 48; RST=Anual)
     responsable_iva: Optional[bool] = None
+    # DERIVADO del RUT: lo calcula un disparador desde `responsabilidades`
+    # (07 o 23, los mismos códigos del Liquidador 350). No se llena a mano y lo
+    # que llegue en este campo desde afuera se ignora. Ver
+    # `db._agente_retenedor_derivado`.
     agente_retenedor: Optional[bool] = None
     facturador_electronico: Optional[bool] = None
     gran_contribuyente: Optional[bool] = None

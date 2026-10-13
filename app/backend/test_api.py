@@ -65,6 +65,29 @@ with TestClient(app) as c:
     check("password" not in cli and cli["tiene_password"] is True, "clave NO se devuelve; tiene_password=True")
     check(len(cli["servicios"]) == 1 and len(cli["municipios_ica"]) == 1, "hijas guardadas")
 
+    # Agente de retención sale del RUT, no de lo que manden. El payload de arriba
+    # pide agente_retenedor=True y no trae responsabilidades: sin RUT cargado no
+    # se puede afirmar que lo sea ni que no lo sea, así que queda en nulo.
+    check(cli["agente_retenedor"] is None,
+          f"agente_retenedor ignora lo que mandan: sin RUT queda nulo, got {cli['agente_retenedor']}")
+
+    # Con RUT cargado se calcula solo: 07 = retención a título de renta.
+    r = c.put(f"/api/clientes/{cid}", headers=H,
+              json={**payload, "agente_retenedor": False,
+                    "responsabilidades": [{"codigo": "07", "nombre": "Retención en la fuente"}]})
+    check(r.status_code == 200 and r.json()["agente_retenedor"] is True,
+          "con 07 en el RUT es agente de retención, aunque manden False")
+
+    # Y un RUT que no trae 07 ni 23 lo deja en False: ahí sí se sabe que no.
+    r = c.put(f"/api/clientes/{cid}", headers=H,
+              json={**payload, "agente_retenedor": True,
+                    "responsabilidades": [{"codigo": "48", "nombre": "IVA"}]})
+    check(r.status_code == 200 and r.json()["agente_retenedor"] is False,
+          "con RUT sin 07/23 no es agente, aunque manden True")
+
+    # Se deja como estaba para no alterar las pruebas que siguen.
+    c.put(f"/api/clientes/{cid}", json=payload, headers=H)
+
     # num_id duplicado -> 409
     check(c.post("/api/clientes", json=payload, headers=H).status_code == 409, "num_id duplicado = 409")
 
