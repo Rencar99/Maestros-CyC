@@ -323,84 +323,100 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
            onClose={onClose}
            onSave={guardar}
            aviso={editando ? "El código y el ente son la llave estable: no se cambian en una obligación existente." : undefined}>
-      <div className="obl-grid">
-        <label className="cq-fld"><span>Código</span>
-          <input value={f.codigo} disabled={editando} style={{ textTransform: "uppercase" }} autoFocus={!editando}
-                 title={editando ? "El código es la llave estable — no se puede cambiar" : ""}
-                 onChange={(e) => set({ codigo: e.target.value })} placeholder="Ej. IVA_BIM" /></label>
-        <label className="cq-fld"><span>Ente</span>
-          {entCreando ? (
-            <div className="catsel-row">
-              <input autoFocus value={entTxt} placeholder="Nueva entidad…" style={{ flex: 1 }}
-                onChange={(e) => setEntTxt(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); crearEnt(); } if (e.key === "Escape") { setEntCreando(false); setEntTxt(""); } }} />
-              <button type="button" className="icon-btn" title="Crear" onClick={crearEnt}><Icon name="check" size={16} /></button>
-              <button type="button" className="icon-btn" title="Cancelar" onClick={() => { setEntCreando(false); setEntTxt(""); }}><Icon name="x" size={15} /></button>
-            </div>
-          ) : (
-            <div className="catsel-row">
-              <select style={{ flex: 1 }} value={f.ente} disabled={editando}
-                title={editando ? "No se puede cambiar en una obligación existente" : ""}
-                onChange={(e) => set({ ente: e.target.value })}>
-                {!f.ente && <option value="">— Selecciona —</option>}
-                {f.ente && !entidades.some((x) => x.nombre === f.ente) && <option value={f.ente}>{f.ente}</option>}
-                {entidades.filter((x) => x.activo).map((x) => <option key={x.id} value={x.nombre}>{x.nombre}</option>)}
-              </select>
-              {!editando && <button type="button" className="icon-btn add-plus" title="Crear nueva entidad" onClick={() => { setEntTxt(""); setEntCreando(true); }}><Icon name="plus" size={16} /></button>}
-            </div>
-          )}</label>
-        <label className="cq-fld obl-wide"><span>Obligación</span>
-          <input value={f.descripcion} disabled={editando}
-                 title={editando ? "No se puede cambiar en una obligación existente" : ""}
-                 onChange={(e) => set({ descripcion: e.target.value })} placeholder="Descripción de la obligación" /></label>
-        <label className="cq-fld"><span>Criterio</span>
-          <select value={f.criterio} onChange={(e) => set({ criterio: e.target.value })}>
-            {f.criterio && !CRITERIOS.includes(f.criterio) && <option value={f.criterio}>{CRIT_TXT[f.criterio] || f.criterio}</option>}
-            {CRITERIOS.map((o) => <option key={o} value={o}>{CRIT_TXT[o] || o}</option>)}</select></label>
-        <label className="cq-fld"><span>Disparador (DIAN)</span>
-          <select value={f.disparador} disabled={editando}
-            title={editando ? "No se puede cambiar en una obligación existente" : ""}
-            onChange={(e) => set({ disparador: e.target.value })}>
-            {DISPARADORES.map((o) => <option key={o} value={o}>{DISP_TXT[o] ?? o}</option>)}</select></label>
-        <label className="cq-fld"><span>Familia</span>
-          <select value={f.familia || "otras"} onChange={(e) => set({ familia: e.target.value })}>
-            {FAMILIAS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
-        <label className="cq-fld"><span>Genera pago</span>
-          <Toggle checked={f.genera_pago} color="green" label={f.genera_pago ? "Sí" : "No"}
-            onChange={(v) => set({ genera_pago: v, formulario_pago: v ? f.formulario_pago : "" })}
-            title="¿Esta obligación genera un pago a verificar? (retención, IVA, renta, consumo, ICA/ReteICA)" /></label>
-        {f.genera_pago && <label className="cq-fld"><span>Formulario de pago</span>
-          <select value={f.formulario_pago} onChange={(e) => set({ formulario_pago: e.target.value })}>
-            <option value="">— ninguno (municipal / sin 490) —</option>
-            {f.formulario_pago && !formularios.some((x) => x.numero === f.formulario_pago) && <option value={f.formulario_pago}>{f.formulario_pago}</option>}
-            {formularios.filter((x) => x.activo && x.numero).map((x) => <option key={x.id} value={x.numero}>{x.nombre}</option>)}
-          </select></label>}
-        {f.genera_pago && <label className="cq-fld"><span>Plazo de pago fatal</span>
-          <div className="catsel-row">
-            <input type="number" min={0} style={{ width: 80 }} value={f.plazo_pago_fatal_num}
-              onChange={(e) => set({ plazo_pago_fatal_num: Number(e.target.value) || 0 })} />
-            <select style={{ flex: 1 }} value={f.plazo_pago_fatal_unidad} onChange={(e) => set({ plazo_pago_fatal_unidad: e.target.value })}>
-              <option value="">— sin plazo fatal —</option>
-              <option value="dias">días (desde el vencimiento)</option>
-              <option value="meses">meses (desde el vencimiento)</option>
-            </select>
-          </div></label>}
-        {f.genera_pago && <label className="cq-fld"><span>Consecuencia si no paga</span>
-          <select value={f.consecuencia_impago} onChange={(e) => set({ consecuencia_impago: e.target.value })}>
-            <option value="">Ninguna (solo intereses)</option>
-            <option value="ineficacia">Ineficacia (se da por no presentada)</option>
-            <option value="exclusion_rst">Exclusión del RST</option>
-          </select></label>}
-        {(f.criterio === "nit1" || f.criterio === "nit2") && <>
+      <div className="fieldgroup"><h4>Identificación</h4>
+        <div className="obl-grid">
+          <label className="cq-fld"><span>Código</span>
+            <input value={f.codigo} disabled={editando} style={{ textTransform: "uppercase" }} autoFocus={!editando}
+                   title={editando ? "El código es la llave estable — no se puede cambiar" : ""}
+                   onChange={(e) => set({ codigo: e.target.value })} placeholder="Ej. IVA_BIM" /></label>
+          <label className="cq-fld"><span>Ente</span>
+            {entCreando ? (
+              <div className="catsel-row">
+                <input autoFocus value={entTxt} placeholder="Nueva entidad…" style={{ flex: 1 }}
+                  onChange={(e) => setEntTxt(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); crearEnt(); } if (e.key === "Escape") { setEntCreando(false); setEntTxt(""); } }} />
+                <button type="button" className="icon-btn" title="Crear" onClick={crearEnt}><Icon name="check" size={16} /></button>
+                <button type="button" className="icon-btn" title="Cancelar" onClick={() => { setEntCreando(false); setEntTxt(""); }}><Icon name="x" size={15} /></button>
+              </div>
+            ) : (
+              <div className="catsel-row">
+                <select style={{ flex: 1 }} value={f.ente} disabled={editando}
+                  title={editando ? "No se puede cambiar en una obligación existente" : ""}
+                  onChange={(e) => set({ ente: e.target.value })}>
+                  {!f.ente && <option value="">— Selecciona —</option>}
+                  {f.ente && !entidades.some((x) => x.nombre === f.ente) && <option value={f.ente}>{f.ente}</option>}
+                  {entidades.filter((x) => x.activo).map((x) => <option key={x.id} value={x.nombre}>{x.nombre}</option>)}
+                </select>
+                {!editando && <button type="button" className="icon-btn add-plus" title="Crear nueva entidad" onClick={() => { setEntTxt(""); setEntCreando(true); }}><Icon name="plus" size={16} /></button>}
+              </div>
+            )}</label>
+          <label className="cq-fld obl-wide"><span>Obligación</span>
+            <input value={f.descripcion} disabled={editando}
+                   title={editando ? "No se puede cambiar en una obligación existente" : ""}
+                   onChange={(e) => set({ descripcion: e.target.value })} placeholder="Descripción de la obligación" /></label>
+          <label className="cq-fld"><span>Familia</span>
+            <select value={f.familia || "otras"} onChange={(e) => set({ familia: e.target.value })}>
+              {FAMILIAS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+        </div>
+      </div>
+
+      <div className="fieldgroup"><h4>Generación (Calendario)</h4>
+        <div className="obl-grid">
+          <label className="cq-fld"><span>Criterio</span>
+            <select value={f.criterio} onChange={(e) => set({ criterio: e.target.value })}>
+              {f.criterio && !CRITERIOS.includes(f.criterio) && <option value={f.criterio}>{CRIT_TXT[f.criterio] || f.criterio}</option>}
+              {CRITERIOS.map((o) => <option key={o} value={o}>{CRIT_TXT[o] || o}</option>)}</select></label>
+          <label className="cq-fld"><span>Disparador (DIAN)</span>
+            <select value={f.disparador} disabled={editando}
+              title={editando ? "No se puede cambiar en una obligación existente" : ""}
+              onChange={(e) => set({ disparador: e.target.value })}>
+              {DISPARADORES.map((o) => <option key={o} value={o}>{DISP_TXT[o] ?? o}</option>)}</select></label>
           <label className="cq-fld"><span>Tamaño de intervalo</span>
-            <input type="number" min={0} value={f.tam_intervalo}
+            <input type="number" min={0} value={f.tam_intervalo} disabled={!(f.criterio === "nit1" || f.criterio === "nit2")}
+              title={(f.criterio === "nit1" || f.criterio === "nit2") ? "" : "Solo aplica cuando el criterio es por dígito de NIT"}
               onChange={(e) => set({ tam_intervalo: Number(e.target.value) || 0 })} /></label>
           <label className="cq-fld"><span>Paso (días hábiles)</span>
-            <input type="number" min={1} value={f.paso_dias_habiles}
+            <input type="number" min={1} value={f.paso_dias_habiles} disabled={!(f.criterio === "nit1" || f.criterio === "nit2")}
+              title={(f.criterio === "nit1" || f.criterio === "nit2") ? "" : "Solo aplica cuando el criterio es por dígito de NIT"}
               onChange={(e) => set({ paso_dias_habiles: Number(e.target.value) || 1 })} /></label>
-        </>}
-        <div className="obl-wide" style={{ marginTop: 2 }}>
-          <Toggle label="Activa" color="green" checked={f.activo} onChange={(v) => set({ activo: v })} /></div>
+        </div>
+      </div>
+
+      <div className="fieldgroup"><h4>Pago</h4>
+        <div className="obl-grid">
+          <label className="cq-fld"><span>Genera pago</span>
+            <Toggle checked={f.genera_pago} color="green" label={f.genera_pago ? "Sí" : "No"}
+              onChange={(v) => set({ genera_pago: v, formulario_pago: v ? f.formulario_pago : "", plazo_pago_fatal_num: v ? f.plazo_pago_fatal_num : 0, plazo_pago_fatal_unidad: v ? f.plazo_pago_fatal_unidad : "", consecuencia_impago: v ? f.consecuencia_impago : "" })}
+              title="¿Esta obligación genera un pago a verificar? (retención, IVA, renta, consumo, ICA/ReteICA)" /></label>
+          <label className="cq-fld"><span>Formulario de pago</span>
+            <select value={f.formulario_pago} disabled={!f.genera_pago} onChange={(e) => set({ formulario_pago: e.target.value })}>
+              <option value="">— ninguno (municipal / sin 490) —</option>
+              {f.formulario_pago && !formularios.some((x) => x.numero === f.formulario_pago) && <option value={f.formulario_pago}>{f.formulario_pago}</option>}
+              {formularios.filter((x) => x.activo && x.numero).map((x) => <option key={x.id} value={x.numero}>{x.nombre}</option>)}
+            </select></label>
+          <label className="cq-fld"><span>Plazo de pago fatal</span>
+            <div className="catsel-row">
+              <input type="number" min={0} style={{ width: 80 }} disabled={!f.genera_pago} value={f.plazo_pago_fatal_num}
+                onChange={(e) => set({ plazo_pago_fatal_num: Number(e.target.value) || 0 })} />
+              <select style={{ flex: 1 }} disabled={!f.genera_pago} value={f.plazo_pago_fatal_unidad} onChange={(e) => set({ plazo_pago_fatal_unidad: e.target.value })}>
+                <option value="">— sin plazo fatal —</option>
+                <option value="dias">días (desde el vencimiento)</option>
+                <option value="meses">meses (desde el vencimiento)</option>
+              </select>
+            </div></label>
+          <label className="cq-fld"><span>Consecuencia si no paga</span>
+            <select value={f.consecuencia_impago} disabled={!f.genera_pago} onChange={(e) => set({ consecuencia_impago: e.target.value })}>
+              <option value="">Ninguna (solo intereses)</option>
+              <option value="ineficacia">Ineficacia (se da por no presentada)</option>
+              <option value="exclusion_rst">Exclusión del RST</option>
+            </select></label>
+        </div>
+      </div>
+
+      <div className="fieldgroup"><h4>Estado</h4>
+        <div className="obl-grid">
+          <div><Toggle label="Activa" color="green" checked={f.activo} onChange={(v) => set({ activo: v })} /></div>
+        </div>
       </div>
     </Modal>
   );
