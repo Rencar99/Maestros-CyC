@@ -104,6 +104,11 @@ class ObligacionTipo(SQLModel, table=True):
     # Maestros es dueño de estos campos (se editan en el catálogo).
     genera_pago: bool = False            # ¿puede generar un pago a verificar? (retención, IVA, renta, consumo, ICA/ReteICA)
     formulario_pago: str = ""            # formulario DIAN que paga, para cruzar el 490 (350/300/110/210/315…); vacío = municipal/sin 490
+    # Plazo de pago FATAL contado desde el VENCIMIENTO (no la presentación), con consecuencia
+    # grave si no se paga. Lo LEE el Calendario para calcular la fecha límite y alertar.
+    plazo_pago_fatal_num: int = 0        # 0 = sin plazo fatal
+    plazo_pago_fatal_unidad: str = ""    # "dias" | "meses"
+    consecuencia_impago: str = ""        # "ineficacia" | "exclusion_rst" | "" (solo intereses)
 
 
 class Cargo(SQLModel, table=True):

@@ -157,6 +157,19 @@ def _ensure_columns() -> None:
         if not ya_fnum:   # backfill único: saca el número que hoy vive dentro del nombre ("Formulario 350 (…)")
             conn.execute(text(
                 "UPDATE formulario SET numero = COALESCE(substring(nombre from '\\d+'), '') WHERE numero=''"))
+        # Plazo de pago FATAL (desde el vencimiento) + consecuencia; lo lee el Calendario.
+        ya_fatal = conn.execute(text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema=:s AND table_name='obligaciontipo' AND column_name='consecuencia_impago'"),
+            {"s": DB_SCHEMA}).first()
+        conn.execute(text(
+            "ALTER TABLE obligaciontipo ADD COLUMN IF NOT EXISTS plazo_pago_fatal_num INTEGER NOT NULL DEFAULT 0"))
+        conn.execute(text(
+            "ALTER TABLE obligaciontipo ADD COLUMN IF NOT EXISTS plazo_pago_fatal_unidad VARCHAR NOT NULL DEFAULT ''"))
+        conn.execute(text(
+            "ALTER TABLE obligaciontipo ADD COLUMN IF NOT EXISTS consecuencia_impago VARCHAR NOT NULL DEFAULT ''"))
+        if not ya_fatal:
+            _sembrar_pago_fatal(conn)
         _agente_retenedor_derivado(conn)
 
 
@@ -184,6 +197,23 @@ def _sembrar_pago(conn) -> None:
     for cod in ("ICA_MUN", "RETEICA_MUN", "AUTORETEICA_MUN", "RETICA_CTG"):
         conn.execute(text(
             "UPDATE obligaciontipo SET genera_pago=TRUE WHERE codigo=:c"), {"c": cod})
+
+
+def _sembrar_pago_fatal(conn) -> None:
+    """Siembra ÚNICA (al crear las columnas) de las reglas de pago FATAL conocidas:
+    plazo contado desde el VENCIMIENTO + consecuencia grave si no se paga. El
+    resto de obligaciones queda sin regla (solo intereses).
+
+    - 350 (RETEFUENTE, RETEIVA): 60 días calendario → ineficacia (se da por no presentada).
+    - 2593 (RST_ANT, anticipo Simple): 1 mes → exclusión del RST.
+    """
+    for cod in ("RETEFUENTE", "RETEIVA"):
+        conn.execute(text(
+            "UPDATE obligaciontipo SET plazo_pago_fatal_num=60, plazo_pago_fatal_unidad='dias', "
+            "consecuencia_impago='ineficacia' WHERE codigo=:c"), {"c": cod})
+    conn.execute(text(
+        "UPDATE obligaciontipo SET plazo_pago_fatal_num=1, plazo_pago_fatal_unidad='meses', "
+        "consecuencia_impago='exclusion_rst' WHERE codigo='RST_ANT'"))
 
 
 def _agente_retenedor_derivado(conn) -> None:

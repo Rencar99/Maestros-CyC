@@ -134,6 +134,9 @@ def _oblig_dict(t: ObligacionTipo) -> dict:
             "criterio": t.criterio, "digitos_nit": t.digitos_nit, "origen": t.origen,
             "disparador": t.disparador, "familia": t.familia,
             "genera_pago": t.genera_pago, "formulario_pago": t.formulario_pago,
+            "plazo_pago_fatal_num": t.plazo_pago_fatal_num,
+            "plazo_pago_fatal_unidad": t.plazo_pago_fatal_unidad,
+            "consecuencia_impago": t.consecuencia_impago,
             "tam_intervalo": t.tam_intervalo, "paso_dias_habiles": t.paso_dias_habiles}
 
 
@@ -160,6 +163,9 @@ class ObligTipoIn(BaseModel):
     familia: str = "otras"          # agrupación visual (Calendario): dian|super|municipal|nomina|otras
     genera_pago: bool = False       # ¿genera un pago a verificar? (Calendario lo lee para el hito de pago)
     formulario_pago: str = ""       # formulario DIAN que paga (350/300/110/210/315…); vacío = municipal/sin 490
+    plazo_pago_fatal_num: int = 0   # plazo fatal de pago desde el vencimiento (0 = sin plazo fatal)
+    plazo_pago_fatal_unidad: str = ""   # "dias" | "meses"
+    consecuencia_impago: str = ""   # "ineficacia" | "exclusion_rst" | ""
 
 
 @router.get("/obligacion-tipo")
@@ -192,7 +198,10 @@ def crear_obligacion_tipo(data: ObligTipoIn, session: Session = Depends(get_sess
         tam_intervalo=data.tam_intervalo, paso_dias_habiles=data.paso_dias_habiles,
         familia=_norm_familia(data.familia),
         genera_pago=data.genera_pago,
-        formulario_pago=(data.formulario_pago.strip() if data.genera_pago else ""))
+        formulario_pago=(data.formulario_pago.strip() if data.genera_pago else ""),
+        plazo_pago_fatal_num=(data.plazo_pago_fatal_num if data.genera_pago else 0),
+        plazo_pago_fatal_unidad=(data.plazo_pago_fatal_unidad.strip() if data.genera_pago else ""),
+        consecuencia_impago=(data.consecuencia_impago.strip() if data.genera_pago else ""))
     session.add(t)
     session.commit()
     session.refresh(t)
@@ -220,6 +229,9 @@ def actualizar_obligacion_tipo(item_id: int, data: ObligTipoIn,
     t.familia = _norm_familia(data.familia)
     t.genera_pago = data.genera_pago
     t.formulario_pago = data.formulario_pago.strip() if data.genera_pago else ""
+    t.plazo_pago_fatal_num = data.plazo_pago_fatal_num if data.genera_pago else 0
+    t.plazo_pago_fatal_unidad = data.plazo_pago_fatal_unidad.strip() if data.genera_pago else ""
+    t.consecuencia_impago = data.consecuencia_impago.strip() if data.genera_pago else ""
     # modo_generacion NO se toca: es de Calendario, se preserva.
     session.add(t)
     session.commit()

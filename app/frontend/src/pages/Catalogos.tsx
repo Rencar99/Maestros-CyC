@@ -262,7 +262,7 @@ function CiiuRef() {
 }
 
 /** Catálogo de Obligaciones (rico): alimenta el calendario y las Otras Obligaciones del cliente. */
-interface Oblig { id: number; codigo: string; descripcion: string; ente: string; criterio: string; periodicidad: string; origen: string; disparador: string; activo: boolean; tam_intervalo: number; paso_dias_habiles: number; familia: string; genera_pago: boolean; formulario_pago: string; }
+interface Oblig { id: number; codigo: string; descripcion: string; ente: string; criterio: string; periodicidad: string; origen: string; disparador: string; activo: boolean; tam_intervalo: number; paso_dias_habiles: number; familia: string; genera_pago: boolean; formulario_pago: string; plazo_pago_fatal_num: number; plazo_pago_fatal_unidad: string; consecuencia_impago: string; }
 const CRITERIOS = ["nit1", "nit2", "fijo"];
 // Familia: agrupación visual en el Calendario (se guarda el key, se muestra la etiqueta).
 const FAMILIAS: [string, string][] = [["dian", "Impuestos DIAN"], ["super", "Superintendencias"], ["municipal", "Impuestos municipales"], ["nomina", "Obligaciones de nómina"], ["otras", "Otras obligaciones"]];
@@ -307,6 +307,9 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
       familia: f.familia || "otras",
       genera_pago: f.genera_pago,
       formulario_pago: f.genera_pago ? f.formulario_pago.trim() : "",
+      plazo_pago_fatal_num: f.genera_pago ? (Number(f.plazo_pago_fatal_num) || 0) : 0,
+      plazo_pago_fatal_unidad: f.genera_pago ? f.plazo_pago_fatal_unidad : "",
+      consecuencia_impago: f.genera_pago ? f.consecuencia_impago : "",
     };
     try {
       if (editando) await api.put(`/catalogos/obligacion-tipo/${obl.id}`, payload);
@@ -372,6 +375,22 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
             {f.formulario_pago && !formularios.some((x) => x.numero === f.formulario_pago) && <option value={f.formulario_pago}>{f.formulario_pago}</option>}
             {formularios.filter((x) => x.activo && x.numero).map((x) => <option key={x.id} value={x.numero}>{x.nombre}</option>)}
           </select></label>}
+        {f.genera_pago && <label className="cq-fld"><span>Plazo de pago fatal</span>
+          <div className="catsel-row">
+            <input type="number" min={0} style={{ width: 80 }} value={f.plazo_pago_fatal_num}
+              onChange={(e) => set({ plazo_pago_fatal_num: Number(e.target.value) || 0 })} />
+            <select style={{ flex: 1 }} value={f.plazo_pago_fatal_unidad} onChange={(e) => set({ plazo_pago_fatal_unidad: e.target.value })}>
+              <option value="">— sin plazo fatal —</option>
+              <option value="dias">días (desde el vencimiento)</option>
+              <option value="meses">meses (desde el vencimiento)</option>
+            </select>
+          </div></label>}
+        {f.genera_pago && <label className="cq-fld"><span>Consecuencia si no paga</span>
+          <select value={f.consecuencia_impago} onChange={(e) => set({ consecuencia_impago: e.target.value })}>
+            <option value="">Ninguna (solo intereses)</option>
+            <option value="ineficacia">Ineficacia (se da por no presentada)</option>
+            <option value="exclusion_rst">Exclusión del RST</option>
+          </select></label>}
         {(f.criterio === "nit1" || f.criterio === "nit2") && <>
           <label className="cq-fld"><span>Tamaño de intervalo</span>
             <input type="number" min={0} value={f.tam_intervalo}
@@ -429,7 +448,7 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
     if ((await confirmar({ titulo: "Eliminar obligación", mensaje: `Se eliminará «${r.descripcion}» (${r.codigo}). No se puede si está asignada a clientes o con plazos.`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
     try { await api.del(`/catalogos/obligacion-tipo/${r.id}`); load(); toast("Eliminada"); } catch (e: any) { toast(e.message, true); }
   };
-  const vacio = (): Oblig => ({ id: 0, codigo: "", descripcion: "", ente: "DIAN", criterio: "nit1", periodicidad: "", origen: "manual", disparador: "", activo: true, tam_intervalo: 0, paso_dias_habiles: 1, familia: "otras", genera_pago: false, formulario_pago: "" });
+  const vacio = (): Oblig => ({ id: 0, codigo: "", descripcion: "", ente: "DIAN", criterio: "nit1", periodicidad: "", origen: "manual", disparador: "", activo: true, tam_intervalo: 0, paso_dias_habiles: 1, familia: "otras", genera_pago: false, formulario_pago: "", plazo_pago_fatal_num: 0, plazo_pago_fatal_unidad: "", consecuencia_impago: "" });
 
   const cols: Column<Oblig>[] = [
     { key: "codigo", label: "Código", sortable: true, filterable: true, width: "130px", value: (r) => r.codigo, render: (r) => <span className="pill">{r.codigo}</span> },
