@@ -575,7 +575,7 @@ function EntidadesCard() {
  *  puede presentar cada uno se define en Roles y permisos. */
 interface FormularioItem { id: number; nombre: string; numero: string; codigo_calendario: string; activo: boolean; }
 
-function FormularioModal({ f0, onClose, onSaved }: { f0: FormularioItem; onClose: () => void; onSaved: () => void }) {
+function FormularioModal({ f0, obligaciones, onClose, onSaved }: { f0: FormularioItem; obligaciones: Oblig[]; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const editando = !!f0.id;
   const [f, setF] = useState<FormularioItem>(f0);
@@ -599,8 +599,12 @@ function FormularioModal({ f0, onClose, onSaved }: { f0: FormularioItem; onClose
           <input value={f.nombre} autoFocus onChange={(e) => set({ nombre: e.target.value })} placeholder="Ej. Formulario 350 (Rete Renta)" /></label>
         <label className="cq-fld"><span>Número</span>
           <input value={f.numero} onChange={(e) => set({ numero: e.target.value })} placeholder="Ej. 350" /></label>
-        <label className="cq-fld obl-wide"><span>Código Calendario</span>
-          <input value={f.codigo_calendario} onChange={(e) => set({ codigo_calendario: e.target.value })} placeholder="Ej. Rete_Renta" /></label>
+        <label className="cq-fld obl-wide"><span>Código Calendario (obligación enlazada)</span>
+          <select value={f.codigo_calendario} onChange={(e) => set({ codigo_calendario: e.target.value })}>
+            <option value="">— ninguna —</option>
+            {f.codigo_calendario && !obligaciones.some((o) => o.codigo === f.codigo_calendario) && <option value={f.codigo_calendario}>{f.codigo_calendario}</option>}
+            {obligaciones.filter((o) => o.activo).map((o) => <option key={o.id} value={o.codigo}>{o.codigo} · {o.descripcion}</option>)}
+          </select></label>
         <div className="obl-wide" style={{ marginTop: 2 }}>
           <Toggle label="Activo" color="green" checked={f.activo} onChange={(v) => set({ activo: v })} /></div>
       </div>
@@ -612,9 +616,13 @@ function FormulariosCard() {
   const toast = useToast();
   const confirmar = useConfirm();
   const [items, setItems] = useState<FormularioItem[]>([]);
+  const [obligaciones, setObligaciones] = useState<Oblig[]>([]);
   const [edit, setEdit] = useState<FormularioItem | null>(null);
   const load = () => api.get("/formularios").then(setItems).catch((e) => toast(e.message, true));
-  useEffect(() => { load(); }, []); // eslint-disable-line
+  useEffect(() => {
+    load();
+    api.get("/catalogos/obligacion-tipo").then((l: Oblig[]) => setObligaciones(l)).catch(() => {});
+  }, []); // eslint-disable-line
   const del = async (r: FormularioItem) => {
     if ((await confirmar({ titulo: "Eliminar formulario", mensaje: `Se eliminará «${r.nombre}» y sus autorizaciones.`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
     try { await api.del(`/formularios/${r.id}`); load(); toast("Eliminado"); } catch (e: any) { toast(e.message, true); }
@@ -639,7 +647,7 @@ function FormulariosCard() {
           <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
           <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
         </>} />
-      {edit && <FormularioModal f0={edit} onClose={() => setEdit(null)} onSaved={load} />}
+      {edit && <FormularioModal f0={edit} obligaciones={obligaciones} onClose={() => setEdit(null)} onSaved={load} />}
     </div>
   );
 }
