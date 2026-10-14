@@ -22,11 +22,13 @@ _guard = Depends(require_perm("config.roles"))   # gestión = solo Super
 
 
 def _dict(f: Formulario) -> dict:
-    return {"id": f.id, "nombre": f.nombre, "codigo_calendario": f.codigo_calendario, "activo": f.activo}
+    return {"id": f.id, "nombre": f.nombre, "numero": f.numero,
+            "codigo_calendario": f.codigo_calendario, "activo": f.activo}
 
 
 class FormularioIn(BaseModel):
     nombre: str
+    numero: str = ""           # número DIAN ("350"); lo usa el dropdown de pago de la obligación y la validación del 490
     codigo_calendario: str = ""
     activo: bool = True
 
@@ -52,7 +54,7 @@ def crear(data: FormularioIn, session: Session = Depends(get_session), _=_guard)
         raise HTTPException(409, "Ya existe un formulario con ese nombre")
     if cod and session.exec(select(Formulario).where(Formulario.codigo_calendario == cod)).first():
         raise HTTPException(409, "Ya existe un formulario con ese código de calendario")
-    f = Formulario(nombre=nombre, codigo_calendario=cod, activo=data.activo)
+    f = Formulario(nombre=nombre, numero=data.numero.strip(), codigo_calendario=cod, activo=data.activo)
     session.add(f)
     session.commit()
     session.refresh(f)
@@ -74,6 +76,7 @@ def actualizar(item_id: int, data: FormularioIn, session: Session = Depends(get_
         if ch2 and ch2.id != item_id:
             raise HTTPException(409, "Ya existe otro formulario con ese código de calendario")
     f.nombre = nombre
+    f.numero = data.numero.strip()
     f.codigo_calendario = cod
     f.activo = data.activo
     session.add(f)

@@ -274,7 +274,7 @@ const DISP_TXT: Record<string, string> = { "": "— (manual)", renta_jur: "Renta
 interface EntidadItem { id: number; nombre: string; sigla: string; activo: boolean; }
 
 /** Modal (estándar CyC) para crear/editar una obligación del catálogo. */
-function ObligacionModal({ obl, entidades, onEntidadCreada, onClose, onSaved }: { obl: Oblig; entidades: EntidadItem[]; onEntidadCreada: (e: EntidadItem) => void; onClose: () => void; onSaved: () => void }) {
+function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose, onSaved }: { obl: Oblig; entidades: EntidadItem[]; formularios: FormularioItem[]; onEntidadCreada: (e: EntidadItem) => void; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const editando = !!obl.id;
   const [f, setF] = useState<Oblig>(obl);
@@ -367,8 +367,11 @@ function ObligacionModal({ obl, entidades, onEntidadCreada, onClose, onSaved }: 
             onChange={(v) => set({ genera_pago: v, formulario_pago: v ? f.formulario_pago : "" })}
             title="¿Esta obligación genera un pago a verificar? (retención, IVA, renta, consumo, ICA/ReteICA)" /></label>
         {f.genera_pago && <label className="cq-fld"><span>Formulario de pago</span>
-          <input value={f.formulario_pago} onChange={(e) => set({ formulario_pago: e.target.value })}
-            placeholder="DIAN: 350, 300, 110, 210, 315 · vacío si municipal (sin 490)" /></label>}
+          <select value={f.formulario_pago} onChange={(e) => set({ formulario_pago: e.target.value })}>
+            <option value="">— ninguno (municipal / sin 490) —</option>
+            {f.formulario_pago && !formularios.some((x) => x.numero === f.formulario_pago) && <option value={f.formulario_pago}>{f.formulario_pago}</option>}
+            {formularios.filter((x) => x.activo && x.numero).map((x) => <option key={x.id} value={x.numero}>{x.nombre}</option>)}
+          </select></label>}
         {(f.criterio === "nit1" || f.criterio === "nit2") && <>
           <label className="cq-fld"><span>Tamaño de intervalo</span>
             <input type="number" min={0} value={f.tam_intervalo}
@@ -390,6 +393,7 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
   const [items, setItems] = useState<Oblig[]>([]);
   const [edit, setEdit] = useState<Oblig | null>(null);
   const [entidades, setEntidades] = useState<EntidadItem[]>([]);
+  const [formularios, setFormularios] = useState<FormularioItem[]>([]);
   // Revisión DIAN en lote (revisable, nada se aplica en silencio). Muestra el
   // diff de TODOS los clientes con RUT y separa AGREGAR faltantes (seguro) de
   // QUITAR sobrantes (con confirmación). Manuales nunca se tocan.
@@ -419,6 +423,7 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
   useEffect(() => {
     load();
     api.get("/catalogos/entidad").then((l: EntidadItem[]) => setEntidades(l)).catch(() => {});
+    api.get("/formularios").then((l: FormularioItem[]) => setFormularios(l)).catch(() => {});
   }, []); // eslint-disable-line
   const del = async (r: Oblig) => {
     if ((await confirmar({ titulo: "Eliminar obligación", mensaje: `Se eliminará «${r.descripcion}» (${r.codigo}). No se puede si está asignada a clientes o con plazos.`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
@@ -456,7 +461,7 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
           <button className="act-btn" title="Duplicar (nueva con estos datos)" onClick={() => setEdit({ ...r, id: 0 })}><Icon name="copy" size={15} /></button>
           <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
         </> : undefined} />
-      {edit && <ObligacionModal obl={edit} entidades={entidades}
+      {edit && <ObligacionModal obl={edit} entidades={entidades} formularios={formularios}
         onEntidadCreada={(e) => setEntidades((prev) => [...prev, e].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")))}
         onClose={() => setEdit(null)} onSaved={load} />}
       {batchOpen && <Modal title="Revisar obligaciones DIAN — todos los clientes" icon="check-circle" size="md"
@@ -549,7 +554,7 @@ function EntidadesCard() {
 
 /** Catálogo de Formularios DIAN (350, etc.). Solo Super. La autorización de quién
  *  puede presentar cada uno se define en Roles y permisos. */
-interface FormularioItem { id: number; nombre: string; codigo_calendario: string; activo: boolean; }
+interface FormularioItem { id: number; nombre: string; numero: string; codigo_calendario: string; activo: boolean; }
 
 function FormularioModal({ f0, onClose, onSaved }: { f0: FormularioItem; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
@@ -560,7 +565,7 @@ function FormularioModal({ f0, onClose, onSaved }: { f0: FormularioItem; onClose
     const nombre = f.nombre.trim();
     if (!nombre) { toast("El nombre es obligatorio", true); return; }
     try {
-      const payload = { nombre, codigo_calendario: f.codigo_calendario.trim(), activo: f.activo };
+      const payload = { nombre, numero: f.numero.trim(), codigo_calendario: f.codigo_calendario.trim(), activo: f.activo };
       if (editando) await api.put(`/formularios/${f0.id}`, payload);
       else await api.post("/formularios", payload);
       toast(editando ? "Formulario actualizado ✓" : "Formulario creado ✓");
@@ -573,6 +578,8 @@ function FormularioModal({ f0, onClose, onSaved }: { f0: FormularioItem; onClose
       <div className="obl-grid">
         <label className="cq-fld obl-wide"><span>Nombre</span>
           <input value={f.nombre} autoFocus onChange={(e) => set({ nombre: e.target.value })} placeholder="Ej. Formulario 350 (Rete Renta)" /></label>
+        <label className="cq-fld"><span>Número</span>
+          <input value={f.numero} onChange={(e) => set({ numero: e.target.value })} placeholder="Ej. 350" /></label>
         <label className="cq-fld obl-wide"><span>Código Calendario</span>
           <input value={f.codigo_calendario} onChange={(e) => set({ codigo_calendario: e.target.value })} placeholder="Ej. Rete_Renta" /></label>
         <div className="obl-wide" style={{ marginTop: 2 }}>
@@ -593,9 +600,10 @@ function FormulariosCard() {
     if ((await confirmar({ titulo: "Eliminar formulario", mensaje: `Se eliminará «${r.nombre}» y sus autorizaciones.`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
     try { await api.del(`/formularios/${r.id}`); load(); toast("Eliminado"); } catch (e: any) { toast(e.message, true); }
   };
-  const vacio = (): FormularioItem => ({ id: 0, nombre: "", codigo_calendario: "", activo: true });
+  const vacio = (): FormularioItem => ({ id: 0, nombre: "", numero: "", codigo_calendario: "", activo: true });
   const cols: Column<FormularioItem>[] = [
     { key: "nombre", label: "Nombre", sortable: true, filterable: true, value: (r) => r.nombre },
+    { key: "numero", label: "Número", sortable: true, filterable: true, width: "110px", align: "center", value: (r) => r.numero, render: (r) => r.numero ? <span className="pill">{r.numero}</span> : <span className="muted">—</span> },
     { key: "codigo_calendario", label: "Código Calendario", sortable: true, filterable: true, width: "220px", value: (r) => r.codigo_calendario, render: (r) => r.codigo_calendario ? <span className="pill">{r.codigo_calendario}</span> : <span className="muted">—</span> },
     { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <span style={{ color: r.activo ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{r.activo ? "Sí" : "No"}</span> },
   ];

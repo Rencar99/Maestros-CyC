@@ -147,6 +147,16 @@ def _ensure_columns() -> None:
             "ALTER TABLE obligaciontipo ADD COLUMN IF NOT EXISTS formulario_pago VARCHAR NOT NULL DEFAULT ''"))
         if not ya_pago:   # siembra ÚNICA al crear las columnas (no reescribe ediciones posteriores)
             _sembrar_pago(conn)
+        # Catálogo Formularios: número DIAN (lo que trae el 490 para validar el pago).
+        ya_fnum = conn.execute(text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema=:s AND table_name='formulario' AND column_name='numero'"),
+            {"s": DB_SCHEMA}).first()
+        conn.execute(text(
+            "ALTER TABLE formulario ADD COLUMN IF NOT EXISTS numero VARCHAR NOT NULL DEFAULT ''"))
+        if not ya_fnum:   # backfill único: saca el número que hoy vive dentro del nombre ("Formulario 350 (…)")
+            conn.execute(text(
+                "UPDATE formulario SET numero = COALESCE(substring(nombre from '\\d+'), '') WHERE numero=''"))
         _agente_retenedor_derivado(conn)
 
 

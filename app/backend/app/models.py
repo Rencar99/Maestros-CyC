@@ -247,6 +247,7 @@ class Formulario(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     nombre: str = Field(index=True, unique=True)            # "Formulario 350 (Rete Renta)"
+    numero: str = ""                                        # "350" — número DIAN (lo que trae el 490 para validar el pago)
     codigo_calendario: str = Field(default="", index=True)  # "Rete_Renta"
     activo: bool = True
 
