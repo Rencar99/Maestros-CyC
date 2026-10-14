@@ -133,6 +133,7 @@ def _oblig_dict(t: ObligacionTipo) -> dict:
             "codigo": t.codigo, "ente": t.ente, "periodicidad": t.periodicidad,
             "criterio": t.criterio, "digitos_nit": t.digitos_nit, "origen": t.origen,
             "disparador": t.disparador, "familia": t.familia,
+            "genera_pago": t.genera_pago, "formulario_pago": t.formulario_pago,
             "tam_intervalo": t.tam_intervalo, "paso_dias_habiles": t.paso_dias_habiles}
 
 
@@ -157,6 +158,8 @@ class ObligTipoIn(BaseModel):
     tam_intervalo: int = 0          # generación (Calendario lee): tamaño de intervalo de NIT
     paso_dias_habiles: int = 1      # generación (Calendario lee): días hábiles por grupo
     familia: str = "otras"          # agrupación visual (Calendario): dian|super|municipal|nomina|otras
+    genera_pago: bool = False       # ¿genera un pago a verificar? (Calendario lo lee para el hito de pago)
+    formulario_pago: str = ""       # formulario DIAN que paga (350/300/110/210/315…); vacío = municipal/sin 490
 
 
 @router.get("/obligacion-tipo")
@@ -187,7 +190,9 @@ def crear_obligacion_tipo(data: ObligTipoIn, session: Session = Depends(get_sess
         criterio=data.criterio, periodicidad=data.periodicidad, origen=data.origen,
         disparador=data.disparador, digitos_nit=_DIG_CRIT.get(data.criterio, 0), activo=data.activo,
         tam_intervalo=data.tam_intervalo, paso_dias_habiles=data.paso_dias_habiles,
-        familia=_norm_familia(data.familia))
+        familia=_norm_familia(data.familia),
+        genera_pago=data.genera_pago,
+        formulario_pago=(data.formulario_pago.strip() if data.genera_pago else ""))
     session.add(t)
     session.commit()
     session.refresh(t)
@@ -213,6 +218,8 @@ def actualizar_obligacion_tipo(item_id: int, data: ObligTipoIn,
     t.tam_intervalo = data.tam_intervalo
     t.paso_dias_habiles = data.paso_dias_habiles
     t.familia = _norm_familia(data.familia)
+    t.genera_pago = data.genera_pago
+    t.formulario_pago = data.formulario_pago.strip() if data.genera_pago else ""
     # modo_generacion NO se toca: es de Calendario, se preserva.
     session.add(t)
     session.commit()

@@ -262,7 +262,7 @@ function CiiuRef() {
 }
 
 /** Catálogo de Obligaciones (rico): alimenta el calendario y las Otras Obligaciones del cliente. */
-interface Oblig { id: number; codigo: string; descripcion: string; ente: string; criterio: string; periodicidad: string; origen: string; disparador: string; activo: boolean; tam_intervalo: number; paso_dias_habiles: number; familia: string; }
+interface Oblig { id: number; codigo: string; descripcion: string; ente: string; criterio: string; periodicidad: string; origen: string; disparador: string; activo: boolean; tam_intervalo: number; paso_dias_habiles: number; familia: string; genera_pago: boolean; formulario_pago: string; }
 const CRITERIOS = ["nit1", "nit2", "fijo"];
 // Familia: agrupación visual en el Calendario (se guarda el key, se muestra la etiqueta).
 const FAMILIAS: [string, string][] = [["dian", "Impuestos DIAN"], ["super", "Superintendencias"], ["municipal", "Impuestos municipales"], ["nomina", "Obligaciones de nómina"], ["otras", "Otras obligaciones"]];
@@ -305,6 +305,8 @@ function ObligacionModal({ obl, entidades, onEntidadCreada, onClose, onSaved }: 
       tam_intervalo: esNit ? (Number(f.tam_intervalo) || 0) : 0,
       paso_dias_habiles: esNit ? (Number(f.paso_dias_habiles) || 1) : 1,
       familia: f.familia || "otras",
+      genera_pago: f.genera_pago,
+      formulario_pago: f.genera_pago ? f.formulario_pago.trim() : "",
     };
     try {
       if (editando) await api.put(`/catalogos/obligacion-tipo/${obl.id}`, payload);
@@ -360,6 +362,13 @@ function ObligacionModal({ obl, entidades, onEntidadCreada, onClose, onSaved }: 
         <label className="cq-fld"><span>Familia</span>
           <select value={f.familia || "otras"} onChange={(e) => set({ familia: e.target.value })}>
             {FAMILIAS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+        <label className="cq-fld"><span>Genera pago</span>
+          <Toggle checked={f.genera_pago} color="green" label={f.genera_pago ? "Sí" : "No"}
+            onChange={(v) => set({ genera_pago: v, formulario_pago: v ? f.formulario_pago : "" })}
+            title="¿Esta obligación genera un pago a verificar? (retención, IVA, renta, consumo, ICA/ReteICA)" /></label>
+        {f.genera_pago && <label className="cq-fld"><span>Formulario de pago</span>
+          <input value={f.formulario_pago} onChange={(e) => set({ formulario_pago: e.target.value })}
+            placeholder="DIAN: 350, 300, 110, 210, 315 · vacío si municipal (sin 490)" /></label>}
         {(f.criterio === "nit1" || f.criterio === "nit2") && <>
           <label className="cq-fld"><span>Tamaño de intervalo</span>
             <input type="number" min={0} value={f.tam_intervalo}
@@ -415,7 +424,7 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
     if ((await confirmar({ titulo: "Eliminar obligación", mensaje: `Se eliminará «${r.descripcion}» (${r.codigo}). No se puede si está asignada a clientes o con plazos.`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
     try { await api.del(`/catalogos/obligacion-tipo/${r.id}`); load(); toast("Eliminada"); } catch (e: any) { toast(e.message, true); }
   };
-  const vacio = (): Oblig => ({ id: 0, codigo: "", descripcion: "", ente: "DIAN", criterio: "nit1", periodicidad: "", origen: "manual", disparador: "", activo: true, tam_intervalo: 0, paso_dias_habiles: 1, familia: "otras" });
+  const vacio = (): Oblig => ({ id: 0, codigo: "", descripcion: "", ente: "DIAN", criterio: "nit1", periodicidad: "", origen: "manual", disparador: "", activo: true, tam_intervalo: 0, paso_dias_habiles: 1, familia: "otras", genera_pago: false, formulario_pago: "" });
 
   const cols: Column<Oblig>[] = [
     { key: "codigo", label: "Código", sortable: true, filterable: true, width: "130px", value: (r) => r.codigo, render: (r) => <span className="pill">{r.codigo}</span> },
@@ -423,6 +432,9 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
     { key: "ente", label: "Ente", sortable: true, filterable: true, width: "170px", value: (r) => r.ente },
     { key: "criterio", label: "Criterio", sortable: true, filterable: true, width: "150px", value: (r) => CRIT_TXT[r.criterio] || r.criterio },
     { key: "disparador", label: "Disparador (DIAN)", sortable: true, filterable: true, width: "190px", value: (r) => DISP_TXT[r.disparador] ?? r.disparador },
+    { key: "pago", label: "Pago", sortable: true, filterable: true, width: "110px", align: "center",
+      value: (r) => r.genera_pago ? (r.formulario_pago || "Sí") : "",
+      render: (r) => r.genera_pago ? <span className="pill">{r.formulario_pago || "Sí"}</span> : <span style={{ color: "var(--ink-3)" }}>—</span> },
     { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <span style={{ color: r.activo ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{r.activo ? "Sí" : "No"}</span> },
   ];
   return (

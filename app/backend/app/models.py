@@ -100,6 +100,10 @@ class ObligacionTipo(SQLModel, table=True):
     # Agrupación visual en el Calendario (columna compartida, ya poblada por Calendario).
     # Maestros la deja elegir al crear/editar la obligación.
     familia: str = "otras"               # dian | super | municipal | nomina | otras
+    # --- Pago (lo LEE el Calendario para el hito de verificación del pago con el 490) ---
+    # Maestros es dueño de estos campos (se editan en el catálogo).
+    genera_pago: bool = False            # ¿puede generar un pago a verificar? (retención, IVA, renta, consumo, ICA/ReteICA)
+    formulario_pago: str = ""            # formulario DIAN que paga, para cruzar el 490 (350/300/110/210/315…); vacío = municipal/sin 490
 
 
 class Cargo(SQLModel, table=True):

@@ -135,7 +135,45 @@ def _ensure_columns() -> None:
         # Cuenta de cobro: ruta donde se guardó el PDF al generar en firme.
         conn.execute(text(
             "ALTER TABLE cuentacobro ADD COLUMN IF NOT EXISTS ruta_pdf VARCHAR NOT NULL DEFAULT ''"))
+        # Pago en el catálogo de obligaciones (el Calendario lo LEE para el hito de
+        # verificación del pago con el recibo 490). Maestros es dueño de escritura.
+        ya_pago = conn.execute(text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema=:s AND table_name='obligaciontipo' "
+            "AND column_name='formulario_pago'"), {"s": DB_SCHEMA}).first()
+        conn.execute(text(
+            "ALTER TABLE obligaciontipo ADD COLUMN IF NOT EXISTS genera_pago BOOLEAN NOT NULL DEFAULT FALSE"))
+        conn.execute(text(
+            "ALTER TABLE obligaciontipo ADD COLUMN IF NOT EXISTS formulario_pago VARCHAR NOT NULL DEFAULT ''"))
+        if not ya_pago:   # siembra ÚNICA al crear las columnas (no reescribe ediciones posteriores)
+            _sembrar_pago(conn)
         _agente_retenedor_derivado(conn)
+
+
+def _sembrar_pago(conn) -> None:
+    """Siembra ÚNICA (al crear las columnas, no se repite en arranques siguientes,
+    así no reescribe lo que Renzo edite después) de ``genera_pago`` /
+    ``formulario_pago`` para las obligaciones conocidas.
+
+    Las DIAN cuyo pago se verifica con un 490 llevan su formulario; las
+    municipales (ICA/ReteICA) generan pago pero SIN formulario DIAN (no hay 490).
+    El resto queda en el default (``genera_pago=false``) y se ajusta en el catálogo.
+    """
+    con_formulario = [
+        ("RETEFUENTE", "350"), ("RETEIVA", "350"),            # retención en la fuente (renta + IVA)
+        ("IVA_BIM", "300"), ("IVA_CUAT", "300"), ("IVA_ANUAL", "300"),
+        ("INC", "315"),                                        # impuesto al consumo
+        ("RENTA_JUR", "110"), ("RENTA_GC", "110"),             # renta PJ / grandes contribuyentes
+        ("RENTA_NAT", "210"),                                  # renta personas naturales
+    ]
+    for cod, formulario in con_formulario:
+        conn.execute(text(
+            "UPDATE obligaciontipo SET genera_pago=TRUE, formulario_pago=:f WHERE codigo=:c"),
+            {"f": formulario, "c": cod})
+    # Municipales: generan pago a verificar pero sin formulario DIAN (no hay 490).
+    for cod in ("ICA_MUN", "RETEICA_MUN", "AUTORETEICA_MUN", "RETICA_CTG"):
+        conn.execute(text(
+            "UPDATE obligaciontipo SET genera_pago=TRUE WHERE codigo=:c"), {"c": cod})
 
 
 def _agente_retenedor_derivado(conn) -> None:
