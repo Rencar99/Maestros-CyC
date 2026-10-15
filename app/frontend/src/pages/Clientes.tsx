@@ -556,6 +556,15 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   const setIca = (i: number, patch: Partial<MunicipioIca>) => setC((o) => ({ ...o, municipios_ica: o.municipios_ica.map((m, j) => j === i ? { ...m, ...patch } : m) }));
   const addIca = () => setC((o) => ({ ...o, municipios_ica: [...o.municipios_ica, { municipio_dane: "", municipio: "", ciiu: "", hace_ica: false, hace_reteica: false, hace_autoreteica: false, exogena_distrital: false }] }));
   const delIca = (i: number) => setC((o) => ({ ...o, municipios_ica: o.municipios_ica.filter((_, j) => j !== i) }));
+  const chkStyle = { width: 16, height: 16, accentColor: "var(--primary)" } as const;
+  const icaCols: Column<{ m: MunicipioIca; i: number }>[] = [
+    { key: "municipio", label: "Municipio (DANE)", minWidth: "230px", value: (r) => r.m.municipio || r.m.municipio_dane || "", render: (r) => <MunicipioCombo value={r.m.municipio_dane} onChange={(mn) => setIca(r.i, { municipio_dane: mn.codigo, municipio: mn.nombre })} /> },
+    { key: "ciiu", label: "CIIU (ICA)", minWidth: "190px", value: (r) => r.m.ciiu || "", render: (r) => <CiiuCombo value={r.m.ciiu} onChange={(code) => setIca(r.i, { ciiu: code })} /> },
+    { key: "ica", label: "ICA", width: "78px", align: "center", value: (r) => (r.m.hace_ica ? "1" : ""), render: (r) => <input type="checkbox" checked={r.m.hace_ica} onChange={(e) => setIca(r.i, { hace_ica: e.target.checked })} style={chkStyle} /> },
+    { key: "reteica", label: "ReteICA", width: "92px", align: "center", value: (r) => (r.m.hace_reteica ? "1" : ""), render: (r) => <input type="checkbox" checked={r.m.hace_reteica} onChange={(e) => setIca(r.i, { hace_reteica: e.target.checked })} style={chkStyle} /> },
+    { key: "autoreteica", label: "AutoReteICA", width: "112px", align: "center", value: (r) => (r.m.hace_autoreteica ? "1" : ""), render: (r) => <input type="checkbox" checked={r.m.hace_autoreteica} onChange={(e) => setIca(r.i, { hace_autoreteica: e.target.checked })} style={chkStyle} /> },
+    { key: "exogena", label: "Exógena distrital", width: "130px", align: "center", value: (r) => (r.m.exogena_distrital ? "1" : ""), render: (r) => <input type="checkbox" checked={r.m.exogena_distrital} onChange={(e) => setIca(r.i, { exogena_distrital: e.target.checked })} style={chkStyle} /> },
+  ];
   // El municipio de domicilio del cliente es, por defecto, el primer municipio ICA (con su
   // actividad principal como CIIU). `force` sobreescribe el CIIU (se usa al leer el RUT).
   const conDomicilioIca = (o: Cliente, munDane: string, ciiu: string, force = false): Cliente => {
@@ -1049,22 +1058,15 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
           )}
 
           {tab === "ica" && (
-            <div className="fieldgroup"><h4>Municipios en que declara ICA</h4>
-              <div className="tbl-wrap" style={{ overflow: "visible" }}><table className="child"><thead><tr><th style={{ minWidth: 230 }}>Municipio (DANE)</th><th style={{ minWidth: 190 }}>CIIU (ICA)</th><th className="center" title="Declara ICA en el municipio">ICA</th><th className="center" title="Practica retención de ICA">ReteICA</th><th className="center" title="Autorretenedor de ICA">AutoReteICA</th><th className="center">Exógena distrital</th><th className="center" style={{ width: 56 }}><button className="add-ic" onClick={addIca} title="Agregar municipio"><Icon name="plus" size={16} /></button></th></tr></thead>
-                <tbody>
-                  {ica.map((m, i) => (
-                    <tr key={i}>
-                      <td><MunicipioCombo value={m.municipio_dane} onChange={(mn) => setIca(i, { municipio_dane: mn.codigo, municipio: mn.nombre })} /></td>
-                      <td><CiiuCombo value={m.ciiu} onChange={(code) => setIca(i, { ciiu: code })} /></td>
-                      <td className="center"><input type="checkbox" checked={m.hace_ica} onChange={(e) => setIca(i, { hace_ica: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} /></td>
-                      <td className="center"><input type="checkbox" checked={m.hace_reteica} onChange={(e) => setIca(i, { hace_reteica: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} /></td>
-                      <td className="center"><input type="checkbox" checked={m.hace_autoreteica} onChange={(e) => setIca(i, { hace_autoreteica: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} /></td>
-                      <td className="center"><input type="checkbox" checked={m.exogena_distrital} onChange={(e) => setIca(i, { exogena_distrital: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} /></td>
-                      <td className="al-c"><button className="act-btn del" onClick={() => delIca(i)} title="Quitar"><Icon name="trash" size={14} /></button></td>
-                    </tr>
-                  ))}
-                  {!ica.length && <tr><td colSpan={7} className="empty" style={{ padding: 14 }}>Sin municipios.</td></tr>}
-                </tbody></table></div>
+            <div className="fieldgroup srv-group">
+              <div className="fg-head"><h4>Municipios en que declara ICA</h4>
+                <button type="button" className="btn sm" onClick={addIca}><Icon name="plus" size={14} />Nuevo municipio</button>
+              </div>
+              <DataGrid columns={icaCols} rows={ica.map((m, i) => ({ m, i }))} getKey={(r) => r.i}
+                label="Municipios en que declara ICA" scrollClass="srv-scroll" storageKey="cli-ica"
+                exportable={false}
+                emptyLabel="Sin municipios. Usa «Nuevo municipio» para agregar."
+                actions={(r) => <button className="act-btn del" onClick={() => delIca(r.i)} title="Quitar"><Icon name="trash" size={14} /></button>} />
             </div>
           )}
 
