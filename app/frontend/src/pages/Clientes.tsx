@@ -1318,20 +1318,18 @@ function RespSelect({ value, onChange, catalogo, onCatalogo, onDel }: {
     { key: "codigo", label: "Código", sortable: true, filterable: true, width: "100px", align: "center", value: (r) => r.codigo, render: (r) => <span className="pill">{r.codigo}</span> },
     { key: "descripcion", label: "Descripción", sortable: true, filterable: true, value: (r) => r.descripcion, render: (r) => r.descripcion },
   ];
+  const nuevaBtn = adding
+    ? <div style={{ display: "flex", gap: 6, alignItems: "center", minWidth: 340, marginLeft: "auto" }}>
+        <div style={{ flex: 1 }}><CodeSelect path="responsabilidad" items={catalogo} onItems={onCatalogo}
+          value={null} onChange={(cod) => { agregar(cod); setAdding(false); }} placeholder="Elige la responsabilidad…" maxCod={5} /></div>
+        <button type="button" className="icon-btn" title="Cancelar" onClick={() => setAdding(false)}><Icon name="x" size={15} /></button>
+      </div>
+    : <button type="button" className="btn sm" style={{ marginLeft: "auto" }} onClick={() => setAdding(true)}><Icon name="plus" size={14} />Nueva responsabilidad</button>;
   return (
     <div style={{ marginTop: 12 }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-        {adding
-          ? <div style={{ display: "flex", gap: 6, alignItems: "center", minWidth: 340 }}>
-              <div style={{ flex: 1 }}><CodeSelect path="responsabilidad" items={catalogo} onItems={onCatalogo}
-                value={null} onChange={(cod) => { agregar(cod); setAdding(false); }} placeholder="Elige la responsabilidad…" maxCod={5} /></div>
-              <button type="button" className="icon-btn" title="Cancelar" onClick={() => setAdding(false)}><Icon name="x" size={15} /></button>
-            </div>
-          : <button type="button" className="btn sm" onClick={() => setAdding(true)}><Icon name="plus" size={14} />Nueva responsabilidad</button>}
-      </div>
       <DataGrid columns={respCols} rows={value || []} getKey={(r) => r.codigo}
         label="Responsabilidades (RUT casilla 53)" scrollClass="srv-scroll" storageKey="cli-resp"
-        searchable exportable={false}
+        searchable exportable={false} toolbar={nuevaBtn}
         emptyLabel="Sin responsabilidades (se cargan al «Comparar con RUT» o agrégalas con «Nueva responsabilidad»)"
         actions={(r) => <button type="button" className="act-btn del" title="Quitar" onClick={() => (onDel ? onDel(r.codigo) : del(r.codigo))}><Icon name="trash" size={14} /></button>} />
     </div>
