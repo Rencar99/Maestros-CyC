@@ -987,7 +987,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                     <input value={c.seccional_codigo} placeholder="01" maxLength={2} onChange={(e) => set("seccional_codigo", e.target.value.replace(/\D/g, ""))} />
                   </div>
                 </div>
-                <div style={{ borderTop: "1px solid var(--line)", marginTop: 14 }} />
+                <div style={{ borderTop: "2px solid var(--gold)", marginTop: 14 }} />
                 <RespSelect value={c.responsabilidades} onChange={(v) => set("responsabilidades", v)}
                   catalogo={respsCat} onCatalogo={(n) => setRespsCat((p) => [...p, n])} onDel={quitarResp} />
               </div>
