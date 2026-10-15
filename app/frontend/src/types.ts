@@ -45,6 +45,9 @@ export interface MunicipioIca {
   municipio_dane: string;
   municipio: string;
   ciiu: string;
+  hace_ica: boolean;
+  hace_reteica: boolean;
+  hace_autoreteica: boolean;
   exogena_distrital: boolean;
 }
 

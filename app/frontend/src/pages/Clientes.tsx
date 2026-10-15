@@ -554,7 +554,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     return nuevos.length ? { ...o, servicios: [...o.servicios, ...nuevos] } : o;
   });
   const setIca = (i: number, patch: Partial<MunicipioIca>) => setC((o) => ({ ...o, municipios_ica: o.municipios_ica.map((m, j) => j === i ? { ...m, ...patch } : m) }));
-  const addIca = () => setC((o) => ({ ...o, municipios_ica: [...o.municipios_ica, { municipio_dane: "", municipio: "", ciiu: "", exogena_distrital: false }] }));
+  const addIca = () => setC((o) => ({ ...o, municipios_ica: [...o.municipios_ica, { municipio_dane: "", municipio: "", ciiu: "", hace_ica: false, hace_reteica: false, hace_autoreteica: false, exogena_distrital: false }] }));
   const delIca = (i: number) => setC((o) => ({ ...o, municipios_ica: o.municipios_ica.filter((_, j) => j !== i) }));
   // El municipio de domicilio del cliente es, por defecto, el primer municipio ICA (con su
   // actividad principal como CIIU). `force` sobreescribe el CIIU (se usa al leer el RUT).
@@ -565,7 +565,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     if (idx >= 0) {
       if (ciiu && (force || !list[idx].ciiu)) list[idx] = { ...list[idx], ciiu };
     } else {
-      list.unshift({ municipio_dane: munDane, municipio: "", ciiu: ciiu || "", exogena_distrital: false });
+      list.unshift({ municipio_dane: munDane, municipio: "", ciiu: ciiu || "", hace_ica: false, hace_reteica: false, hace_autoreteica: false, exogena_distrital: false });
     }
     return { ...o, municipios_ica: list };
   };
@@ -1050,17 +1050,20 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
 
           {tab === "ica" && (
             <div className="fieldgroup"><h4>Municipios en que declara ICA</h4>
-              <div className="tbl-wrap" style={{ overflow: "visible" }}><table className="child"><thead><tr><th style={{ minWidth: 230 }}>Municipio (DANE)</th><th style={{ minWidth: 190 }}>CIIU (ICA)</th><th className="center">Exógena distrital</th><th className="center" style={{ width: 56 }}><button className="add-ic" onClick={addIca} title="Agregar municipio"><Icon name="plus" size={16} /></button></th></tr></thead>
+              <div className="tbl-wrap" style={{ overflow: "visible" }}><table className="child"><thead><tr><th style={{ minWidth: 230 }}>Municipio (DANE)</th><th style={{ minWidth: 190 }}>CIIU (ICA)</th><th className="center" title="Declara ICA en el municipio">ICA</th><th className="center" title="Practica retención de ICA">ReteICA</th><th className="center" title="Autorretenedor de ICA">AutoReteICA</th><th className="center">Exógena distrital</th><th className="center" style={{ width: 56 }}><button className="add-ic" onClick={addIca} title="Agregar municipio"><Icon name="plus" size={16} /></button></th></tr></thead>
                 <tbody>
                   {ica.map((m, i) => (
                     <tr key={i}>
                       <td><MunicipioCombo value={m.municipio_dane} onChange={(mn) => setIca(i, { municipio_dane: mn.codigo, municipio: mn.nombre })} /></td>
                       <td><CiiuCombo value={m.ciiu} onChange={(code) => setIca(i, { ciiu: code })} /></td>
+                      <td className="center"><input type="checkbox" checked={m.hace_ica} onChange={(e) => setIca(i, { hace_ica: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} /></td>
+                      <td className="center"><input type="checkbox" checked={m.hace_reteica} onChange={(e) => setIca(i, { hace_reteica: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} /></td>
+                      <td className="center"><input type="checkbox" checked={m.hace_autoreteica} onChange={(e) => setIca(i, { hace_autoreteica: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} /></td>
                       <td className="center"><input type="checkbox" checked={m.exogena_distrital} onChange={(e) => setIca(i, { exogena_distrital: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} /></td>
                       <td className="al-c"><button className="act-btn del" onClick={() => delIca(i)} title="Quitar"><Icon name="trash" size={14} /></button></td>
                     </tr>
                   ))}
-                  {!ica.length && <tr><td colSpan={4} className="empty" style={{ padding: 14 }}>Sin municipios.</td></tr>}
+                  {!ica.length && <tr><td colSpan={7} className="empty" style={{ padding: 14 }}>Sin municipios.</td></tr>}
                 </tbody></table></div>
             </div>
           )}

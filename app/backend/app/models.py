@@ -392,7 +392,11 @@ class ClienteMunicipioIca(SQLModel, table=True):
     municipio_dane: str = ""       # código DANE del municipio (opcional)
     municipio: str = ""            # nombre del municipio
     ciiu: str = ""                 # actividad (CIIU) que declara ICA allí
-    exogena_distrital: bool = False  # ¿presenta exógena distrital en ese municipio?
+    # Obligaciones municipales autónomas (las LEE el Calendario para generar por municipio):
+    hace_ica: bool = False           # declara ICA en el municipio (ICA_MUN)
+    hace_reteica: bool = False       # practica ReteICA (RETEICA_MUN)
+    hace_autoreteica: bool = False   # es autorretenedor de ICA (AUTORETEICA_MUN)
+    exogena_distrital: bool = False  # ¿presenta exógena distrital en ese municipio? (EXOG_MUN)
     creado_at: datetime = Field(default_factory=datetime.utcnow)
 
 

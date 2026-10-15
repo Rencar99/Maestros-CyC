@@ -121,6 +121,9 @@ class MunicipioIcaIn(SQLModel):
     municipio_dane: str = ""
     municipio: str = ""
     ciiu: str = ""
+    hace_ica: bool = False
+    hace_reteica: bool = False
+    hace_autoreteica: bool = False
     exogena_distrital: bool = False
 
 
