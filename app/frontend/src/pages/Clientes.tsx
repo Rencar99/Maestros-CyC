@@ -1305,31 +1305,33 @@ function RespSelect({ value, onChange, catalogo, onCatalogo, onDel }: {
   onCatalogo: (n: { codigo: string; descripcion: string }) => void;
   onDel?: (codigo: string) => void;     // si se pasa, maneja el quitar (con confirmación)
 }) {
+  const [adding, setAdding] = useState(false);
   const del = (codigo: string) => onChange((value || []).filter((v) => v.codigo !== codigo));
   const agregar = (cod: string) => {
     if (!cod || (value || []).some((v) => v.codigo === cod)) return;
     const desc = catalogo.find((x) => x.codigo === cod)?.descripcion || "";
     onChange([...(value || []), { codigo: cod, descripcion: desc }]);
   };
+  const respCols: Column<{ codigo: string; descripcion: string }>[] = [
+    { key: "codigo", label: "Código", sortable: true, filterable: true, width: "100px", align: "center", value: (r) => r.codigo, render: (r) => <span className="pill">{r.codigo}</span> },
+    { key: "descripcion", label: "Descripción", sortable: true, filterable: true, value: (r) => r.descripcion, render: (r) => r.descripcion },
+  ];
   return (
-    <div className="tbl-wrap" style={{ marginTop: 12 }}>
-      <table className="resp-grid">
-        <thead><tr><th style={{ width: 90 }}>Código</th><th>Descripción</th><th className="center" style={{ width: 64 }}>Quitar</th></tr></thead>
-        <tbody>
-          {(value || []).length === 0 && <tr><td colSpan={3} className="empty">Sin responsabilidades (se cargan al «Comparar con RUT» o agrégalas abajo)</td></tr>}
-          {(value || []).map((r) => (
-            <tr key={r.codigo}>
-              <td><span className="pill">{r.codigo}</span></td>
-              <td>{r.descripcion}</td>
-              <td className="center"><button type="button" className="act-btn del" title="Quitar" onClick={() => (onDel ? onDel(r.codigo) : del(r.codigo))}><Icon name="trash" size={14} /></button></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="f" style={{ marginTop: 8 }}>
-        <CodeSelect path="responsabilidad" items={catalogo} onItems={onCatalogo}
-          value={null} onChange={agregar} placeholder="Agregar responsabilidad…" maxCod={5} />
+    <div style={{ marginTop: 12 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+        {adding
+          ? <div style={{ display: "flex", gap: 6, alignItems: "center", minWidth: 340 }}>
+              <div style={{ flex: 1 }}><CodeSelect path="responsabilidad" items={catalogo} onItems={onCatalogo}
+                value={null} onChange={(cod) => { agregar(cod); setAdding(false); }} placeholder="Elige la responsabilidad…" maxCod={5} /></div>
+              <button type="button" className="icon-btn" title="Cancelar" onClick={() => setAdding(false)}><Icon name="x" size={15} /></button>
+            </div>
+          : <button type="button" className="btn sm" onClick={() => setAdding(true)}><Icon name="plus" size={14} />Nueva responsabilidad</button>}
       </div>
+      <DataGrid columns={respCols} rows={value || []} getKey={(r) => r.codigo}
+        label="Responsabilidades (RUT casilla 53)" scrollClass="srv-scroll" storageKey="cli-resp"
+        searchable exportable={false}
+        emptyLabel="Sin responsabilidades (se cargan al «Comparar con RUT» o agrégalas con «Nueva responsabilidad»)"
+        actions={(r) => <button type="button" className="act-btn del" title="Quitar" onClick={() => (onDel ? onDel(r.codigo) : del(r.codigo))}><Icon name="trash" size={14} /></button>} />
     </div>
   );
 }
