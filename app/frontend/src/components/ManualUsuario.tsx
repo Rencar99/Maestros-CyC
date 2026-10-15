@@ -74,7 +74,7 @@ const SECCIONES: Sec[] = [
   },
   {
     id: "clientes", titulo: "Clientes", icono: "clientes",
-    texto: "contribuyente nit documento dv rut casilla 53 regimen simple 47 periodicidad iva responsables obligaciones revisar por revisar representante legal sigla software objeto social contacto cliente desde clasificacion tributaria comparar rut pestañas identificacion tributario comercial municipios ica claves gestion minimizar quitar responsabilidad navegar confidencial emisor cuenta de cobro",
+    texto: "contribuyente nit documento dv rut casilla 53 regimen simple 47 periodicidad iva agente de retencion retenedor responsables obligaciones revisar por revisar representante legal sigla software objeto social contacto cliente desde clasificacion tributaria comparar rut pestañas identificacion tributario comercial municipios ica reteica autorretencion exogena distrital claves gestion minimizar quitar responsabilidad navegar confidencial emisor cuenta de cobro",
     cuerpo: (
       <>
         <P>👥 Catálogo general de los clientes de la firma. Cada cliente es un <b>contribuyente</b> (persona natural o jurídica) con su documento/NIT, datos de contacto, clasificación tributaria, responsables asignados, servicios, claves y obligaciones.</P>
@@ -96,14 +96,14 @@ const SECCIONES: Sec[] = [
           <li><b>Identificación:</b> tipo de contribuyente, documento + DV (NIT/ID), nombre o razón social, el <b>representante legal</b> de las jurídicas (documento, nombre, código de representación), sigla, software contable, objeto social, grupo económico y los datos de contacto/ubicación.</li>
           <li><b>Tributario:</b> clasificación tributaria y responsabilidades del RUT (ver siguiente bloque).</li>
           <li><b>Comercial:</b> servicios contratados y cobros programados (alimentan <i>Facturación</i>).</li>
-          <li><b>Municipios ICA:</b> municipios donde el cliente tiene ICA/ReteICA (para el calendario municipal).</li>
+          <li><b>Municipios ICA:</b> municipios donde el cliente declara, con sus marcas de <b>ICA</b>, <b>ReteICA</b>, <b>Autorretención</b> y <b>Exógena distrital</b> por municipio (para el calendario municipal).</li>
           <li><b>Obligaciones:</b> obligaciones DIAN del cliente (ver más abajo).</li>
           <li><b>Claves:</b> credenciales del cliente en los portales, guardadas cifradas.</li>
           <li><b>Gestión:</b> responsables de la firma asignados, firma contador/revisor, contacto del cliente, clave del portal DIAN y ruta de trabajo.</li>
         </L>
 
         <H e="⚖️">Clasificación tributaria (pestaña Tributario)</H>
-        <P>El <b>Régimen</b> (<code>47</code> = Simple; si no, Ordinario) y la <b>Periodicidad de IVA</b> se <b>derivan</b> de las <b>responsabilidades del RUT (casilla 53)</b> — no se teclean a mano. Por eso lo importante es mantener bien las responsabilidades: se cargan al Comparar con RUT, o se agregan/quitan en la tabla de esa pestaña.</P>
+        <P>El <b>Régimen</b> (<code>47</code> = Simple; si no, Ordinario), la <b>Periodicidad de IVA</b> y la condición de <b>agente de retención</b> se <b>derivan</b> de las <b>responsabilidades del RUT (casilla 53)</b> — no se teclean a mano. Por eso lo importante es mantener bien las responsabilidades: se cargan al Comparar con RUT, o se agregan/quitan en la tabla de esa pestaña.</P>
         <Nota>Al <b>quitar una responsabilidad</b>, si el cliente tiene obligaciones DIAN asignadas, la App avisa y pide confirmación: el cliente quedará <b>«por revisar»</b> (las obligaciones no se quitan solas).</Nota>
 
         <H e="📋">Obligaciones DIAN del cliente (pestaña Obligaciones)</H>
@@ -180,7 +180,7 @@ const SECCIONES: Sec[] = [
   },
   {
     id: "catalogos", titulo: "Catálogos", icono: "cat",
-    texto: "listas maestras obligaciontipo disparador familia duplicar cargos formas cobro entidades portales municipios ciiu formularios revisar dian de todos mantenimiento responsabilidades tipos documento software grupos activa inmutable",
+    texto: "listas maestras obligaciontipo disparador familia duplicar cargos formas cobro entidades portales municipios ciiu formularios numero codigo calendario revisar dian de todos mantenimiento responsabilidades tipos documento software grupos activa inmutable genera pago formulario de pago plazo fatal consecuencia ineficacia exclusion rst hito recibo",
     cuerpo: (
       <>
         <P>🗃️ Las <b>listas maestras</b> que alimentan los combos y las reglas de toda la App. Se eligen en la columna izquierda y casi todas se editan igual: <b>+</b> para agregar, lápiz para editar, 🗑️ para borrar (si no está en uso).</P>
@@ -192,8 +192,11 @@ const SECCIONES: Sec[] = [
           <li><b>Disparador:</b> qué responsabilidad/condición del RUT la activa (es el motor de aplicabilidad DIAN).</li>
           <li><b>Familia:</b> agrupación para el Calendario (<code>dian / super / municipal / nómina / otras</code>).</li>
           <li><b>Criterio</b>, <b>Tamaño de intervalo</b> y <b>Paso solo-NIT</b>: cómo el Calendario reparte los vencimientos por dígito de NIT.</li>
+          <li><b>Genera pago:</b> si al cumplir la obligación hay que <b>pagar</b>, se marca y se habilita el <b>Formulario de pago</b> (del catálogo de Formularios) para enlazar el recibo que corresponde.</li>
+          <li><b>Plazo de pago fatal</b> y <b>Consecuencia:</b> plazo extra para pagar y qué pasa si no se paga (p. ej. <i>ineficacia</i> de la retención, <i>exclusión</i> del Régimen Simple). Alimentan el <b>segundo hito</b> (verificar el pago) en el Calendario.</li>
           <li><b>Activa:</b> interruptor universal — una obligación inactiva no se deriva a nadie.</li>
         </L>
+        <P>El modal de la obligación organiza estos campos en <b>subsecciones</b> (Identificación, Generación, Pago, Estado); los de pago se ven siempre y se habilitan al marcar <i>Genera pago</i>.</P>
         <L>
           <li>📑 <b>Duplicar:</b> crea una nueva a partir de una existente (abre el modal con los datos ya puestos).</li>
           <li>🔄 <b>Revisar DIAN de todos:</b> mantenimiento en lote — compara el RUT de todos los clientes contra sus obligaciones y permite agregar faltantes / quitar sobrantes.</li>
@@ -203,7 +206,7 @@ const SECCIONES: Sec[] = [
         <H e="📚">Otros catálogos</H>
         <L>
           <li><b>Rol del servicio, Formas de cobro, Software, Cargos, Grupos económicos, Portales, Entidades, Tipos de documento, Responsabilidades (RUT 53), Municipios y CIIU.</b></li>
-          <li><b>Formularios</b> (solo Super): los formularios DIAN (Nombre + Código Calendario + Activo) que habilitan la autorización de "presentar borradores" (ver <i>Roles y permisos</i>).</li>
+          <li><b>Formularios</b> (solo Super): los formularios DIAN (Nombre, <b>Número</b>, <b>Código Calendario</b> —enlazado a una obligación del catálogo— y Activo). Habilitan la autorización de "presentar borradores" (ver <i>Roles y permisos</i>) y sirven como <b>Formulario de pago</b> de las obligaciones.</li>
         </L>
       </>
     ),
@@ -325,7 +328,7 @@ const SECCIONES: Sec[] = [
   },
   {
     id: "obligaciones", titulo: "Obligaciones y Calendario", icono: "calendar",
-    texto: "reparto calendario fechas vencimientos digito nit festivos aplicabilidad disparador cerebro cumplimiento derivada manual por revisar fuente unica reconciliacion",
+    texto: "reparto calendario fechas vencimientos digito nit festivos aplicabilidad disparador cerebro cumplimiento derivada manual por revisar fuente unica reconciliacion genera pago segundo hito verificar pago recibo 490 formulario de pago",
     cuerpo: (
       <>
         <P>📅 Explica de dónde salen las obligaciones y las fechas, para entender por qué Maestros y el Calendario trabajan juntos sin duplicarse.</P>
@@ -340,6 +343,7 @@ const SECCIONES: Sec[] = [
         <P>La decide Maestros con el <b>disparador</b> de cada obligación del catálogo, evaluado contra las <b>responsabilidades del RUT (casilla 53)</b>, el tipo de contribuyente, gran contribuyente y periodicidad de IVA.</P>
         <Nota tipo="tip">La reconciliación es <b>manual</b> (no cambia sola al guardar): usa <b>Revisar obligaciones</b> en el cliente, o <b>Revisar DIAN de todos</b> en Catálogos. El chip <b>«por revisar»</b> avisa cuando el RUT dejó de coincidir.</Nota>
         <Nota>Como el Calendario ya registra trabajo (cumplimientos/revisiones), <b>no se puede quitar una obligación que tenga esas entradas</b>; primero se desactiva o se limpian sus registros.</Nota>
+        <Nota tipo="tip">Cuando una obligación <b>genera pago</b> (se marca en su catálogo, con su <i>formulario de pago</i>), el Calendario suma un <b>segundo hito</b> para <b>verificar el pago</b> con el recibo (490), además de la presentación.</Nota>
       </>
     ),
   },
