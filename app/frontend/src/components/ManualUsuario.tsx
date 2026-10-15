@@ -328,7 +328,7 @@ const SECCIONES: Sec[] = [
   },
   {
     id: "obligaciones", titulo: "Obligaciones y Calendario", icono: "calendar",
-    texto: "reparto calendario fechas vencimientos digito nit festivos aplicabilidad disparador cerebro cumplimiento derivada manual por revisar fuente unica reconciliacion genera pago segundo hito verificar pago recibo 490 formulario de pago",
+    texto: "reparto calendario fechas vencimientos digito nit festivos aplicabilidad disparador cerebro cumplimiento derivada manual por revisar fuente unica reconciliacion genera pago segundo hito verificar pago recibo 490 formulario de pago como se forma generar calendarios año plazos fecha inicio por regla importar plantilla leer oficial excel dane municipio flag sin plazos publicar cruce mes año carga semaforo",
     cuerpo: (
       <>
         <P>📅 Explica de dónde salen las obligaciones y las fechas, para entender por qué Maestros y el Calendario trabajan juntos sin duplicarse.</P>
@@ -342,6 +342,22 @@ const SECCIONES: Sec[] = [
         <H e="🎯">Aplicabilidad (quién tiene cada obligación)</H>
         <P>La decide Maestros con el <b>disparador</b> de cada obligación del catálogo, evaluado contra las <b>responsabilidades del RUT (casilla 53)</b>, el tipo de contribuyente, gran contribuyente y periodicidad de IVA.</P>
         <Nota tipo="tip">La reconciliación es <b>manual</b> (no cambia sola al guardar): usa <b>Revisar obligaciones</b> en el cliente, o <b>Revisar DIAN de todos</b> en Catálogos. El chip <b>«por revisar»</b> avisa cuando el RUT dejó de coincidir.</Nota>
+
+        <H e="🗓️">Cómo se forma el calendario (de la obligación a la fecha)</H>
+        <P>Ojo con el reparto: la <b>asignación</b> (Maestros) define <b>a qué clientes</b> aplica la obligación; las <b>fechas</b> salen de la <b>tabla de plazos del Calendario</b> y <b>no se generan solas</b>. El "por dígito de NIT" no es generación automática: es cómo el motor <b>distribuye</b> las fechas dentro de un plazo <b>ya cargado</b>.</P>
+        <OL>
+          <li><b>En Maestros:</b> crea la obligación en el Catálogo y <b>asígnala</b> a los clientes (<i>Revisar obligaciones</i> / <i>Revisar DIAN de todos</i>).</li>
+          <li><b>En el Calendario → «Generar Calendarios»:</b> elige el <b>año</b> y <b>carga las fechas del año</b> por una de tres vías (se usa una):
+            <L>
+              <li><b>Por regla:</b> marca la obligación, escribe su <b>Fecha Inicio</b> (el ancla del 1.er período) y <b>Generar</b>; el motor proyecta el resto contando días hábiles con los festivos. Para DIAN, si ya existe el año anterior, te <b>sugiere</b> las fechas.</li>
+              <li><b>Importar plantilla:</b> sube el Excel estándar de plazos.</li>
+              <li><b>Leer oficial:</b> sube el Excel oficial (DIAN / alcaldía) y <b>mapea</b> cada plazo a su obligación.</li>
+            </L>
+          </li>
+          <li><b>Listo.</b> No hay botón de «publicar»: el Calendario <b>cruza clientes × asignación × plazos</b> en cada lectura. Al entrar a <b>Mes / Año / Carga</b> de ese año, la obligación ya aparece con su fecha, su responsable y el semáforo.</li>
+        </OL>
+        <Nota tipo="warn">Si una obligación nueva sale <b>«sin plazos»</b> o no aparece, falta <b>cargar sus plazos del año</b> en el Calendario (paso 2). En las <b>municipales</b> (ICA / ReteICA / Autorretención), además, el plazo lleva el <b>código DANE</b> del municipio y el cliente debe tener ese municipio con el <b>flag marcado</b>.</Nota>
+
         <Nota>Como el Calendario ya registra trabajo (cumplimientos/revisiones), <b>no se puede quitar una obligación que tenga esas entradas</b>; primero se desactiva o se limpian sus registros.</Nota>
         <Nota tipo="tip">Cuando una obligación <b>genera pago</b> (se marca en su catálogo, con su <i>formulario de pago</i>), el Calendario suma un <b>segundo hito</b> para <b>verificar el pago</b> con el recibo (490), además de la presentación.</Nota>
       </>
