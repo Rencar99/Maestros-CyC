@@ -987,6 +987,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                     <input value={c.seccional_codigo} placeholder="01" maxLength={2} onChange={(e) => set("seccional_codigo", e.target.value.replace(/\D/g, ""))} />
                   </div>
                 </div>
+                <div style={{ borderTop: "1px solid var(--line)", marginTop: 14 }} />
                 <RespSelect value={c.responsabilidades} onChange={(v) => set("responsabilidades", v)}
                   catalogo={respsCat} onCatalogo={(n) => setRespsCat((p) => [...p, n])} onDel={quitarResp} />
               </div>
@@ -1058,13 +1059,11 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
           )}
 
           {tab === "ica" && (
-            <div className="fieldgroup srv-group">
-              <div className="fg-head"><h4>Municipios en que declara ICA</h4>
-                <button type="button" className="btn sm" onClick={addIca}><Icon name="plus" size={14} />Nuevo municipio</button>
-              </div>
+            <div className="fieldgroup srv-group"><h4>Municipios en que declara ICA</h4>
               <DataGrid columns={icaCols} rows={ica.map((m, i) => ({ m, i }))} getKey={(r) => r.i}
                 label="Municipios en que declara ICA" scrollClass="srv-scroll" storageKey="cli-ica"
                 exportable={false}
+                toolbar={<button type="button" className="btn sm" style={{ marginLeft: "auto" }} onClick={addIca}><Icon name="plus" size={14} />Nuevo municipio</button>}
                 emptyLabel="Sin municipios. Usa «Nuevo municipio» para agregar."
                 actions={(r) => <button className="act-btn del" onClick={() => delIca(r.i)} title="Quitar"><Icon name="trash" size={14} /></button>} />
             </div>
@@ -1155,15 +1154,13 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
 
           {tab === "claves" && (
             <div className="claves-tab">
-              <div className="fieldgroup srv-group">
-                <div className="fg-head"><h4>Claves y portales</h4>
-                  {cliente.id && <button type="button" className="btn sm" onClick={() => setClaveEdit("new")}><Icon name="plus" size={14} />Nueva clave</button>}
-                </div>
+              <div className="fieldgroup srv-group"><h4>Claves y portales</h4>
                 {!cliente.id
                   ? <div className="empty" style={{ padding: 16 }}>Guarda el cliente primero para agregar sus claves.</div>
                   : <DataGrid columns={claveCols} rows={claves} getKey={(k) => k.id}
                       label="Claves y portales" scrollClass="srv-scroll" storageKey="cli-claves"
                       searchable exportable={false}
+                      toolbar={<button type="button" className="btn sm" style={{ marginLeft: "auto" }} onClick={() => setClaveEdit("new")}><Icon name="plus" size={14} />Nueva clave</button>}
                       emptyLabel={'Sin claves. Usa «Nueva clave» para agregar.'}
                       actions={(k) => (
                         <div className="act-btns">
