@@ -460,7 +460,6 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   const [claves, setClaves] = useState<ClienteClave[]>([]);              // claves del cliente
   const [reveladas, setReveladas] = useState<Record<number, string>>({}); // claves reveladas en pantalla
   const [claveEdit, setClaveEdit] = useState<ClienteClave | "new" | null>(null);
-  const [clavesSort, setClavesSort] = useState<{ key: string; dir: 1 | -1 } | null>({ key: "portal", dir: 1 });
   // Claves de portales: se cargan al abrir la pestaña; la clave en claro se pide aparte.
   const cargarClaves = () => { if (cliente.id) api.get(`/clientes/${cliente.id}/claves`).then(setClaves).catch(() => {}); };
   useEffect(() => { setReveladas({}); if (tab === "claves") cargarClaves(); }, [tab]); // eslint-disable-line
@@ -474,17 +473,18 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     try { await api.del(`/clientes/${cliente.id}/claves/${k.id}`); cargarClaves(); toast("Eliminada"); }
     catch (e: any) { toast(e.message, true); }
   };
-  const toggleClaveSort = (key: string) => setClavesSort((o) => (o?.key === key ? { key, dir: (o.dir === 1 ? -1 : 1) } : { key, dir: 1 }));
-  const arrowC = (k: string) => (clavesSort?.key === k ? <span style={{ opacity: .7, marginLeft: 3 }}>{clavesSort.dir === 1 ? "▲" : "▼"}</span> : null);
-  const clavesVista = (() => {
-    const arr = [...claves];
-    if (clavesSort) {
-      const { key, dir } = clavesSort;
-      const val = (k: ClienteClave) => (key === "portal" ? k.portal : key === "usuario" ? k.usuario : (k.comentario || "")).toLowerCase();
-      arr.sort((a, b) => { const va = val(a), vb = val(b); return va < vb ? -dir : va > vb ? dir : 0; });
-    }
-    return arr;
-  })();
+  const claveCols: Column<ClienteClave>[] = [
+    { key: "portal", label: "Portal", sortable: true, filterable: true, minWidth: "150px", value: (k) => k.portal || "", render: (k) => k.portal || "—" },
+    { key: "usuario", label: "Usuario", sortable: true, filterable: true, minWidth: "160px", value: (k) => k.usuario || "", render: (k) => k.usuario || "—" },
+    { key: "clave", label: "Clave", minWidth: "210px", value: () => "", render: (k) => k.tiene_clave ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontFamily: "monospace", letterSpacing: reveladas[k.id] !== undefined ? 0 : 2 }}>{reveladas[k.id] !== undefined ? (reveladas[k.id] || "(vacía)") : "••••••••"}</span>
+          <button type="button" className="act-btn" title={reveladas[k.id] !== undefined ? "Ocultar" : "Ver"} onClick={() => revelarClave(k)}><Icon name="eye" size={14} /></button>
+          {reveladas[k.id] ? <button type="button" className="act-btn" title="Copiar" onClick={() => { navigator.clipboard?.writeText(reveladas[k.id]); toast("Copiada ✓"); }}><Icon name="copy" size={14} /></button> : null}
+        </div>
+      ) : <span className="hint">— sin clave —</span> },
+    { key: "comentario", label: "Comentario", sortable: true, filterable: true, minWidth: "180px", value: (k) => k.comentario || "", render: (k) => k.comentario || "—" },
+  ];
   // Al navegar a otro registro el modal NO se remonta (evita el "salto"): refrescamos el estado aquí.
   const primera = useRef(true);
   const icaSeedRef = useRef<number | null>(null);   // ¿ya se evaluó la siembra del domicilio ICA para este cliente?
@@ -1159,36 +1159,16 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                 </div>
                 {!cliente.id
                   ? <div className="empty" style={{ padding: 16 }}>Guarda el cliente primero para agregar sus claves.</div>
-                  : <div className="tbl-wrap srv-scroll"><table className="child"><thead><tr>
-                      <th className="sortable" style={{ minWidth: 150 }} onClick={() => toggleClaveSort("portal")}>Portal{arrowC("portal")}</th>
-                      <th className="sortable" style={{ minWidth: 160 }} onClick={() => toggleClaveSort("usuario")}>Usuario{arrowC("usuario")}</th>
-                      <th style={{ minWidth: 210 }}>Clave</th>
-                      <th className="sortable" style={{ minWidth: 180 }} onClick={() => toggleClaveSort("comentario")}>Comentario{arrowC("comentario")}</th>
-                      <th className="center" style={{ width: 78 }}><span className="hint" style={{ fontWeight: 400 }}>🔒</span></th>
-                    </tr></thead>
-                      <tbody>
-                        {clavesVista.map((k) => (
-                          <tr key={k.id}>
-                            <td className="ro" title={k.portal}>{k.portal || "—"}</td>
-                            <td className="ro" title={k.usuario}>{k.usuario || "—"}</td>
-                            <td>
-                              {k.tiene_clave ? (
-                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                  <span style={{ fontFamily: "monospace", letterSpacing: reveladas[k.id] !== undefined ? 0 : 2 }}>{reveladas[k.id] !== undefined ? (reveladas[k.id] || "(vacía)") : "••••••••"}</span>
-                                  <button type="button" className="act-btn" title={reveladas[k.id] !== undefined ? "Ocultar" : "Ver"} onClick={() => revelarClave(k)}><Icon name="eye" size={14} /></button>
-                                  {reveladas[k.id] ? <button type="button" className="act-btn" title="Copiar" onClick={() => { navigator.clipboard?.writeText(reveladas[k.id]); toast("Copiada ✓"); }}><Icon name="copy" size={14} /></button> : null}
-                                </div>
-                              ) : <span className="hint">— sin clave —</span>}
-                            </td>
-                            <td className="ro" title={k.comentario}>{k.comentario || "—"}</td>
-                            <td className="al-c"><div className="act-btns">
-                              <button className="act-btn" onClick={() => setClaveEdit(k)} title="Editar"><Icon name="edit" size={14} /></button>
-                              <button className="act-btn del" onClick={() => borrarClave(k)} title="Eliminar"><Icon name="trash" size={14} /></button>
-                            </div></td>
-                          </tr>
-                        ))}
-                        {!claves.length && <tr><td colSpan={5} className="empty" style={{ padding: 14 }}>Sin claves. Usa "Nueva clave" para agregar.</td></tr>}
-                      </tbody></table></div>}
+                  : <DataGrid columns={claveCols} rows={claves} getKey={(k) => k.id}
+                      label="Claves y portales" scrollClass="srv-scroll" storageKey="cli-claves"
+                      searchable exportable={false}
+                      emptyLabel={'Sin claves. Usa «Nueva clave» para agregar.'}
+                      actions={(k) => (
+                        <div className="act-btns">
+                          <button className="act-btn" onClick={() => setClaveEdit(k)} title="Editar"><Icon name="edit" size={14} /></button>
+                          <button className="act-btn del" onClick={() => borrarClave(k)} title="Eliminar"><Icon name="trash" size={14} /></button>
+                        </div>
+                      )} />}
               </div>
             </div>
           )}
