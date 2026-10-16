@@ -133,6 +133,7 @@ export function RolesPermisos({ active = true }: { active?: boolean }) {
   const [base, setBase] = useState<Mapa>({});     // último guardado
   const [q, setQ] = useState("");
   const [colapso, setColapso] = useState<Record<string, boolean>>({});
+  const colapsoInit = useRef(false);   // arrancar colapsado una sola vez
   const [creando, setCreando] = useState(false);
   const [nombreN, setNombreN] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -158,6 +159,15 @@ export function RolesPermisos({ active = true }: { active?: boolean }) {
     }
     return g;
   }, [cat]);
+
+  // Por defecto la pantalla arranca colapsada por sección (una sola vez, al
+  // tener las secciones). El ref evita re-colapsar al recargar o pisar lo que
+  // el usuario despliegue luego.
+  useEffect(() => {
+    if (colapsoInit.current || grupos.length === 0) return;
+    colapsoInit.current = true;
+    setColapso(Object.fromEntries(grupos.map((g) => [g.seccion, true])));
+  }, [grupos]);
 
   const has = (r: Rol, clave: string) => r.sistema || (perms[r.id]?.has(clave) ?? false);
   const cambiado = (r: Rol, clave: string) =>
