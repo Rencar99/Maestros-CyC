@@ -125,9 +125,9 @@ export function Modal({ title, sub, icon, tone = "normal", onClose, onSave, savi
            role={sub ? "alertdialog" : "dialog"} aria-modal="true"
            aria-labelledby={titleId} aria-describedby={sub ? subId : undefined} aria-busy={bloq || undefined}
            onAnimationEnd={() => nudge && setNudge(false)}>
-        <div className="modal-head modal-drag" onMouseDown={startDrag} title="Arrastra para mover">
-          <img className="mh-brand" src="/assets/logo-icono-ocre.png" alt="" aria-hidden="true" />
-          <div className="mh-txt">
+        <div className="modal-head modal-drag" onMouseDown={startDrag}>
+          <img className="mh-brand" src="/assets/logo-icono-ocre.png" alt="" aria-hidden="true" title="Arrastra para mover" />
+          <div className="mh-txt" title="Arrastra para mover">
             <div className="mh-t" id={titleId}>{title}</div>
             {sub && <div className="mh-s" id={subId}>{sub}</div>}
           </div>
