@@ -872,9 +872,9 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   };
 
   // Select de responsables (reutilizable para impuestos/financiero/firmas).
-  const RSel = (label: string, value: number | null, key: keyof Cliente) => (
+  const RSel = (label: string, value: number | null, key: keyof Cliente, disabled?: boolean) => (
     <div className="f"><label>{label}</label>
-      <select value={value ?? ""} onChange={(e) => set(key, e.target.value ? Number(e.target.value) : null)}>
+      <select value={value ?? ""} disabled={disabled} onChange={(e) => set(key, e.target.value ? Number(e.target.value) : null)}>
         <option value="">—</option>
         {resp.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
       </select>
@@ -1199,16 +1199,16 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                   {RSel("Responsable del Registro", c.responsable_registro_id, "responsable_registro_id")}
                 </div>
               </div>
-              <div className="fieldgroup"><h4>Contador y Revisor fiscal (tarjeta y nombramiento del RUT)</h4>
+              <div className="fieldgroup"><h4>Contador y Revisor fiscal {jur ? "(tarjeta y nombramiento del RUT)" : "(no aplica a Persona Natural)"}</h4>
                 <div className="firma-row">
-                  {RSel("Firma Contador", c.firma_contador_id, "firma_contador_id")}
-                  <div className="f"><label>Tarjeta prof.</label><input value={c.contador_tarjeta} onChange={(e) => set("contador_tarjeta", e.target.value)} /></div>
-                  <div className="f"><label>Nombramiento</label><input value={c.contador_desde} placeholder="AAAA-MM-DD" onChange={(e) => set("contador_desde", e.target.value)} /></div>
+                  {RSel("Firma Contador", c.firma_contador_id, "firma_contador_id", !jur)}
+                  <div className="f"><label>Tarjeta prof.</label><input value={c.contador_tarjeta} disabled={!jur} onChange={(e) => set("contador_tarjeta", e.target.value)} /></div>
+                  <div className="f"><label>Nombramiento</label><input value={c.contador_desde} disabled={!jur} placeholder="AAAA-MM-DD" onChange={(e) => set("contador_desde", e.target.value)} /></div>
                 </div>
                 <div className="firma-row" style={{ marginTop: 14 }}>
-                  {RSel("Firma Revisor Fiscal", c.firma_revisor_id, "firma_revisor_id")}
-                  <div className="f"><label>Tarjeta prof.</label><input value={c.revisor_tarjeta} onChange={(e) => set("revisor_tarjeta", e.target.value)} /></div>
-                  <div className="f"><label>Nombramiento</label><input value={c.revisor_desde} placeholder="AAAA-MM-DD" onChange={(e) => set("revisor_desde", e.target.value)} /></div>
+                  {RSel("Firma Revisor Fiscal", c.firma_revisor_id, "firma_revisor_id", !jur)}
+                  <div className="f"><label>Tarjeta prof.</label><input value={c.revisor_tarjeta} disabled={!jur} onChange={(e) => set("revisor_tarjeta", e.target.value)} /></div>
+                  <div className="f"><label>Nombramiento</label><input value={c.revisor_desde} disabled={!jur} placeholder="AAAA-MM-DD" onChange={(e) => set("revisor_desde", e.target.value)} /></div>
                 </div>
               </div>
               <div className="fieldgroup"><h4>Responsable del cliente (contacto)</h4>
