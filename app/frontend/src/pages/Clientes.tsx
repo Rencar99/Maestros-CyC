@@ -957,7 +957,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                 <div className="f"><label>Sigla</label><input value={c.sigla} maxLength={3} placeholder="ABC" style={{ textTransform: "uppercase" }} onChange={(e) => set("sigla", e.target.value.toUpperCase().slice(0, 3))} /></div>
                 <div className="f"><label>Software utilizado</label><CatSelect path="software" items={software} onItems={(n) => setSoftware((p) => [...p, n])} value={c.software_id} onChange={(v) => set("software_id", v as number | null)} /></div>
               </div>
-              <div className="f wide" style={{ marginTop: 14 }}><label>Objeto social</label><textarea rows={2} value={c.objeto_social} onChange={(e) => set("objeto_social", e.target.value)} /></div>
+              <div className="f wide" style={{ marginTop: 14 }}><label>Objeto social {jur ? "" : "(no aplica a Persona Natural)"}</label><textarea rows={2} value={c.objeto_social} disabled={!jur} onChange={(e) => set("objeto_social", e.target.value)} /></div>
             </div>
             <div className="fieldgroup"><h4>Contacto y ubicación</h4>
               <div className="grid2">
