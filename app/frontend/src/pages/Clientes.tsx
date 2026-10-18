@@ -919,7 +919,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
           {tab === "ident" && (
             <>
             <div className="fieldgroup"><h4>Identificación</h4>
-              <div style={{ display: "grid", gridTemplateColumns: "148px 118px minmax(150px,1fr) minmax(180px,1.3fr)", gap: 14, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "148px 180px minmax(150px,0.8fr) minmax(160px,1fr)", gap: 14, alignItems: "start" }}>
                 <div className="f"><label>Tipo de contribuyente</label><select value={c.tipo_contribuyente} onChange={(e) => setTipo(e.target.value as any)}><option value="Nat">Natural</option><option value="Jur">Jurídica</option></select></div>
                 {jur
                   ? <div className="f"><label>Tipo de documento</label><input value="NT" readOnly /></div>
