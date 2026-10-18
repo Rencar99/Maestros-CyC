@@ -919,11 +919,11 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
           {tab === "ident" && (
             <>
             <div className="fieldgroup"><h4>Identificación</h4>
-              <div style={{ display: "grid", gridTemplateColumns: "148px 180px minmax(150px,0.8fr) minmax(160px,1fr)", gap: 14, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "148px minmax(210px,1.2fr) 190px minmax(190px,0.9fr)", gap: 14, alignItems: "start" }}>
                 <div className="f"><label>Tipo de contribuyente</label><select value={c.tipo_contribuyente} onChange={(e) => setTipo(e.target.value as any)}><option value="Nat">Natural</option><option value="Jur">Jurídica</option></select></div>
                 {jur
                   ? <div className="f"><label>Tipo de documento</label><input value="NT" readOnly /></div>
-                  : <div className="f"><label>Tipo de documento</label><CodeSelect path="tipo-documento" items={tiposDoc} onItems={(n) => setTiposDoc((p) => [...p, n])} value={c.tipo_documento} onChange={(v) => set("tipo_documento", v)} /></div>}
+                  : <div className="f"><label>Tipo de documento</label><CodeSelect path="tipo-documento" items={tiposDoc.filter((t) => !["NT", "NIT"].includes((t.codigo || "").toUpperCase()))} onItems={(n) => setTiposDoc((p) => [...p, n])} value={c.tipo_documento} onChange={(v) => set("tipo_documento", v)} /></div>}
                 <div className="f"><label>Número ID <span className="req">*</span></label><div className="row"><div className="pw-wrap" style={{ flex: 1 }}><input style={{ paddingRight: 34 }} value={c.num_id} onChange={(e) => set("num_id", e.target.value)} /><button type="button" className="pw-eye" title="Copiar número" onClick={() => copiarId(c.num_id)}><Icon name="copy" size={15} /></button></div><input readOnly style={{ width: 40, textAlign: "center" }} value={calcDV(c.num_id)} title="DV automático" /></div></div>
                 <div className="f"><label>Grupo económico</label>
                   <CatSelect path="grupo-economico" items={gruposCat} onItems={(n) => setGruposCat((p) => [...p, n])}
