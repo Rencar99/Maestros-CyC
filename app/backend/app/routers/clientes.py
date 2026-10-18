@@ -9,6 +9,7 @@ import io
 import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlmodel import Session, select
@@ -232,6 +233,31 @@ async def rut_parse(file: UploadFile = File(...), _u=Depends(get_current_user)):
     """Lee un RUT (PDF de la DIAN) y devuelve las casillas relevantes. No guarda:
     el frontend arma el diff contra la ficha y el usuario decide qué aplicar."""
     data = await file.read()
+    if not data:
+        raise HTTPException(400, "El archivo está vacío")
+    try:
+        leido = parse_rut(data)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(422, f"No se pudo leer el RUT: {exc}")
+    if not leido:
+        raise HTTPException(422, "No se reconoció el formato del RUT (¿PDF escaneado?)")
+    return leido
+
+
+@router.get("/rut/parse-path")
+def rut_parse_path(path: str, _u=Depends(get_current_user)):
+    """Igual que /rut/parse pero leyendo el PDF desde una ruta del disco local
+    (la que devuelve el selector nativo). El backend corre en la máquina del
+    usuario, así que puede leer el archivo elegido."""
+    p = Path(path)
+    if not path or not p.is_file():
+        raise HTTPException(400, "Ruta de archivo no válida")
+    if p.suffix.lower() != ".pdf":
+        raise HTTPException(400, "El archivo no es un PDF")
+    try:
+        data = p.read_bytes()
+    except OSError as exc:
+        raise HTTPException(400, f"No se pudo leer el archivo: {exc}")
     if not data:
         raise HTTPException(400, "El archivo está vacío")
     try:

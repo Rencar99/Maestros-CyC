@@ -142,11 +142,16 @@ def seleccionar_carpeta(_u=Depends(get_current_user)):
 
 
 @router.get("/seleccionar-archivo")
-def seleccionar_archivo(dir: str = "", _u=Depends(get_current_user)):
-    """Diálogo nativo de Windows para elegir UN archivo. Devuelve su ruta absoluta."""
+def seleccionar_archivo(dir: str = "", titulo: str = "Ubica el archivo de la propuesta",
+                        filtro: str = "", _u=Depends(get_current_user)):
+    """Diálogo nativo de Windows para elegir UN archivo. Devuelve su ruta absoluta.
+    ``dir`` = carpeta inicial; ``titulo`` = título del diálogo; ``filtro`` =
+    filtro de tipos estilo WinForms (ej. 'PDF (*.pdf)|*.pdf|Todos|*.*')."""
     if not _lock.acquire(blocking=False):
         return {"path": ""}
     init = (dir or "").replace("'", "''")
+    tit = (titulo or "Ubica el archivo").replace("'", "''")
+    filt = (filtro or "").replace("'", "''")
     ps = "\n".join([
         "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8",
         "Add-Type -AssemblyName System.Windows.Forms",
@@ -175,8 +180,9 @@ def seleccionar_archivo(dir: str = "", _u=Depends(get_current_user)):
         "$o.Show(); [System.Windows.Forms.Application]::DoEvents()",
         "$d = New-Object System.Windows.Forms.OpenFileDialog",
         "$d.Multiselect = $false",
-        "$d.Title = 'Ubica el archivo de la propuesta'",
+        f"$d.Title = '{tit}'",
         f"$d.InitialDirectory = '{init}'",
+        *([f"$d.Filter = '{filt}'"] if filtro else []),
         "$r = $d.ShowDialog($o)",
         "$o.Close()",
         "if ($r -eq [System.Windows.Forms.DialogResult]::OK) { $d.FileName }",

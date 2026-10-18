@@ -445,8 +445,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   const [clave, setClave] = useState("");
   const [claveTouched, setClaveTouched] = useState(false);
   const [showPw, setShowPw] = useState(false);
-  const rutFileRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (autoRut) rutFileRef.current?.click(); }, []); // eslint-disable-line
+  useEffect(() => { if (autoRut) compararRut(); }, []); // eslint-disable-line
   useEffect(() => { api.get("/catalogos/grupo-economico").then(setGruposCat).catch(() => {}); }, []);
   useEffect(() => { api.get("/catalogos/portal").then(setPortalesCat).catch(() => {}); }, []);
   const [rutItems, setRutItems] = useState<RutDiff[] | null>(null);
@@ -786,11 +785,10 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     }
     return out;
   };
-  const onRutFile = async (f?: File) => {
-    if (!f) return;
+  const procesarRut = async (traer: () => Promise<any>) => {
     setRutCargando(true);
     try {
-      const p = await api.upload("/clientes/rut/parse", f);
+      const p = await traer();
       setRutNit({ leido: p.num_id || "", coincide: !p.num_id || p.num_id === c.num_id });
       const items = construirDiff(p);
       setRutItems(items);
@@ -809,6 +807,22 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
       }
     }
     finally { setRutCargando(false); }
+  };
+  // Selector nativo que arranca en la carpeta de trabajo del cliente (lo que el
+  // <input type=file> del navegador no permite). El backend lee el PDF elegido.
+  const compararRut = async () => {
+    if (rutCargando) return;
+    const dir = (c.ruta_trabajo || "").trim();
+    try {
+      const r = await api.get(`/sistema/seleccionar-archivo?dir=${encodeURIComponent(dir)}`
+        + `&titulo=${encodeURIComponent("Selecciona el RUT (PDF) del cliente")}`
+        + `&filtro=${encodeURIComponent("RUT en PDF (*.pdf)|*.pdf|Todos los archivos (*.*)|*.*")}`);
+      const path = String(r?.path || "").trim();
+      if (!path) return;   // canceló el diálogo
+      await procesarRut(() => api.get(`/clientes/rut/parse-path?path=${encodeURIComponent(path)}`));
+    } catch (e: any) {
+      toast(String(e?.message || "No se pudo abrir el selector de archivo"), true);
+    }
   };
   const aplicarRut = () => {
     const nuevo = { ...(rutItems || []).filter((it) => it.check).reduce((acc, it) => it.apply(acc), c), rut_actualizado: hoyISO() };
@@ -882,7 +896,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
       onSave={guardar} saveLabel={nuevo ? "Crear" : "Guardar cambios"} saveIcon={nuevo ? "check" : "save"}
       extraActions={<>
         {!nuevo && <button className="mh-act danger" onClick={borrar} aria-label="Eliminar"><Icon name="trash" size={18} /><span className="mh-tip">Eliminar</span></button>}
-        <button className="mh-act" onClick={() => rutFileRef.current?.click()} disabled={rutCargando} aria-label="Comparar con RUT"><Icon name="upload" size={18} /><span className="mh-tip">Comparar con RUT</span></button>
+        <button className="mh-act" onClick={() => compararRut()} disabled={rutCargando} aria-label="Comparar con RUT"><Icon name="upload" size={18} /><span className="mh-tip">Comparar con RUT</span></button>
       </>}
       avisoTone={c.rut_actualizado ? "info" : "warn"}
       aviso={rutCargando ? "Leyendo el RUT…" : (c.rut_actualizado ? `RUT comparado: ${fmtFecha(c.rut_actualizado)}` : "Nunca comparado con RUT")}
@@ -1227,8 +1241,6 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
           )}
         </div>
       </div>
-      <input ref={rutFileRef} type="file" accept="application/pdf,.pdf" style={{ display: "none" }}
-        onChange={(e) => { onRutFile(e.target.files?.[0]); e.currentTarget.value = ""; }} />
       </form>
       {explorar && <Explorador modo={explorar.modo} onSelect={(ruta) => set(explorar.key, ruta)} onClose={() => setExplorar(null)} />}
       {claveEdit && (
