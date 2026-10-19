@@ -492,6 +492,9 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     { key: "url", label: "URL", sortable: true, filterable: true, minWidth: "180px", value: (k) => k.url || "", render: (k) => k.url
         ? <a href={/^https?:\/\//i.test(k.url) ? k.url : "https://" + k.url} target="_blank" rel="noreferrer" onMouseDown={(e) => e.stopPropagation()} style={{ color: "var(--primary)", textDecoration: "none" }} title={k.url}>{k.url}</a>
         : <span className="hint">—</span> },
+    { key: "odbc_nombre", label: "Nombre ODBC", sortable: true, filterable: true, minWidth: "140px", value: (k) => k.odbc_nombre || "", render: (k) => k.odbc_nombre || <span className="hint">—</span> },
+    { key: "odbc_ip", label: "IP", sortable: true, filterable: true, minWidth: "120px", value: (k) => k.odbc_ip || "", render: (k) => k.odbc_ip || <span className="hint">—</span> },
+    { key: "odbc_dbf", label: "DBF", sortable: true, filterable: true, minWidth: "150px", value: (k) => k.odbc_dbf || "", render: (k) => k.odbc_dbf || <span className="hint">—</span> },
     { key: "usuario", label: "Usuario", sortable: true, filterable: true, minWidth: "160px", value: (k) => k.usuario || "", render: (k) => k.usuario || "—" },
     { key: "clave", label: "Clave", minWidth: "210px", value: () => "", render: (k) => k.tiene_clave ? (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
