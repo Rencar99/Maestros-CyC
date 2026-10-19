@@ -51,7 +51,7 @@ COLUMNAS_OCULTAS = {
 # Solo estas tablas se pueden consultar (por ahora Clientes y Responsables).
 # Restringe la lista visible, la validación de campos y la ejecución (todo pasa
 # por _catalogo). Ampliar aquí si en el futuro se habilitan más tablas.
-TABLAS_PERMITIDAS = {"cliente", "usuario"}
+TABLAS_PERMITIDAS = {"cliente", "usuario", "clienteclave"}
 
 # Nombre técnico de la tabla -> nombre que ve el usuario.
 ETIQUETAS_TABLA = {
@@ -88,6 +88,10 @@ RELACIONES: dict[str, list[tuple[str, str, str]]] = {
         ("firma_contador_id", "usuario", "Contador (firma)"),
         ("firma_revisor_id", "usuario", "Revisor Fiscal (firma)"),
         ("software_id", "software", "Software"),
+    ],
+    "clienteclave": [
+        ("cliente_id", "cliente", "Cliente"),
+        ("portal_id", "portal", "Portal"),
     ],
 }
 
