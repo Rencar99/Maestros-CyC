@@ -310,13 +310,18 @@ def ver_password(cid: int, session: Session = Depends(get_session), _admin=Depen
 class ClaveIn(BaseModel):
     portal_id: int | None = None
     comentario: str = ""
+    url: str = ""
+    odbc_nombre: str = ""
+    odbc_dbf: str = ""
+    odbc_ip: str = ""
     usuario: str = ""
     clave: str = ""     # en PUT: vacío = no cambiar la clave existente
 
 
 def _clave_dict(k: ClienteClave, portales: dict) -> dict:
     return {"id": k.id, "portal_id": k.portal_id, "portal": portales.get(k.portal_id, ""),
-            "comentario": k.comentario, "usuario": k.usuario, "tiene_clave": bool(k.clave_enc),
+            "comentario": k.comentario, "url": k.url, "usuario": k.usuario, "tiene_clave": bool(k.clave_enc),
+            "odbc_nombre": k.odbc_nombre, "odbc_dbf": k.odbc_dbf, "odbc_ip": k.odbc_ip,
             "actualizado_at": k.actualizado_at.isoformat() if k.actualizado_at else None}
 
 
@@ -375,7 +380,7 @@ def listar_todas_claves(session: Session = Depends(get_session),
             "num_id": c.num_id if c else "", "cliente": c.nombre if c else "(cliente eliminado)",
             "estado": c.estado if c else "", "tipo": c.tipo_contribuyente if c else "",
             "portal": portales.get(k.portal_id, ""), "usuario": k.usuario,
-            "comentario": k.comentario, "tiene_clave": bool(k.clave_enc),
+            "comentario": k.comentario, "url": k.url, "tiene_clave": bool(k.clave_enc),
             "actualizado_at": k.actualizado_at.isoformat() if k.actualizado_at else None,
         })
     filas.sort(key=lambda r: ((r["cliente"] or "").lower(), (r["portal"] or "").lower(),
@@ -453,14 +458,14 @@ def exportar_claves(session: Session = Depends(get_session),
             except Exception:  # noqa: BLE001
                 clave = "(no descifrable)"
         filas.append((c.num_id if c else "", c.nombre if c else "(cliente eliminado)",
-                      portales.get(k.portal_id, ""), k.usuario, k.comentario, clave,
+                      portales.get(k.portal_id, ""), k.url, k.usuario, k.comentario, clave,
                       k.actualizado_at.strftime("%Y-%m-%d") if k.actualizado_at else ""))
     filas.sort(key=lambda f: ((f[1] or "").lower(), (f[2] or "").lower(), (f[3] or "").lower()))
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Claves"
-    encab = ["NIT", "Cliente", "Portal", "Usuario", "Comentario", "Clave", "Actualizado"]
+    encab = ["NIT", "Cliente", "Portal", "URL", "Usuario", "Comentario", "Clave", "Actualizado"]
     ws.append(encab)
     for cell in ws[1]:
         cell.font = Font(bold=True, color="FFFFFF")
@@ -468,7 +473,7 @@ def exportar_claves(session: Session = Depends(get_session),
         cell.alignment = Alignment(horizontal="center")
     for f in filas:
         ws.append(list(f))
-    for i, w in enumerate([14, 40, 22, 24, 28, 22, 13], start=1):
+    for i, w in enumerate([14, 40, 22, 30, 24, 28, 22, 13], start=1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
     ws.freeze_panes = "A2"
 
@@ -507,7 +512,10 @@ def crear_clave(cid: int, data: ClaveIn, session: Session = Depends(get_session)
     if not session.get(Cliente, cid):
         raise HTTPException(404, "Cliente no encontrado")
     k = ClienteClave(cliente_id=cid, portal_id=data.portal_id, comentario=data.comentario.strip(),
-                     usuario=data.usuario.strip(), clave_enc=encrypt(data.clave) if data.clave else "")
+                     url=data.url.strip(), odbc_nombre=data.odbc_nombre.strip(),
+                     odbc_dbf=data.odbc_dbf.strip(), odbc_ip=data.odbc_ip.strip(),
+                     usuario=data.usuario.strip(),
+                     clave_enc=encrypt(data.clave) if data.clave else "")
     session.add(k)
     session.commit()
     session.refresh(k)
@@ -523,6 +531,10 @@ def actualizar_clave(cid: int, kid: int, data: ClaveIn, session: Session = Depen
         raise HTTPException(404, "Clave no encontrada")
     k.portal_id = data.portal_id
     k.comentario = data.comentario.strip()
+    k.url = data.url.strip()
+    k.odbc_nombre = data.odbc_nombre.strip()
+    k.odbc_dbf = data.odbc_dbf.strip()
+    k.odbc_ip = data.odbc_ip.strip()
     k.usuario = data.usuario.strip()
     if data.clave:                       # vacío = conservar la clave actual
         k.clave_enc = encrypt(data.clave)

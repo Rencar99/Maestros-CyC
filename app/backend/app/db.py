@@ -115,6 +115,16 @@ def _ensure_columns() -> None:
         # Emisor de la cuenta de cobro asignado al cliente (FK a emisor; NULL = sin asignar).
         conn.execute(text(
             "ALTER TABLE cliente ADD COLUMN IF NOT EXISTS emisor_id INTEGER"))
+        # URL de acceso del portal en la credencial del cliente.
+        conn.execute(text(
+            "ALTER TABLE clienteclave ADD COLUMN IF NOT EXISTS url VARCHAR NOT NULL DEFAULT ''"))
+        # Campos específicos de credenciales ODBC (nombre DSN, archivo DBF, IP).
+        conn.execute(text(
+            "ALTER TABLE clienteclave ADD COLUMN IF NOT EXISTS odbc_nombre VARCHAR NOT NULL DEFAULT ''"))
+        conn.execute(text(
+            "ALTER TABLE clienteclave ADD COLUMN IF NOT EXISTS odbc_dbf VARCHAR NOT NULL DEFAULT ''"))
+        conn.execute(text(
+            "ALTER TABLE clienteclave ADD COLUMN IF NOT EXISTS odbc_ip VARCHAR NOT NULL DEFAULT ''"))
         # Consultas compartidas: descripción y alcance de filas por consulta guardada.
         conn.execute(text(
             "ALTER TABLE consultaguardada ADD COLUMN IF NOT EXISTS descripcion VARCHAR NOT NULL DEFAULT ''"))

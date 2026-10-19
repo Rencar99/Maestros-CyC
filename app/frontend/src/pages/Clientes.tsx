@@ -130,20 +130,26 @@ function ClaveModal({ portales, setPortales, clave, getClave, onOk, onClose }: {
   setPortales: (fn: (p: CatItem[]) => CatItem[]) => void;
   clave: ClienteClave | null;
   getClave?: () => Promise<string>;   // trae la clave actual (para editarla directo)
-  onOk: (payload: { portal_id: number | null; usuario: string; comentario: string; clave: string }) => void;
+  onOk: (payload: { portal_id: number | null; usuario: string; comentario: string; url: string; odbc_nombre: string; odbc_dbf: string; odbc_ip: string; clave: string }) => void;
   onClose: () => void;
 }) {
   const [portalId, setPortalId] = useState<number | null>(clave?.portal_id ?? (portales[0]?.id ?? null));
   const [usuario, setUsuario] = useState(clave?.usuario || "");
   const [comentario, setComentario] = useState(clave?.comentario || "");
+  const [url, setUrl] = useState(clave?.url || "");
+  const [odbcNombre, setOdbcNombre] = useState(clave?.odbc_nombre || "");
+  const [odbcDbf, setOdbcDbf] = useState(clave?.odbc_dbf || "");
+  const [odbcIp, setOdbcIp] = useState(clave?.odbc_ip || "");
   const [pass, setPass] = useState("");
   const [ver, setVer] = useState(false);
   const editando = !!clave;
+  // ¿El portal seleccionado es ODBC? → se muestran los campos propios (nombre, DBF, IP).
+  const esOdbc = (portales.find((p) => p.id === portalId)?.descripcion || "").toLowerCase().includes("odbc");
   // Al editar, precargamos la clave actual para poder modificarla sin retecla.
   useEffect(() => { if (getClave) getClave().then((v) => setPass(v || "")).catch(() => {}); }, []); // eslint-disable-line
   return (
     <Modal title={editando ? "Editar clave" : "Nueva clave"} icon="lock" size="md" onClose={onClose}
-      onSave={() => onOk({ portal_id: portalId, usuario: usuario.trim(), comentario: comentario.trim(), clave: pass })}
+      onSave={() => onOk({ portal_id: portalId, usuario: usuario.trim(), comentario: comentario.trim(), url: url.trim(), odbc_nombre: odbcNombre.trim(), odbc_dbf: odbcDbf.trim(), odbc_ip: odbcIp.trim(), clave: pass })}
       saveLabel={editando ? "Guardar" : "Crear"} saveIcon={editando ? "save" : "check"}
       aviso={editando ? "La clave se guarda cifrada · dejarla vacía conserva la actual." : "La clave se guarda cifrada en el servidor."}>
       <div style={{ display: "grid", gap: 12 }}>
@@ -151,6 +157,15 @@ function ClaveModal({ portales, setPortales, clave, getClave, onOk, onClose }: {
           <CatSelect path="portal" items={portales} onItems={(n) => setPortales((p) => [...p, n])}
             value={portalId} onChange={(v) => setPortalId(v as number | null)} placeholder="— Portal —" />
         </div>
+        {esOdbc
+          ? <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div className="f"><label>Nombre ODBC</label><input value={odbcNombre} autoComplete="off" placeholder="nombre del DSN" onChange={(e) => setOdbcNombre(e.target.value)} /></div>
+              <div className="f"><label>Dirección IP</label><input value={odbcIp} autoComplete="off" placeholder="192.168.x.x" onChange={(e) => setOdbcIp(e.target.value)} /></div>
+              <div className="f" style={{ gridColumn: "span 2" }}><label>DBF</label><input value={odbcDbf} autoComplete="off" placeholder="ruta / archivo .dbf" onChange={(e) => setOdbcDbf(e.target.value)} /></div>
+            </div>
+          : <div className="f"><label>URL</label>
+              <input value={url} autoComplete="off" placeholder="https://…" onChange={(e) => setUrl(e.target.value)} />
+            </div>}
         <div className="f"><label>Usuario</label>
           <input value={usuario} autoComplete="off" onChange={(e) => setUsuario(e.target.value)} />
         </div>
@@ -474,6 +489,9 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   };
   const claveCols: Column<ClienteClave>[] = [
     { key: "portal", label: "Portal", sortable: true, filterable: true, minWidth: "150px", value: (k) => k.portal || "", render: (k) => k.portal || "—" },
+    { key: "url", label: "URL", sortable: true, filterable: true, minWidth: "180px", value: (k) => k.url || "", render: (k) => k.url
+        ? <a href={/^https?:\/\//i.test(k.url) ? k.url : "https://" + k.url} target="_blank" rel="noreferrer" onMouseDown={(e) => e.stopPropagation()} style={{ color: "var(--primary)", textDecoration: "none" }} title={k.url}>{k.url}</a>
+        : <span className="hint">—</span> },
     { key: "usuario", label: "Usuario", sortable: true, filterable: true, minWidth: "160px", value: (k) => k.usuario || "", render: (k) => k.usuario || "—" },
     { key: "clave", label: "Clave", minWidth: "210px", value: () => "", render: (k) => k.tiene_clave ? (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>

@@ -8,7 +8,7 @@ import { Column, DataGrid } from "../components/DataGrid";
  *  La clave va oculta (••••) con botón de revelar y copiar por fila. */
 interface ClaveRow {
   id: number; cliente_id: number; num_id: string; cliente: string; estado: string; tipo: string;
-  portal: string; usuario: string; comentario: string;
+  portal: string; usuario: string; comentario: string; url: string;
   tiene_clave: boolean; actualizado_at: string | null;
 }
 
@@ -108,6 +108,9 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
     { key: "estado", label: "Estado", type: "status", filterable: true, width: "9ch", value: (r) => (r.estado === "Act" ? "Activo" : r.estado === "Ina" ? "Inactivo" : "—"), render: (r) => r.estado === "Act" ? <span className="tag act">Activo</span> : r.estado === "Ina" ? <span className="tag ina">Inactivo</span> : <span style={{ color: "var(--ink-3)" }}>—</span> },
     { key: "tipo", label: "Tipo", type: "status", filterable: true, width: "7ch", value: (r) => r.tipo || "—", render: (r) => r.tipo ? <span className={"tag " + (r.tipo === "Jur" ? "jur" : "nat")}>{r.tipo}</span> : <span style={{ color: "var(--ink-3)" }}>—</span> },
     { key: "portal", label: "Portal", align: "left", sortable: true, filterable: true, width: "20ch", value: (r) => r.portal || "—", render: (r) => r.portal ? <span className="tag int">{r.portal}</span> : <span className="tag ina">—</span> },
+    { key: "url", label: "URL", align: "left", sortable: true, filterable: true, width: "24ch", value: (r) => r.url || "", render: (r) => r.url
+        ? <a href={/^https?:\/\//i.test(r.url) ? r.url : "https://" + r.url} target="_blank" rel="noreferrer" onMouseDown={(e) => e.stopPropagation()} style={{ color: "var(--primary)", textDecoration: "none", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.url}>{r.url}</a>
+        : <span style={{ color: "var(--ink-3)" }}>—</span> },
     {
       key: "usuario", label: "Usuario", sortable: true, filterable: true, width: "20ch", value: (r) => r.usuario || "",
       render: (r) => r.usuario

@@ -421,6 +421,10 @@ class ClienteClave(SQLModel, table=True):
     cliente_id: int = Field(foreign_key="cliente.id", index=True)
     portal_id: Optional[int] = Field(default=None, foreign_key="portal.id")
     comentario: str = ""            # nota/etiqueta libre (host, "Firma Digital", etc.)
+    url: str = ""                   # URL de acceso al portal/login
+    odbc_nombre: str = ""           # (solo ODBC) nombre del DSN/ODBC
+    odbc_dbf: str = ""              # (solo ODBC) ruta/archivo DBF
+    odbc_ip: str = ""               # (solo ODBC) dirección IP del servidor
     usuario: str = ""               # usuario/login del portal
     clave_enc: str = ""             # clave cifrada (Fernet, reversible)
     actualizado_at: datetime = Field(default_factory=datetime.utcnow)

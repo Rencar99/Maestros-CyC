@@ -64,6 +64,10 @@ export interface ClienteClave {
   portal_id: number | null;
   portal: string;          // descripción del portal (solo lectura)
   comentario: string;
+  url: string;             // URL de acceso al portal
+  odbc_nombre: string;     // (solo ODBC) nombre del DSN
+  odbc_dbf: string;        // (solo ODBC) ruta/archivo DBF
+  odbc_ip: string;         // (solo ODBC) dirección IP
   usuario: string;
   tiene_clave: boolean;    // si hay clave guardada (la clave en claro se pide aparte)
   actualizado_at: string | null;
