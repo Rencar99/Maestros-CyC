@@ -50,7 +50,7 @@ function pinta(v: any, tipo: string): string {
 interface GuardadaInfo { id: number; nombre: string; creado_por: string; actualizado_at: string | null }
 interface RolItem { id: number; nombre: string; sistema: boolean; activo: boolean }
 
-export function Consultas() {
+export function Consultas({ active = true }: { active?: boolean }) {
   const toast = useToast();
   const confirmar = useConfirm();
   const [tablas, setTablas] = useState<TablaInfo[]>([]);
@@ -92,6 +92,9 @@ export function Consultas() {
     api.get("/roles").then((r: RolItem[]) => setRolesDisp(r)).catch(() => {});
     cargarGuardadas();
   }, []); // eslint-disable-line
+  // La App mantiene las páginas montadas (display:none); al volver a entrar,
+  // recargar la lista de guardadas para ver las creadas desde otra sesión.
+  useEffect(() => { if (active) cargarGuardadas(); }, [active]); // eslint-disable-line
 
   const cargarGuardadas = () =>
     api.get("/consultas/guardadas").then((g: GuardadaInfo[]) => setGuardadas(g)).catch(() => {});
