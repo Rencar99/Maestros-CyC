@@ -46,6 +46,9 @@ interface Props<T> {
   // Si se pasa, los anchos y el ORDEN de columna que el usuario ajuste (arrastrando
   // el borde / la etiqueta, estilo Excel) se guardan por-grilla en localStorage.
   storageKey?: string;
+  // Alto de fila elástico (mín. 23 px) para que en el alto disponible quepa un número
+  // entero de filas: la última nunca queda cortada. Lo usan las grillas a pantalla llena.
+  fitRows?: boolean;
   // Barra de herramientas superior (búsqueda global + exportar). Por defecto
   // ENCENDIDAS (§13: la pantalla no pone su propio buscador ni exportar); una
   // pantalla que ya trae buscador propio las apaga explícitamente (false).
@@ -66,9 +69,12 @@ interface Props<T> {
   exportNombre?: string;
   exportSubtitulo?: string;
   onExportar?: (archivo: Blob, filename: string) => Promise<void>;
-  // Estira el alto de fila (mínimo 23px) para que quepa un número ENTERO de filas,
-  // así la última nunca sale cortada (marco gframe). Mide con ResizeObserver.
-  fitRows?: boolean;
+  // Grilla de selección (§2.15): clase extra por fila (resaltar/atenuar) y clic en la
+  // fila. `onRowClick` IGNORA el clic cuando sale de un button/a interno (para no
+  // chocar con la columna de acciones) y queda en `click` (no mousedown) para no
+  // comerse la selección de texto/arrastre.
+  rowClass?: (row: T) => string | undefined;
+  onRowClick?: (row: T) => void;
 }
 
 // Ícono estilo Excel (cuadro verde con "X" blanca) para el botón/menú de exportar.
@@ -348,7 +354,8 @@ function DateFilterPop(props: {
 export function DataGrid<T>({
   columns: todasCols, rows, getKey, actions, label, emptyLabel, scrollClass, onView,
   defaultTotals, actionsLabel, actionsWidth, storageKey, searchable = true, exportable = true,
-  toolbar, onClearbar, activeKey, frozen = 0, exportNombre, exportSubtitulo, onExportar, fitRows,
+  toolbar, onClearbar, activeKey, frozen = 0, exportNombre, exportSubtitulo, onExportar,
+  rowClass, onRowClick, fitRows,
 }: Props<T>) {
   // Columnas que se dibujan (las `exportOnly` solo viajan al Excel/CSV).
   const columns = useMemo(() => todasCols.filter((c) => !c.exportOnly), [todasCols]);
@@ -563,23 +570,6 @@ export function DataGrid<T>({
 
   const viewKey = view.map((r) => getKey(r)).join(",");
   useEffect(() => { onView?.(view); }, [viewKey]); // eslint-disable-line
-
-  // fitRows: estira el alto de fila para que quepa un número ENTERO de filas en el
-  // área visible (la última nunca sale cortada). Escribe --row-h en la tabla.
-  useEffect(() => {
-    const wrap = wrapRef.current, tbl = tblRef.current;
-    if (!fitRows || !wrap || !tbl) return;
-    const MIN = 23;
-    const ajustar = () => {
-      const alto = wrap.clientHeight - (tbl.tHead?.offsetHeight ?? 0) - (tbl.tFoot?.offsetHeight ?? 0);
-      const n = Math.max(1, Math.floor(alto / MIN));
-      tbl.style.setProperty("--row-h", `${Math.floor((alto / n) * 100) / 100}px`);
-    };
-    ajustar();
-    const ro = new ResizeObserver(ajustar);
-    ro.observe(wrap);
-    return () => ro.disconnect();
-  }, [fitRows, view.length]);
 
   useEffect(() => {
     if (!openFilter) return;
@@ -796,6 +786,22 @@ export function DataGrid<T>({
   };
 
   const hayToolbar = !!(toolbar || searchable || exportable);
+  useEffect(() => {
+    const wrap = wrapRef.current, tbl = tblRef.current;
+    if (!fitRows || !wrap || !tbl) return;
+    const MIN = 23;
+    const ajustar = () => {
+      const alto = wrap.clientHeight - (tbl.tHead?.offsetHeight ?? 0) - (tbl.tFoot?.offsetHeight ?? 0);
+      const n = Math.max(1, Math.floor(alto / MIN));
+      const h = Math.floor((alto / n) * 100) / 100;
+      tbl.style.setProperty("--row-h", `${h}px`);
+    };
+    ajustar();
+    const ro = new ResizeObserver(ajustar);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [fitRows, view.length]);
+
   // Columna cuyo menú ▼ está abierto: se busca una vez y la usan los dos popovers.
   const colMenu = openFilter ? columns.find((c) => c.key === openFilter.key) : undefined;
 
@@ -916,7 +922,8 @@ export function DataGrid<T>({
           <tbody>
             {view.map((row, r) => (
               <tr key={getKey(row)} data-k={getKey(row)}
-                  className={[cursor?.r === r ? "row-cur" : "", (activeKey != null && getKey(row) === activeKey) ? "row-activo" : ""].filter(Boolean).join(" ") || undefined}>
+                  onClick={onRowClick ? (e) => { if (!(e.target as HTMLElement).closest("button, a")) onRowClick(row); } : undefined}
+                  className={[cursor?.r === r ? "row-cur" : "", (activeKey != null && getKey(row) === activeKey) ? "row-activo" : "", rowClass?.(row) || "", onRowClick ? "row-click" : ""].filter(Boolean).join(" ") || undefined}>
                 {ocols.map((col, c) => {
                   const a = alignOf(col);
                   const raw = col.value ? col.value(row) : (row as Record<string, unknown>)[col.key] as string | number;

@@ -110,7 +110,7 @@ button{font-family:inherit}
 .gframe-body .grid-toolbar{padding:0 0 12px}
 .gframe-body .grid-scroll{flex:1;min-height:0;max-height:none;border:1px solid #BCC8D6;border-radius:2px}
 .gframe-body table{font-size:11.5px}
-.gframe-body tbody td{padding:0 8px;height:var(--row-h,23px);border-right:1px solid #E3E8EF;border-bottom:1px solid #E3E8EF}
+.gframe-body tbody td{padding:0 8px;height:23px;border-right:1px solid #E3E8EF;border-bottom:1px solid #E3E8EF}
 .gframe-body tbody td:last-child{border-right:none}
 .gframe-body .act-btn{width:20px;height:18px;border-radius:4px}
 .gframe-body .act-btn svg{width:14px;height:14px}
@@ -118,7 +118,6 @@ button{font-family:inherit}
 .gframe-foot{position:relative;flex:none;margin:0 16px;padding:9px 0 12px;font-size:12px;font-weight:600;color:var(--ok);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gframe-foot::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:var(--gold)}
 .gframe-foot .gf-dot{color:var(--ink-3);font-weight:400}
-.gframe-body tfoot tr.grid-total td{box-shadow:inset 0 1px 0 #BCC8D6}
 .gframe-body .grid-scroll::-webkit-scrollbar{width:13px;height:13px}
 .gframe-body .grid-scroll::-webkit-scrollbar-track:vertical{background:#F4F6F9;border-left:1px solid #BCC8D6}
 .gframe-body .grid-scroll::-webkit-scrollbar-track:horizontal{background:#F4F6F9;border-top:1px solid #BCC8D6}

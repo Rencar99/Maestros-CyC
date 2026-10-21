@@ -172,8 +172,25 @@ tfoot tr.grid-total td {
   border-right: 0;
   border-bottom: 0;
   background: #dbe5f2;
+  /* Con la celda `sticky` y `border-collapse`, el border-top de arriba NO se
+     pinta mientras la fila está pegada al fondo (se vio en Descargas DIAN,
+     20-oct-2026). La línea se dibuja como sombra interior, que sí se pinta. */
+  box-shadow: inset 0 1px 0 #aebdce;
 }
 
 /* Una columna congelada va por encima del resto del pie al desplazarse en
    horizontal, y por debajo del encabezado. */
 tfoot tr.grid-total td.col-frozen { z-index: 3; }
+
+/* §2.15 Grilla de selección: la fila con `onRowClick` muestra que es pulsable. */
+tbody tr.row-click { cursor: pointer; }
+
+/* `fitRows` (1.6.0): el componente mide el alto disponible y fija --row-h EN EL
+   ESTILO DE LA TABLA para que quepa un número ENTERO de filas (mínimo 23 px): la
+   última nunca sale cortada.
+   La regla solo engancha en la tabla que trae esa variable. Un `height:
+   var(--row-h)` suelto, sin fitRows, no queda neutro: la variable no existe, el
+   alto pasa a `auto` y pisa el alto de fila que la aplicación haya puesto. Por
+   eso no hay valor por defecto (23 px forzaría a todas las grillas) ni selector
+   genérico. */
+.grid-scroll table[style*="--row-h"] tbody td { height: var(--row-h); }
