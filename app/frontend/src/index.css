@@ -54,6 +54,17 @@ button{font-family:inherit}
 .nav-item.on{background:var(--nav-700);color:#fff;font-weight:600}
 .nav-item.on svg{opacity:1;color:#fff}
 .nav-item .badge{margin-left:auto;background:var(--primary);color:#fff;font-size:11px;font-weight:700;border-radius:20px;padding:1px 8px}
+/* Grupo colapsable del menú (Facturación › Cuentas de cobro) */
+.nav-caret{margin-left:auto;display:inline-flex;align-items:center;color:inherit;opacity:.65;padding:2px;border-radius:5px;transition:transform .15s,opacity .15s,background .15s}
+.nav-caret:hover{opacity:1;background:#ffffff1f}
+.nav-caret.open{transform:rotate(90deg)}
+.nav-item.on-child{color:#fff}
+.nav-item.on-child svg{opacity:1;color:#fff}
+.nav-sub{display:flex;flex-direction:column;gap:3px;margin:3px 0}
+.nav-sub .nav-item{padding-left:34px;font-size:13px}
+.nav-sub .nav-item svg{width:16px;height:16px}
+.side.collapsed .nav-sub{margin:3px 0}
+.side.collapsed .nav-sub .nav-item{padding-left:0}
 .side-foot{margin-top:auto;padding:12px 8px 2px;border-top:1px solid #ffffff14;display:flex;align-items:center;gap:10px}
 .avatar{width:32px;height:32px;border-radius:50%;background:var(--nav-600);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;flex:none;overflow:hidden}
 .avatar img{width:100%;height:100%;object-fit:cover}

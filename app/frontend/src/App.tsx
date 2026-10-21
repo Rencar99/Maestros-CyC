@@ -89,6 +89,9 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
   useEffect(() => { setVistas((v) => v.has(page) ? v : new Set(v).add(page)); }, [page]);
   const [colapsado, setColapsado] = useState(() => localStorage.getItem("side_colapsado") === "1");
   const toggleSide = () => setColapsado((c) => { localStorage.setItem("side_colapsado", c ? "0" : "1"); return !c; });
+  // Grupo "Facturación" (con "Cuentas de cobro" de submenú): abierto/cerrado, recordado.
+  const [factOpen, setFactOpen] = useState(() => { try { return localStorage.getItem("side_fact_open") !== "0"; } catch { return true; } });
+  const toggleFact = () => setFactOpen((o) => { try { localStorage.setItem("side_fact_open", o ? "0" : "1"); } catch { /* ignore */ } return !o; });
 
   // Info del equipo/servidor para la franja y el pie del menú.
   const [srv, setSrv] = useState<SrvInfo | null>(null);
@@ -135,12 +138,19 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
         {puede("clientes.ver") && <button className={"nav-item" + (page === "clientes" ? " on" : "")} title="Clientes" onClick={() => setPage("clientes")}><Icon name="clientes" /><span className="nav-txt">Clientes</span></button>}
         {puede("responsables.ver") && <button className={"nav-item" + (page === "responsables" ? " on" : "")} title="Responsables" onClick={() => setPage("responsables")}><Icon name="resp" /><span className="nav-txt">Responsables</span></button>}
         {puede("claves.ver") && <button className={"nav-item" + (page === "claves" ? " on" : "")} title="Claves" onClick={() => setPage("claves")}><Icon name="lock" /><span className="nav-txt">Claves</span></button>}
-        {puede("facturacion.ver") && (
-          <button className={"nav-item" + (page === "facturacion" ? " on" : "")} title="Facturación" onClick={() => setPage("facturacion")}><Icon name="briefcase" /><span className="nav-txt">Facturación</span></button>
-        )}
-        {puede("facturacion.ver") && (
-          <button className={"nav-item" + (page === "cobros" ? " on" : "")} title="Cuentas de cobro" onClick={() => setPage("cobros")}><Icon name="file" /><span className="nav-txt">Cuentas de cobro</span></button>
-        )}
+        {puede("facturacion.ver") && (<>
+          <button className={"nav-item" + (page === "facturacion" ? " on" : "") + (page === "cobros" ? " on-child" : "")}
+            title="Facturación" onClick={() => { setPage("facturacion"); setFactOpen(true); }}>
+            <Icon name="briefcase" /><span className="nav-txt">Facturación</span>
+            {!colapsado && <span className={"nav-caret" + ((factOpen || page === "cobros") ? " open" : "")}
+              title={(factOpen || page === "cobros") ? "Ocultar" : "Mostrar"} onClick={(e) => { e.stopPropagation(); toggleFact(); }}><Icon name="chevron-right" size={13} /></span>}
+          </button>
+          {(colapsado || factOpen || page === "cobros") && (
+            <div className={colapsado ? undefined : "nav-sub"}>
+              <button className={"nav-item" + (page === "cobros" ? " on" : "")} title="Cuentas de cobro" onClick={() => setPage("cobros")}><Icon name="file" /><span className="nav-txt">Cuentas de cobro</span></button>
+            </div>
+          )}
+        </>)}
         {puede("consultas.ver") && (
           <button className={"nav-item" + (page === "consultas" ? " on" : "")} title="Consultas" onClick={() => setPage("consultas")}><Icon name="search" /><span className="nav-txt">Consultas</span></button>
         )}
