@@ -1,11 +1,9 @@
-import { Fragment, ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { api } from "../api";
 import { CatItem } from "../types";
 import { Icon, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal } from "../components/Modal";
-
-const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Encabezado de subsección con su ícono del menú en ámbar corporativo. */
 function CatH3({ icon, titulo, hint }: { icon: string; titulo: string; hint?: string }) {
@@ -16,115 +14,20 @@ function CatH3({ icon, titulo, hint }: { icon: string; titulo: string; hint?: st
   );
 }
 
-/* ----------------------------- Grid editable estilo CyC -------------------- */
-interface EGCol { key: string; label: string; width?: string; align?: "left" | "center"; sortable?: boolean; filterable?: boolean; value?: (r: any) => string; render: (r: any) => ReactNode; }
-
-function EditGrid({ cols, rows, getKey, actions, onAdd, empty, footRow }: {
-  cols: EGCol[]; rows: any[]; getKey: (r: any) => string | number;
-  actions: (r: any) => ReactNode; onAdd?: () => void; empty?: string; footRow?: ReactNode;
+/** Marco del catálogo (estándar): cabecera (ícono ámbar + título + acciones) +
+ *  cuerpo gframe que llena el panel + pie ámbar con el conteo. */
+function CatShell({ icon, titulo, hint, right, n, children }: {
+  icon: string; titulo: string; hint: string; right?: ReactNode; n: number; children: ReactNode;
 }) {
-  const [sortKey, setSortKey] = useState<string | null>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [filters, setFilters] = useState<Record<string, string>>({});
-  const [menu, setMenu] = useState<{ key: string; x: number; y: number } | null>(null);
-
-  const val = (col: EGCol, r: any) => (col.value ? col.value(r) : String(r[col.key] ?? ""));
-
-  let view = [...rows];
-  for (const col of cols) {
-    const f = filters[col.key];
-    if (f) { const q = norm(f); view = view.filter((r) => norm(val(col, r)).includes(q)); }
-  }
-  if (sortKey) {
-    const col = cols.find((c) => c.key === sortKey);
-    if (col) view.sort((a, b) => {
-      const c = val(col, a).localeCompare(val(col, b), "es", { numeric: true });
-      return sortDir === "asc" ? c : -c;
-    });
-  }
-
-  const toggleSort = (col: EGCol) => {
-    if (!col.sortable) return;
-    if (sortKey === col.key) setSortDir(sortDir === "asc" ? "desc" : "asc");
-    else { setSortKey(col.key); setSortDir("asc"); }
-  };
-  const openMenu = (e: React.MouseEvent, key: string) => {
-    e.stopPropagation();
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setMenu(menu?.key === key ? null : { key, x: r.right, y: r.bottom + 6 });
-  };
-  useEffect(() => {
-    if (!menu) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      if (!t.closest(".filter-pop") && !t.closest(".filter-ico")) setMenu(null);
-    };
-    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(null); };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onEsc);
-    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onEsc); };
-  }, [menu]);
-
-  const menuCol = menu ? cols.find((c) => c.key === menu.key) : null;
-
   return (
-    <>
-      <div className="tbl-wrap grid-scroll cat-scroll">
-        <table>
-          <thead>
-            <tr>
-              {cols.map((col) => (
-                <th key={col.key} className={col.sortable ? "sortable" : undefined}
-                    style={{ textAlign: col.align === "center" ? "center" : "left", width: col.width }}>
-                  <span className="th-in">
-                    <button type="button" className="th-sort" disabled={!col.sortable} onClick={() => toggleSort(col)}>
-                      {col.label}
-                      {col.sortable && <span className="sort-arrow">{sortKey === col.key ? (sortDir === "asc" ? "▲" : "▼") : ""}</span>}
-                    </button>
-                    {col.filterable && (
-                      <button type="button" className={"filter-ico" + (filters[col.key] ? " act" : "")}
-                              title="Ordenar / filtrar" onClick={(e) => openMenu(e, col.key)}>▼</button>
-                    )}
-                  </span>
-                </th>
-              ))}
-              <th className="center" style={{ width: 74 }}>
-                {onAdd
-                  ? <button className="add-ic" onClick={onAdd} title="Agregar"><Icon name="plus" size={16} /></button>
-                  : "Acciones"}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {view.map((r) => (
-              <tr key={getKey(r)}>
-                {cols.map((col) => <td key={col.key} className={col.align === "center" ? "al-c" : undefined}>{col.render(r)}</td>)}
-                <td className="al-c">{actions(r)}</td>
-              </tr>
-            ))}
-            {footRow}
-            {view.length === 0 && !footRow && <tr><td colSpan={cols.length + 1} className="grid-empty">{empty || "Sin registros."}</td></tr>}
-          </tbody>
-        </table>
+    <div className="card">
+      <div className="card-h">
+        <CatH3 icon={icon} titulo={titulo} hint={hint} />
+        {right && <div className="r" style={{ gap: 8 }}>{right}</div>}
       </div>
-      {menu && menuCol && (
-        <div className="filter-pop" role="dialog" style={{ position: "fixed", left: Math.max(10, menu.x - 230), top: menu.y }}>
-          <button className="cm-item" onClick={() => { setSortKey(menu.key); setSortDir("asc"); setMenu(null); }}>Ordenar ascendente <span className="cm-ic">↑</span></button>
-          <button className="cm-item" onClick={() => { setSortKey(menu.key); setSortDir("desc"); setMenu(null); }}>Ordenar descendente <span className="cm-ic">↓</span></button>
-          {menuCol.filterable && (
-            <>
-              <div className="cm-sep" />
-              <div className="fp-lbl">Filtrar por {menuCol.label}</div>
-              <input autoFocus type="text" placeholder="Contiene…" value={filters[menu.key] || ""}
-                     onChange={(e) => setFilters((f) => ({ ...f, [menu.key]: e.target.value }))} />
-              <div className="fp-actions"><span />
-                <button onClick={() => setFilters((f) => { const c = { ...f }; delete c[menu.key]; return c; })}>Limpiar</button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </>
+      <div className="gframe-body">{children}</div>
+      <div className="gframe-foot">{n} registro{n === 1 ? "" : "s"}</div>
+    </div>
   );
 }
 
@@ -141,16 +44,17 @@ function CatCard({ titulo, hint, path, icon }: { titulo: string; hint: string; p
   const save = async (it: CatItem, patch: Partial<CatItem>) => { try { await api.put(`/catalogos/${path}/${it.id}`, patch); load(); } catch (e: any) { toast(e.message, true); } };
   const del = async (it: CatItem) => { try { await api.del(`/catalogos/${path}/${it.id}`); load(); toast("Eliminado"); } catch (e: any) { toast(e.message, true); } };
 
-  const cols: EGCol[] = [
-    { key: "descripcion", label: "Descripción", sortable: true, filterable: true, value: (r) => r.descripcion, render: (r: CatItem) => <input className={cellInput} defaultValue={r.descripcion} onBlur={(e) => e.target.value !== r.descripcion && save(r, { descripcion: e.target.value })} /> },
-    { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r: CatItem) => <input type="checkbox" checked={r.activo} onChange={(e) => save(r, { activo: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} /> },
+  const cols: Column<CatItem>[] = [
+    { key: "descripcion", label: "Descripción", sortable: true, filterable: true, value: (r) => r.descripcion, render: (r) => <input className={cellInput} defaultValue={r.descripcion} onBlur={(e) => e.target.value !== r.descripcion && save(r, { descripcion: e.target.value })} /> },
+    { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <input type="checkbox" checked={r.activo} onChange={(e) => save(r, { activo: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} /> },
   ];
   return (
-    <div className="card">
-      <div className="card-h"><CatH3 icon={icon} titulo={titulo} hint={hint} /></div>
-      <EditGrid cols={cols} rows={items} getKey={(r) => r.id} onAdd={add} empty="Vacío"
+    <CatShell icon={icon} titulo={titulo} hint={hint} n={items.length}
+      right={<button className="btn primary sm" onClick={add}><Icon name="plus" size={16} />Nuevo</button>}>
+      <DataGrid columns={cols} rows={items} getKey={(r) => r.id} label={titulo} scrollClass="cat-scroll" fitRows
+        searchable={false} exportable={false} emptyLabel="Vacío" actionsWidth="64px"
         actions={(r) => <button className="act-btn del" onClick={() => del(r)} title="Eliminar"><Icon name="trash" size={15} /></button>} />
-    </div>
+    </CatShell>
   );
 }
 
@@ -160,70 +64,57 @@ function CodeCard({ titulo, hint, path, icon, codLabel = "Código", maxCod = 4 }
   { titulo: string; hint: string; path: string; icon: string; codLabel?: string; maxCod?: number }) {
   const toast = useToast();
   const [items, setItems] = useState<TD[]>([]);
-  const [draft, setDraft] = useState<string | null>(null);
+  const [draft, setDraft] = useState(false);
   const load = () => api.get(`/catalogos/${path}`).then(setItems).catch((e) => toast(e.message, true));
   useEffect(() => { load(); }, []); // eslint-disable-line
 
-  const crear = async (codigo: string) => { const cod = codigo.trim().toUpperCase(); setDraft(null); if (!cod) return; try { await api.post(`/catalogos/${path}`, { codigo: cod, descripcion: "" }); load(); } catch (e: any) { toast(e.message, true); } };
+  const crear = async (codigo: string) => { const cod = codigo.trim().toUpperCase(); setDraft(false); if (!cod) return; try { await api.post(`/catalogos/${path}`, { codigo: cod, descripcion: "" }); load(); } catch (e: any) { toast(e.message, true); } };
   const save = async (t: TD, descripcion: string) => { if (descripcion === t.descripcion) return; try { await api.put(`/catalogos/${path}/${t.codigo}`, { descripcion }); load(); } catch (e: any) { toast(e.message, true); } };
   const del = async (t: TD) => { try { await api.del(`/catalogos/${path}/${t.codigo}`); load(); toast("Eliminado"); } catch (e: any) { toast(e.message, true); } };
 
-  const cols: EGCol[] = [
-    { key: "codigo", label: codLabel, sortable: true, filterable: true, width: "100px", value: (r) => r.codigo, render: (r: TD) => <span className="pill">{r.codigo}</span> },
-    { key: "descripcion", label: "Descripción", sortable: true, filterable: true, value: (r) => r.descripcion, render: (r: TD) => <input className={cellInput} defaultValue={r.descripcion} onBlur={(e) => save(r, e.target.value)} /> },
+  const cols: Column<TD>[] = [
+    { key: "codigo", label: codLabel, sortable: true, filterable: true, width: "120px", value: (r) => r.codigo, render: (r) => <span className="pill">{r.codigo}</span> },
+    { key: "descripcion", label: "Descripción", sortable: true, filterable: true, value: (r) => r.descripcion, render: (r) => <input className={cellInput} defaultValue={r.descripcion} onBlur={(e) => save(r, e.target.value)} /> },
   ];
-  const draftRow = draft !== null ? (
-    <tr>
-      <td><input autoFocus placeholder="Código" maxLength={maxCod} defaultValue=""
-        onBlur={(e) => crear(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setDraft(null); }}
-        className={cellInput} style={{ textTransform: "uppercase" }} /></td>
-      <td style={{ color: "var(--ink-3)", fontSize: 12 }}>Escribe el código y presiona Enter</td>
-      <td className="al-c"><button className="act-btn del" onClick={() => setDraft(null)} title="Descartar"><Icon name="trash" size={15} /></button></td>
-    </tr>
-  ) : null;
-
+  // Crear: pide el código inline (es la llave estable) y luego se edita la descripción en la fila.
+  const draftInput = (
+    <input autoFocus maxLength={maxCod} placeholder={codLabel} className={cellInput}
+      style={{ textTransform: "uppercase", width: 150 }}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setDraft(false); }}
+      onBlur={(e) => crear(e.target.value)} />
+  );
   return (
-    <div className="card">
-      <div className="card-h"><CatH3 icon={icon} titulo={titulo} hint={hint} /></div>
-      <EditGrid cols={cols} rows={items} getKey={(r) => r.codigo} onAdd={() => setDraft("")} empty="Vacío" footRow={draftRow}
+    <CatShell icon={icon} titulo={titulo} hint={hint} n={items.length}
+      right={draft ? draftInput : <button className="btn primary sm" onClick={() => setDraft(true)}><Icon name="plus" size={16} />Nuevo</button>}>
+      <DataGrid columns={cols} rows={items} getKey={(r) => r.codigo} label={titulo} scrollClass="cat-scroll" fitRows
+        searchable={false} exportable={false} emptyLabel="Vacío" actionsWidth="64px"
         actions={(r) => <button className="act-btn del" onClick={() => del(r)} title="Eliminar"><Icon name="trash" size={15} /></button>} />
-    </div>
+    </CatShell>
   );
 }
 
-/** Municipios DANE: catálogo de referencia con búsqueda + recargar. */
+/** Municipios DANE: catálogo de referencia con búsqueda (servidor). */
 function MunicipioRef() {
-  const toast = useToast();
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<{ codigo: string; nombre: string; departamento: string }[]>([]);
   const buscar = (term: string) => api.get(`/catalogos/municipio/buscar?q=${encodeURIComponent(term)}`).then(setRows).catch(() => setRows([]));
   useEffect(() => { buscar(""); }, []); // eslint-disable-line
+  const cols: Column<{ codigo: string; nombre: string; departamento: string }>[] = [
+    { key: "codigo", label: "Código", sortable: true, filterable: true, width: "120px", value: (r) => r.codigo, render: (r) => <span className="pill">{r.codigo}</span> },
+    { key: "nombre", label: "Municipio", sortable: true, filterable: true, value: (r) => r.nombre },
+    { key: "departamento", label: "Departamento", sortable: true, filterable: true, width: "230px", value: (r) => r.departamento },
+  ];
   return (
-    <div className="card">
-      <div className="card-h">
-        <CatH3 icon="map-pin" titulo="Municipios (DANE)" hint="Referencia; se usan con búsqueda en la ficha (contacto y Municipios ICA)" />
-        <div className="search" style={{ width: 320 }}><Icon name="search" size={15} />
-          <input placeholder="Buscar por código o municipio…" value={q} onChange={(e) => { setQ(e.target.value); buscar(e.target.value); }} />
-        </div>
-      </div>
-      <div className="tbl-wrap grid-scroll cat-scroll" style={{ marginTop: 12 }}>
-        <table>
-          <thead><tr><th style={{ width: 110 }}>Código</th><th>Municipio</th><th style={{ width: 210 }}>Departamento</th></tr></thead>
-          <tbody>
-            {rows.map((m) => (
-              <tr key={m.codigo}><td><span className="pill">{m.codigo}</span></td><td>{m.nombre}</td><td>{m.departamento}</td></tr>
-            ))}
-            {!rows.length && <tr><td colSpan={3} className="grid-empty">Sin coincidencias</td></tr>}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ padding: "8px 16px 14px", fontSize: 12, color: "var(--ink-3)" }}>Escribe para filtrar la lista.</div>
-    </div>
+    <CatShell icon="map-pin" titulo="Municipios (DANE)" hint="Referencia; se usan con búsqueda en la ficha (contacto y Municipios ICA)" n={rows.length}
+      right={<div className="search" style={{ width: 320 }}><Icon name="search" size={15} />
+        <input placeholder="Buscar por código o municipio…" value={q} onChange={(e) => { setQ(e.target.value); buscar(e.target.value); }} /></div>}>
+      <DataGrid columns={cols} rows={rows} getKey={(r) => r.codigo} label="Municipios" scrollClass="cat-scroll" fitRows
+        searchable={false} exportable={false} emptyLabel="Sin coincidencias" />
+    </CatShell>
   );
 }
 
-/** CIIU (referencia DIAN): grilla con búsqueda + recargar desde archivo. */
+/** CIIU (referencia DIAN): grilla con búsqueda (servidor) + recargar desde archivo. */
 function CiiuRef() {
   const toast = useToast();
   const [q, setQ] = useState("");
@@ -234,30 +125,20 @@ function CiiuRef() {
     try { const r = await api.post("/catalogos/ciiu/recargar"); toast(`CIIU recargado: ${r.cambios} cambios`); buscar(q); }
     catch (e: any) { toast(e.message, true); }
   };
+  const cols: Column<{ codigo: string; descripcion: string }>[] = [
+    { key: "codigo", label: "Código", sortable: true, filterable: true, width: "120px", value: (r) => r.codigo, render: (r) => <span className="pill">{r.codigo}</span> },
+    { key: "descripcion", label: "Descripción", sortable: true, filterable: true, value: (r) => r.descripcion },
+  ];
   return (
-    <div className="card">
-      <div className="card-h">
-        <CatH3 icon="tag" titulo="CIIU (referencia DIAN)" hint="Actividades económicas (DIAN); se usan con búsqueda en la ficha" />
-        <div className="r" style={{ gap: 8 }}>
-          <div className="search" style={{ width: 320 }}><Icon name="search" size={15} />
-            <input placeholder="Buscar por código o actividad…" value={q} onChange={(e) => { setQ(e.target.value); buscar(e.target.value); }} />
-          </div>
-          <button className="btn sm" onClick={recargar}>Recargar desde archivo</button>
-        </div>
-      </div>
-      <div className="tbl-wrap grid-scroll cat-scroll" style={{ marginTop: 12 }}>
-        <table>
-          <thead><tr><th style={{ width: 110 }}>Código</th><th>Descripción</th></tr></thead>
-          <tbody>
-            {rows.map((m) => (
-              <tr key={m.codigo}><td><span className="pill">{m.codigo}</span></td><td>{m.descripcion}</td></tr>
-            ))}
-            {!rows.length && <tr><td colSpan={2} className="grid-empty">Sin coincidencias</td></tr>}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ padding: "8px 16px 14px", fontSize: 12, color: "var(--ink-3)" }}>Escribe para filtrar la lista.</div>
-    </div>
+    <CatShell icon="tag" titulo="CIIU (referencia DIAN)" hint="Actividades económicas (DIAN); se usan con búsqueda en la ficha" n={rows.length}
+      right={<>
+        <div className="search" style={{ width: 320 }}><Icon name="search" size={15} />
+          <input placeholder="Buscar por código o actividad…" value={q} onChange={(e) => { setQ(e.target.value); buscar(e.target.value); }} /></div>
+        <button className="btn sm" onClick={recargar}>Recargar desde archivo</button>
+      </>}>
+      <DataGrid columns={cols} rows={rows} getKey={(r) => r.codigo} label="CIIU" scrollClass="cat-scroll" fitRows
+        searchable={false} exportable={false} emptyLabel="Sin coincidencias" />
+    </CatShell>
   );
 }
 
@@ -478,24 +359,24 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
     { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <span style={{ color: r.activo ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{r.activo ? "Sí" : "No"}</span> },
   ];
   return (
-    <div className="card">
-      <div className="card-h">
-        <CatH3 icon="clipboard-check" titulo="Obligaciones" hint="Catálogo de obligaciones de reporte. Alimenta el Calendario y la pestaña Obligaciones del cliente. El código es la llave estable (inmutable). No se puede borrar una obligación asignada a clientes o con plazos." />
-        <div className="r" style={{ gap: 8 }}>
+    <>
+      <CatShell icon="clipboard-check" titulo="Obligaciones" n={items.length}
+        hint="Catálogo de obligaciones de reporte. Alimenta el Calendario y la pestaña Obligaciones del cliente. El código es la llave estable (inmutable). No se puede borrar una obligación asignada a clientes o con plazos."
+        right={<>
           {esSuper && <button className="btn sm" onClick={abrirBatch}
             title="Revisa el diff DIAN de todos los clientes con RUT y aplica agregar/quitar (con confirmación). Úsalo tras cambiar una regla del catálogo. Conserva las manuales.">
             <Icon name="check-circle" size={15} />Revisar DIAN de todos</button>}
           {puedeEditar && <button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nueva Obligación</button>}
-        </div>
-      </div>
-      <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
-        label="Obligaciones" scrollClass="cat-scroll" storageKey="cat-oblig"
-        searchable exportable actionsWidth="120px" emptyLabel="Sin obligaciones."
-        actions={puedeEditar ? (r) => <>
-          <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
-          <button className="act-btn" title="Duplicar (nueva con estos datos)" onClick={() => setEdit({ ...r, id: 0 })}><Icon name="copy" size={15} /></button>
-          <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
-        </> : undefined} />
+        </>}>
+        <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
+          label="Obligaciones" scrollClass="cat-scroll" storageKey="cat-oblig" fitRows
+          searchable exportable actionsWidth="120px" emptyLabel="Sin obligaciones."
+          actions={puedeEditar ? (r) => <>
+            <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
+            <button className="act-btn" title="Duplicar (nueva con estos datos)" onClick={() => setEdit({ ...r, id: 0 })}><Icon name="copy" size={15} /></button>
+            <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
+          </> : undefined} />
+      </CatShell>
       {edit && <ObligacionModal obl={edit} entidades={entidades} formularios={formularios}
         onEntidadCreada={(e) => setEntidades((prev) => [...prev, e].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")))}
         onClose={() => setEdit(null)} onSaved={load} />}
@@ -516,7 +397,7 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
           {batch.faltan_total === 0 && batch.sobran_total === 0 && <div className="rev-ok"><Icon name="check-circle" size={18} />Todos los clientes están al día.</div>}
         </>}
       </Modal>}
-    </div>
+    </>
   );
 }
 
@@ -570,20 +451,20 @@ function EntidadesCard() {
     { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <span style={{ color: r.activo ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{r.activo ? "Sí" : "No"}</span> },
   ];
   return (
-    <div className="card">
-      <div className="card-h">
-        <CatH3 icon="landmark" titulo="Entidades" hint="Entes de control (DIAN, UGPP, Superintendencias, Hacienda…). Alimentan el Calendario y el Ente de las Obligaciones." />
-        <div className="r"><button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nueva Entidad</button></div>
-      </div>
-      <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
-        label="Entidades" scrollClass="cat-scroll" storageKey="cat-entidad"
-        searchable exportable actionsWidth="92px" emptyLabel="Sin entidades."
-        actions={(r) => <>
-          <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
-          <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
-        </>} />
+    <>
+      <CatShell icon="landmark" titulo="Entidades" n={items.length}
+        hint="Entes de control (DIAN, UGPP, Superintendencias, Hacienda…). Alimentan el Calendario y el Ente de las Obligaciones."
+        right={<button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nueva Entidad</button>}>
+        <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
+          label="Entidades" scrollClass="cat-scroll" storageKey="cat-entidad" fitRows
+          searchable exportable actionsWidth="92px" emptyLabel="Sin entidades."
+          actions={(r) => <>
+            <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
+            <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
+          </>} />
+      </CatShell>
       {edit && <EntidadModal ent={edit} onClose={() => setEdit(null)} onSaved={load} />}
-    </div>
+    </>
   );
 }
 
@@ -651,20 +532,20 @@ function FormulariosCard() {
     { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <span style={{ color: r.activo ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{r.activo ? "Sí" : "No"}</span> },
   ];
   return (
-    <div className="card">
-      <div className="card-h">
-        <CatH3 icon="file" titulo="Formularios" hint="Formularios DIAN cuyos borradores se presentan (350, etc.). El Código Calendario es la llave estable (para enlazar con el Calendario). La autorización de quién puede presentar cada uno se define en Roles y permisos → Presentar borradores." />
-        <div className="r"><button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nuevo Formulario</button></div>
-      </div>
-      <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
-        label="Formularios" scrollClass="cat-scroll" storageKey="cat-formulario"
-        searchable exportable actionsWidth="92px" emptyLabel="Sin formularios."
-        actions={(r) => <>
-          <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
-          <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
-        </>} />
+    <>
+      <CatShell icon="file" titulo="Formularios" n={items.length}
+        hint="Formularios DIAN cuyos borradores se presentan (350, etc.). El Código Calendario es la llave estable (para enlazar con el Calendario). La autorización de quién puede presentar cada uno se define en Roles y permisos → Presentar borradores."
+        right={<button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nuevo Formulario</button>}>
+        <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
+          label="Formularios" scrollClass="cat-scroll" storageKey="cat-formulario" fitRows
+          searchable exportable actionsWidth="92px" emptyLabel="Sin formularios."
+          actions={(r) => <>
+            <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
+            <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
+          </>} />
+      </CatShell>
       {edit && <FormularioModal f0={edit} obligaciones={obligaciones} onClose={() => setEdit(null)} onSaved={load} />}
-    </div>
+    </>
   );
 }
 
@@ -737,20 +618,20 @@ function EmisoresCard() {
     { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => siSi(r.activo) },
   ];
   return (
-    <div className="card">
-      <div className="card-h">
-        <CatH3 icon="user" titulo="Emisores" hint="Personas que firman y emiten las cuentas de cobro a nombre de la firma. Cada una lleva su propio consecutivo (ej. MB-421) y, si aplica, la nota del art. 383." />
-        <div className="r"><button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nuevo Emisor</button></div>
-      </div>
-      <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
-        label="Emisores" scrollClass="cat-scroll" storageKey="cat-emisor"
-        searchable exportable actionsWidth="92px" emptyLabel="Sin emisores."
-        actions={(r) => <>
-          <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
-          <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
-        </>} />
+    <>
+      <CatShell icon="user" titulo="Emisores" n={items.length}
+        hint="Personas que firman y emiten las cuentas de cobro a nombre de la firma. Cada una lleva su propio consecutivo (ej. MB-421) y, si aplica, la nota del art. 383."
+        right={<button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nuevo Emisor</button>}>
+        <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
+          label="Emisores" scrollClass="cat-scroll" storageKey="cat-emisor" fitRows
+          searchable exportable actionsWidth="92px" emptyLabel="Sin emisores."
+          actions={(r) => <>
+            <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
+            <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
+          </>} />
+      </CatShell>
       {edit && <EmisorModal em={edit} onClose={() => setEdit(null)} onSaved={load} />}
-    </div>
+    </>
   );
 }
 
