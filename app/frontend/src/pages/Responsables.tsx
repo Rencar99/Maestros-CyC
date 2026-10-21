@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { Responsable } from "../types";
-import { Icon, SecTitle, Toggle, useConfirm, useToast } from "../ui";
+import { Icon, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal } from "../components/Modal";
 import { Cat, CatSelect } from "../components/CatSelect";
@@ -27,6 +27,7 @@ const vacio = (): Responsable => ({
 export function Responsables({ esSuper = false, puede, active = true }: { esSuper?: boolean; puede: (c: string) => boolean; active?: boolean }) {
   const toast = useToast();
   const [rows, setRows] = useState<Responsable[]>([]);
+  const [actualizado, setActualizado] = useState("");
   const [edit, setEdit] = useState<Responsable | null>(null);
   const [cargos, setCargos] = useState<Cat[]>([]);
   const [orden, setOrden] = useState<number[]>([]);   // orden visible de la grilla (para navegar)
@@ -45,7 +46,7 @@ export function Responsables({ esSuper = false, puede, active = true }: { esSupe
     catch (e: any) { toast(e.message, true); }
   };
 
-  const load = () => api.get("/responsables").then(setRows).catch((e) => toast(e.message, true));
+  const load = () => api.get("/responsables").then((r: Responsable[]) => { setRows(r); setActualizado(new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })); }).catch((e) => toast(e.message, true));
   useEffect(() => {
     load();
     api.get("/catalogos/cargo").then((cs: Cat[]) => setCargos(cs.filter((c) => c.activo))).catch(() => {});
@@ -74,21 +75,24 @@ export function Responsables({ esSuper = false, puede, active = true }: { esSupe
 
   return (
     <>
-      <div className="card">
-        <div className="card-h">
-          <div><SecTitle icon="resp">Responsables</SecTitle><div className="hint">Personal de la firma (internos y externos)</div></div>
-          <div className="r">{puede("responsables.crear") && <button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nuevo responsable</button>}</div>
+      <div className="card gframe gframe-sinh">
+        <div className="gframe-body">
+          <DataGrid columns={cols} rows={rows} getKey={(r) => r.id} label="Responsables" emptyLabel="Sin responsables."
+            storageKey="responsables" fitRows
+            onView={(rs) => setOrden(rs.map((r) => r.id))}
+            toolbar={puede("responsables.crear") ? <span className="gf-end"><button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nuevo responsable</button></span> : undefined}
+            actionsWidth={puede("responsables.eliminar") ? "72px" : undefined}
+            actions={(puede("responsables.editar") || puede("responsables.eliminar")) ? (r) => (
+              <>
+                {puede("responsables.editar") && <button className="act-btn edit" title="Editar" onClick={() => setEdit({ ...r })}><Icon name="edit" size={15} /></button>}
+                {puede("responsables.eliminar") && <button className="act-btn del" title="Eliminar" onClick={() => borrar(r)}><Icon name="trash" size={15} /></button>}
+              </>
+            ) : undefined} />
         </div>
-        <DataGrid columns={cols} rows={rows} getKey={(r) => r.id} label="Responsables" emptyLabel="Sin responsables."
-          storageKey="responsables"
-          onView={(rs) => setOrden(rs.map((r) => r.id))}
-          actionsWidth={puede("responsables.eliminar") ? "72px" : undefined}
-          actions={(puede("responsables.editar") || puede("responsables.eliminar")) ? (r) => (
-            <>
-              {puede("responsables.editar") && <button className="act-btn edit" title="Editar" onClick={() => setEdit({ ...r })}><Icon name="edit" size={15} /></button>}
-              {puede("responsables.eliminar") && <button className="act-btn del" title="Eliminar" onClick={() => borrar(r)}><Icon name="trash" size={15} /></button>}
-            </>
-          ) : undefined} />
+        <div className="gframe-foot">
+          {rows.length} responsable{rows.length === 1 ? "" : "s"}
+          {actualizado && <><span className="gf-dot">·</span> Actualizado: {actualizado}</>}
+        </div>
       </div>
       {edit && <Ficha resp={edit} esSuper={esSuper} puede={puede}
         cargos={cargos} onCargo={(n) => setCargos((p) => [...p, n])}

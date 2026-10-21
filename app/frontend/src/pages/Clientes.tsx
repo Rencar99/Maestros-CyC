@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { CatItem, Cliente, ClienteClave, ClienteListItem, MunicipioIca, Obligacion, Responsable, Servicio } from "../types";
-import { Icon, money, SecTitle, Toggle, useConfirm, useToast } from "../ui";
+import { Icon, money, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { CiiuCombo } from "../components/CiiuCombo";
 import { MunicipioCombo } from "../components/MunicipioCombo";
@@ -291,6 +291,7 @@ function vacio(): Cliente {
 export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: boolean; esAdmin: boolean; puede: (c: string) => boolean; active?: boolean }) {
   const toast = useToast();
   const [rows, setRows] = useState<ClienteListItem[]>([]);
+  const [actualizado, setActualizado] = useState("");
   const [quick, setQuick] = useState("");   // filtro rápido activo
   const [edit, setEdit] = useState<Cliente | null>(null);
   const [verClaves, setVerClaves] = useState<ClienteListItem | null>(null);
@@ -302,7 +303,7 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
   const [respsCat, setRespsCat] = useState<{ codigo: string; descripcion: string }[]>([]);
   const [emisores, setEmisores] = useState<{ id: number; nombre: string; prefijo: string }[]>([]);
 
-  const load = () => api.get("/clientes").then(setRows).catch((e) => toast(e.message, true));
+  const load = () => api.get("/clientes").then((r: ClienteListItem[]) => { setRows(r); setActualizado(new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })); }).catch((e) => toast(e.message, true));
   useEffect(() => {
     load();
     api.get("/catalogos/software").then(setSoftware).catch(() => {});
@@ -386,28 +387,32 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
 
   return (
     <>
-      <div className="card">
-        <div className="card-h">
-          <div><SecTitle icon="clientes">Clientes</SecTitle></div>
-          <div className="r" style={{ alignItems: "center" }}>
-            <button className="btn primary sm" onClick={() => { setAutoRut(false); setEdit(vacio()); }}><Icon name="plus" size={16} />Nuevo cliente</button>
-          </div>
+      <div className="card gframe gframe-sinh">
+        <div className="gframe-body">
+          <DataGrid columns={cols} rows={filtered} getKey={(r) => r.id} label="Clientes" emptyLabel="Sin clientes."
+            storageKey="clientes" searchable exportable={puede("clientes.exportar")} fitRows
+            toolbar={<>
+              <div className="qfbar">
+                {qfiltros.map((f) => (
+                  <button key={f.k} className={"qf" + (quick === f.k ? " on" : "")} onClick={() => setQuick(f.k)}>
+                    {f.lbl}<span className="n">{f.n}</span>
+                  </button>
+                ))}
+              </div>
+              <span className="gf-end"><button className="btn primary sm" onClick={() => { setAutoRut(false); setEdit(vacio()); }}><Icon name="plus" size={16} />Nuevo cliente</button></span>
+            </>}
+            onView={(rs) => setOrden(rs.map((r) => r.id))}
+            actions={(r) => <>
+              {esAdmin && <button className="act-btn" title="Ver claves del cliente" onClick={() => setVerClaves(r)}><Icon name="lock" size={15} /></button>}
+              {esAdmin && <button className="act-btn rut" title="Comparar con RUT (abre la ficha)" onClick={() => abrir(r.id, true)}><Icon name="upload" size={15} /></button>}
+              {esAdmin && <button className="act-btn edit" title="Abrir ficha" onClick={() => abrir(r.id)}><Icon name="edit" size={15} /></button>}
+            </>} />
         </div>
-        <DataGrid columns={cols} rows={filtered} getKey={(r) => r.id} label="Clientes" emptyLabel="Sin clientes." scrollClass="cli-scroll"
-          storageKey="clientes" searchable exportable={puede("clientes.exportar")}
-          toolbar={<div className="qfbar">
-            {qfiltros.map((f) => (
-              <button key={f.k} className={"qf" + (quick === f.k ? " on" : "")} onClick={() => setQuick(f.k)}>
-                {f.lbl}<span className="n">{f.n}</span>
-              </button>
-            ))}
-          </div>}
-          onView={(rs) => setOrden(rs.map((r) => r.id))}
-          actions={(r) => <>
-            {esAdmin && <button className="act-btn" title="Ver claves del cliente" onClick={() => setVerClaves(r)}><Icon name="lock" size={15} /></button>}
-            {esAdmin && <button className="act-btn rut" title="Comparar con RUT (abre la ficha)" onClick={() => abrir(r.id, true)}><Icon name="upload" size={15} /></button>}
-            {esAdmin && <button className="act-btn edit" title="Abrir ficha" onClick={() => abrir(r.id)}><Icon name="edit" size={15} /></button>}
-          </>} />
+        <div className="gframe-foot">
+          {rows.length} cliente{rows.length === 1 ? "" : "s"}
+          {quick && <><span className="gf-dot">·</span> {filtered.length} en vista</>}
+          {actualizado && <><span className="gf-dot">·</span> Actualizado: {actualizado}</>}
+        </div>
       </div>
       {edit && <Ficha cliente={edit} autoRut={autoRut} software={software} setSoftware={setSoftware} roles={roles} setRoles={setRoles} obligTipos={obligTipos} setObligTipos={setObligTipos} resp={resp} tiposDoc={tiposDoc} setTiposDoc={setTiposDoc} respsCat={respsCat} setRespsCat={setRespsCat} emisores={emisores} esSuper={esSuper} esAdmin={esAdmin} veConf={esSuper || puede("clientes.ver_confidencial")}
         prevId={vecino("prev") ?? null} nextId={vecino("next") ?? null} onGo={abrir} reload={load}

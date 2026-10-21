@@ -25,12 +25,13 @@ export function CuentasCobro({ active }: { active: boolean }) {
   const [fid, setFid] = useState<number | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [cargando, setCargando] = useState(false);
+  const [actualizado, setActualizado] = useState("");
 
   const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
   const cargar = () => {
     setCargando(true);
     api.get(`/cobros?periodo=${periodo}`)
-      .then((r: { fid: number | null; rows: Row[] }) => { setFid(r.fid); setRows(r.rows || []); })
+      .then((r: { fid: number | null; rows: Row[] }) => { setFid(r.fid); setRows(r.rows || []); setActualizado(new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })); })
       .catch((e) => toast(e.message, true))
       .finally(() => setCargando(false));
   };
@@ -130,7 +131,7 @@ export function CuentasCobro({ active }: { active: boolean }) {
   ];
 
   return (
-    <div className="card">
+    <div className="card gframe">
       <div className="card-h" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <SecTitle icon="file">Cuentas de cobro</SecTitle>
         <div className="r" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -148,21 +149,26 @@ export function CuentasCobro({ active }: { active: boolean }) {
           </>}
         </div>
       </div>
-
-      {!fid && !cargando
-        ? <p style={{ color: "var(--ink-3)", padding: "8px 2px" }}>No hay facturación guardada de {MESES[mes]} {anio}. Genérala y guárdala en «Facturación» para ver aquí sus cuentas de cobro.</p>
-        : <DataGrid columns={cols} rows={rows} getKey={(r) => r.item_id}
-            label={`Cuentas de cobro · ${MESES[mes]} ${anio}`} scrollClass="fact-scroll" storageKey="cobros-grid"
-            searchable exportable defaultTotals={["valor"]}
-            emptyLabel={cargando ? "Cargando…" : "No hay cuentas de cobro (ítems CC) en la facturación de este mes."}
-            actions={(r) => <span className="cc-cell">
-              <button className="act-btn" title={!r.tiene_emisor ? "El cliente no tiene emisor asignado (ficha → Comercial)" : r.numero ? "Ya generada" : "Generar en firme (quema el consecutivo)"}
-                disabled={!!r.numero || !r.tiene_emisor} onClick={() => generarUno(r)}><Icon name="clipboard-check" size={15} /></button>
-              <button className="act-btn" title={r.numero ? "Revisar PDF" : "Vista previa (PDF)"}
-                disabled={!r.numero && !r.tiene_emisor} onClick={() => revisar(r)}><Icon name="eye" size={15} /></button>
-              <button className="act-btn" title={!r.numero ? "Genera primero" : !r.correo ? "El cliente no tiene correo" : r.estado === "enviada" ? "Reenviar por correo" : "Enviar por correo"}
-                disabled={!r.numero || !r.correo} onClick={() => enviarUno(r)}><Icon name="mail" size={15} /></button>
-            </span>} />}
+      <div className="gframe-body">
+        {!fid && !cargando
+          ? <p style={{ color: "var(--ink-3)", padding: "8px 2px" }}>No hay facturación guardada de {MESES[mes]} {anio}. Genérala y guárdala en «Facturación» para ver aquí sus cuentas de cobro.</p>
+          : <DataGrid columns={cols} rows={rows} getKey={(r) => r.item_id}
+              label={`Cuentas de cobro · ${MESES[mes]} ${anio}`} storageKey="cobros-grid" fitRows
+              searchable exportable defaultTotals={["valor"]}
+              emptyLabel={cargando ? "Cargando…" : "No hay cuentas de cobro (ítems CC) en la facturación de este mes."}
+              actions={(r) => <span className="cc-cell">
+                <button className="act-btn" title={!r.tiene_emisor ? "El cliente no tiene emisor asignado (ficha → Comercial)" : r.numero ? "Ya generada" : "Generar en firme (quema el consecutivo)"}
+                  disabled={!!r.numero || !r.tiene_emisor} onClick={() => generarUno(r)}><Icon name="clipboard-check" size={15} /></button>
+                <button className="act-btn" title={r.numero ? "Revisar PDF" : "Vista previa (PDF)"}
+                  disabled={!r.numero && !r.tiene_emisor} onClick={() => revisar(r)}><Icon name="eye" size={15} /></button>
+                <button className="act-btn" title={!r.numero ? "Genera primero" : !r.correo ? "El cliente no tiene correo" : r.estado === "enviada" ? "Reenviar por correo" : "Enviar por correo"}
+                  disabled={!r.numero || !r.correo} onClick={() => enviarUno(r)}><Icon name="mail" size={15} /></button>
+              </span>} />}
+      </div>
+      <div className="gframe-foot">
+        {rows.length} ítem{rows.length === 1 ? "" : "s"} de cobro
+        {actualizado && <><span className="gf-dot">·</span> Actualizado: {actualizado}</>}
+      </div>
     </div>
   );
 }
