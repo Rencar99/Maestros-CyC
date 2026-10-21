@@ -517,22 +517,26 @@ export function Consultas({ active = true }: { active?: boolean }) {
 
       {/* ---------------------------------------------------- Resultado */}
       {vista === "resultado" && (
-      <div className="card cons-res">
+      <div className="card cons-res gframe">
         <div className="card-h">
-          <div><h3>Resultado de la consulta</h3>
-            <div className="hint">
-              {res ? `${res.total} fila${res.total === 1 ? "" : "s"}${res.truncado ? ` (tope de ${res.limite}; puede haber más)` : ""}`
-                   : "Arma la consulta y pulsa Ejecutar."}</div></div>
+          <div><h3>Resultado de la consulta</h3></div>
           <div className="r">
             <button className="btn sm" onClick={() => setVista("config")}><Icon name="gear" size={14} />Volver a configurar</button>
             <button className="btn sm" onClick={exportar} disabled={!tabla || corriendo}><Icon name="down" size={14} />Exportar Excel</button>
           </div>
         </div>
-        {res
-          ? <DataGrid columns={colsRes} rows={res.filas} getKey={(r) => r.__i}
-                      label="Resultados de la consulta" scrollClass="cons-scroll"
-                      emptyLabel="La consulta no devolvió filas." />
-          : <div className="grid-empty" style={{ padding: 22 }}>Sin consulta ejecutada todavía.</div>}
+        <div className="gframe-body">
+          {res
+            ? <DataGrid columns={colsRes} rows={res.filas} getKey={(r) => r.__i}
+                        label="Resultados de la consulta" fitRows exportable={false}
+                        emptyLabel="La consulta no devolvió filas." />
+            : <div className="grid-empty" style={{ padding: 22 }}>Sin consulta ejecutada todavía.</div>}
+        </div>
+        <div className="gframe-foot">
+          {res
+            ? <>{res.total} fila{res.total === 1 ? "" : "s"}{res.truncado && <><span className="gf-dot">·</span> tope {res.limite} (puede haber más)</>}</>
+            : "Arma la consulta y pulsa Ejecutar"}
+        </div>
       </div>
       )}
 

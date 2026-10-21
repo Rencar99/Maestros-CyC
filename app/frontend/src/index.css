@@ -1107,6 +1107,8 @@ table.mtx td.mtx-c.hoy{background:var(--primary);color:#fff;font-weight:700;bord
 /* Consultas en 2 pestañas: sin la grilla apilada debajo, los paneles usan más alto */
 .cons-tabbed .cons-p{height:calc(100vh - var(--top-h) - 250px)}
 .cons-tabbed .grid-scroll.cons-scroll{max-height:calc(100vh - var(--top-h) - 160px)}
+/* Resultado en gframe: resta el segtabs (~38px) + gap (16) que van encima del card. */
+.cons-tabbed .cons-res.gframe{height:calc(100vh - var(--top-h) - 106px)}
 /* Barra de consultas guardadas */
 .cons-saved{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);
   border-radius:12px;padding:8px 12px;box-shadow:var(--shadow-2)}
