@@ -118,10 +118,6 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
       cargarLista();
     } catch (e: any) { toast(e.message, true); }
   };
-  const exportar = async (id: number, etq: string) => {
-    try { await api.download(`/facturacion/${id}/excel`, `Facturacion ${etq}.xlsx`); }
-    catch (e: any) { toast(e.message, true); }
-  };
   const eliminar = async (id: number, etq: string) => {
     if ((await confirmar({ titulo: "Eliminar facturación", mensaje: `Se eliminará la facturación de ${etq} del histórico. Esta acción no se puede deshacer.`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
     try { await api.del(`/facturacion/${id}`); toast("Eliminada"); cargarLista(); }
@@ -253,9 +249,6 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
               actionsWidth="196px"
               toolbar={<span className="gf-end">
                 <button className="icon-btn" onClick={cargarLista} title="Actualizar lista"><Icon name="refresh" size={16} /></button>
-                <button className="btn sm" onClick={() => setImportar(true)} title="Cargar cobros programados desde un Excel (cruce por NIT)">
-                  <Icon name="upload" size={15} />Importar cobros
-                </button>
                 <button className="btn primary sm" onClick={() => { setFilas([]); setGuardadoId(null); setEtiqueta(""); setMin(false); setVista("editor"); }}>
                   <Icon name="plus" size={16} />Nueva facturación
                 </button>
@@ -264,7 +257,6 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
                 <button className={"act-btn " + (c.aprobada_at ? "aprob-on" : "aprob")} title={c.aprobada_at ? "Quitar aprobación" : "Aprobar facturación del mes"} onClick={() => aprobar(c)}><Icon name={c.aprobada_at ? "check-circle" : "check"} size={15} /></button>
                 <button className="act-btn val" title="Validar contra facturas emitidas (XML)" onClick={() => { setValCab(c); setValRep(null); setValCarpeta(""); valPicked.current = false; setValPicker(true); }}><Icon name="clipboard-check" size={15} /></button>
                 <button className="act-btn edit" title="Abrir" onClick={() => abrir(c.id)}><Icon name="edit" size={15} /></button>
-                <button className="act-btn edit" title="Exportar Excel" onClick={() => exportar(c.id, c.etiqueta)}><Icon name="down" size={15} /></button>
                 <button className="act-btn del" title="Eliminar" onClick={() => eliminar(c.id, c.etiqueta)}><Icon name="trash" size={15} /></button>
               </>} />
           </div>
