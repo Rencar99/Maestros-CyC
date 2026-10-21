@@ -117,6 +117,9 @@ button{font-family:inherit}
 .gframe-sinh .gframe-body .grid-toolbar{position:relative;padding:0 0 14px;margin-bottom:16px}
 .gframe-sinh .gframe-body .grid-toolbar::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--line-2)}
 .gframe-body .grid-toolbar .gf-end{order:99;margin-left:auto;display:flex;align-items:center;gap:8px}
+/* Franjas propias dentro del gframe (ej. KPIs de Facturación): inset de 16px para
+   alinear con la grilla, sin pegar al borde de la tarjeta. */
+.gframe>.fact-kpis{margin:12px 16px 0}
 .top-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
 .search{display:flex;align-items:center;gap:8px;background:var(--card-2);border:1px solid var(--line);border-radius:8px;padding:7px 11px;width:250px;color:var(--ink-3)}
 .search input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;color:var(--ink);width:100%}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api";
-import { Icon, SecTitle, useConfirm, useToast } from "../ui";
+import { Icon, useConfirm, useToast } from "../ui";
 import { Explorador } from "../components/Explorador";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal, minDock } from "../components/Modal";
@@ -245,30 +245,30 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
             <span className="modal-min-t">Editando: {etiqueta || "facturación"}</span>
             <button className="modal-min-x" onClick={(e) => { e.stopPropagation(); setMin(false); setVista("lista"); }} aria-label="Descartar edición" title="Descartar edición"><Icon name="x" size={14} /></button>
           </div>, minDock())}
-        <div className="card">
-          <div className="card-h">
-            <SecTitle icon="briefcase">Facturaciones guardadas</SecTitle>
-            <div className="r" style={{ alignItems: "center", gap: 8 }}>
-              <button className="icon-btn" onClick={cargarLista} title="Actualizar lista"><Icon name="refresh" size={16} /></button>
-              <button className="btn sm" onClick={() => setImportar(true)} title="Cargar cobros programados desde un Excel (cruce por NIT)">
-                <Icon name="upload" size={15} />Importar cobros
-              </button>
-              <button className="btn primary sm" onClick={() => { setFilas([]); setGuardadoId(null); setEtiqueta(""); setMin(false); setVista("editor"); }}>
-                <Icon name="plus" size={16} />Nueva facturación
-              </button>
-            </div>
+        <div className="card gframe gframe-sinh">
+          <div className="gframe-body">
+            <DataGrid columns={listCols} rows={cabs} getKey={(c) => c.id}
+              label="Facturaciones guardadas" storageKey="fact-lista" fitRows
+              searchable emptyLabel="Aún no hay facturaciones. Crea una nueva."
+              actionsWidth="196px"
+              toolbar={<span className="gf-end">
+                <button className="icon-btn" onClick={cargarLista} title="Actualizar lista"><Icon name="refresh" size={16} /></button>
+                <button className="btn sm" onClick={() => setImportar(true)} title="Cargar cobros programados desde un Excel (cruce por NIT)">
+                  <Icon name="upload" size={15} />Importar cobros
+                </button>
+                <button className="btn primary sm" onClick={() => { setFilas([]); setGuardadoId(null); setEtiqueta(""); setMin(false); setVista("editor"); }}>
+                  <Icon name="plus" size={16} />Nueva facturación
+                </button>
+              </span>}
+              actions={(c) => <>
+                <button className={"act-btn " + (c.aprobada_at ? "aprob-on" : "aprob")} title={c.aprobada_at ? "Quitar aprobación" : "Aprobar facturación del mes"} onClick={() => aprobar(c)}><Icon name={c.aprobada_at ? "check-circle" : "check"} size={15} /></button>
+                <button className="act-btn val" title="Validar contra facturas emitidas (XML)" onClick={() => { setValCab(c); setValRep(null); setValCarpeta(""); valPicked.current = false; setValPicker(true); }}><Icon name="clipboard-check" size={15} /></button>
+                <button className="act-btn edit" title="Abrir" onClick={() => abrir(c.id)}><Icon name="edit" size={15} /></button>
+                <button className="act-btn edit" title="Exportar Excel" onClick={() => exportar(c.id, c.etiqueta)}><Icon name="down" size={15} /></button>
+                <button className="act-btn del" title="Eliminar" onClick={() => eliminar(c.id, c.etiqueta)}><Icon name="trash" size={15} /></button>
+              </>} />
           </div>
-          <DataGrid columns={listCols} rows={cabs} getKey={(c) => c.id}
-            label="Facturaciones guardadas" scrollClass="fact-scroll" storageKey="fact-lista"
-            searchable emptyLabel="Aún no hay facturaciones. Crea una nueva."
-            actionsWidth="196px"
-            actions={(c) => <>
-              <button className={"act-btn " + (c.aprobada_at ? "aprob-on" : "aprob")} title={c.aprobada_at ? "Quitar aprobación" : "Aprobar facturación del mes"} onClick={() => aprobar(c)}><Icon name={c.aprobada_at ? "check-circle" : "check"} size={15} /></button>
-              <button className="act-btn val" title="Validar contra facturas emitidas (XML)" onClick={() => { setValCab(c); setValRep(null); setValCarpeta(""); valPicked.current = false; setValPicker(true); }}><Icon name="clipboard-check" size={15} /></button>
-              <button className="act-btn edit" title="Abrir" onClick={() => abrir(c.id)}><Icon name="edit" size={15} /></button>
-              <button className="act-btn edit" title="Exportar Excel" onClick={() => exportar(c.id, c.etiqueta)}><Icon name="down" size={15} /></button>
-              <button className="act-btn del" title="Eliminar" onClick={() => eliminar(c.id, c.etiqueta)}><Icon name="trash" size={15} /></button>
-            </>} />
+          <div className="gframe-foot">{cabs.length} facturación{cabs.length === 1 ? "" : "es"} guardada{cabs.length === 1 ? "" : "s"}</div>
         </div>
         {valPicker && valCab && <Explorador modo="carpeta"
           onSelect={(ruta) => { valPicked.current = true; setValPicker(false); setValCarpeta(ruta); validarCarpeta(valCab.id, ruta); }}
@@ -288,8 +288,7 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
     </div>
   );
   return (
-    <div>
-      <div className="card">
+    <div className="card gframe">
         <div className="card-h fact-head">
           <div className="fact-head-l">
             <button className="btn sm" onClick={() => setVista("lista")}><Icon name="logout" size={14} />Volver</button>
@@ -333,23 +332,27 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
           </span>
         </div>
 
-        {sub === "resumen" && (
-          <DataGrid columns={resCols} rows={resumen} getKey={(g) => g.num_id || g.nombre}
-            label="Resumen por cliente" scrollClass="fact-scroll" storageKey="fact-resumen"
-            searchable exportable toolbar={factTabs}
-            defaultTotals={["n", "valor", "iva", "reteiva", "neto"]}
-            emptyLabel="Sin filas. Genera o agrega filas en «Detalle»." />
-        )}
+        <div className="gframe-body">
+          {sub === "resumen" && (
+            <DataGrid columns={resCols} rows={resumen} getKey={(g) => g.num_id || g.nombre}
+              label="Resumen por cliente" storageKey="fact-resumen" fitRows
+              searchable exportable toolbar={factTabs}
+              defaultTotals={["n", "valor", "iva", "reteiva", "neto"]}
+              emptyLabel="Sin filas. Genera o agrega filas en «Detalle»." />
+          )}
 
-        {sub === "detalle" && (
-          <DataGrid columns={detCols} rows={filas} getKey={(f) => filas.indexOf(f)}
-            label="Detalle de facturación" scrollClass="fact-scroll" storageKey="fact-detalle"
-            searchable exportable toolbar={factTabs}
-            defaultTotals={["valor", "iva", "reteiva"]}
-            emptyLabel="Elige el mes y pulsa «Generar», o agrega filas manuales."
-            actions={(f) => <button className="act-btn del" title="Quitar" onClick={() => delF(filas.indexOf(f))}><Icon name="trash" size={14} /></button>} />
-        )}
-      </div>
+          {sub === "detalle" && (
+            <DataGrid columns={detCols} rows={filas} getKey={(f) => filas.indexOf(f)}
+              label="Detalle de facturación" storageKey="fact-detalle" fitRows
+              searchable exportable toolbar={factTabs}
+              defaultTotals={["valor", "iva", "reteiva"]}
+              emptyLabel="Elige el mes y pulsa «Generar», o agrega filas manuales."
+              actions={(f) => <button className="act-btn del" title="Quitar" onClick={() => delF(filas.indexOf(f))}><Icon name="trash" size={14} /></button>} />
+          )}
+        </div>
+        <div className="gframe-foot">
+          {sub === "detalle" ? `${filas.length} fila${filas.length === 1 ? "" : "s"} en el detalle` : `${resumen.length} cliente${resumen.length === 1 ? "" : "s"} en el resumen`}
+        </div>
     </div>
   );
 }
