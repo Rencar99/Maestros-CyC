@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { Icon, SecTitle, useConfirm, useToast } from "../ui";
+import { Icon, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 
 /** Listado GLOBAL de claves de clientes en portales (Grilla CyC).
@@ -21,11 +21,12 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
   const [cargando, setCargando] = useState(false);
   const [tip, setTip] = useState<{ t: string; x: number; y: number } | null>(null);
   const [quick, setQuick] = useState("");         // filtro rápido: act/ina/jur/nat
+  const [actualizado, setActualizado] = useState("");
 
   const load = () => {
     setCargando(true); setReveladas({}); setTodas(false);
     api.get("/clientes/claves/todas")
-      .then((r: ClaveRow[]) => setRows(r))
+      .then((r: ClaveRow[]) => { setRows(r); setActualizado(new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })); })
       .catch((e: any) => toast(e.message, true))
       .finally(() => setCargando(false));
   };
@@ -137,32 +138,38 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
   ];
 
   return (
-    <div className="card">
-      <div className="card-h">
-        <div><SecTitle icon="lock">Claves de clientes en portales</SecTitle></div>
-        <div className="r" style={{ alignItems: "center", gap: 8 }}>
-          {puede("claves.revelar") && <button className={"btn sm" + (todas ? " primary" : "")} onClick={verTodas} title="Mostrar/ocultar toda la columna de claves">
-            <Icon name="eye" size={15} />{todas ? "Ocultar Claves" : "Ver Claves"}
-          </button>}
-          {puede("claves.exportar") && <button className="btn sm" onClick={exportar} title="Exportar a Excel"><Icon name="down" size={15} />Exportar Excel</button>}
-          <button className="btn sm" onClick={load} title="Refrescar"><Icon name="refresh" size={15} />Refrescar</button>
-        </div>
+    <div className="card gframe gframe-sinh">
+      <div className="gframe-body">
+        {cargando
+          ? <div className="grid-empty" style={{ padding: 20 }}>Cargando…</div>
+          : <DataGrid columns={cols} rows={filtered} getKey={(r) => r.id} label="Claves de clientes"
+              storageKey="claves" searchable exportable={false} fitRows emptyLabel="No hay claves para mostrar."
+              actionsWidth="92px"
+              toolbar={<>
+                <div className="qfbar">
+                  {qfiltros.map((f) => (
+                    <button key={f.k} className={"qf" + (quick === f.k ? " on" : "")} onClick={() => setQuick(f.k)}>
+                      {f.lbl}<span className="n">{f.n}</span>
+                    </button>
+                  ))}
+                </div>
+                <span className="gf-end">
+                  {puede("claves.revelar") && <button className={"btn sm" + (todas ? " primary" : "")} onClick={verTodas} title="Mostrar/ocultar toda la columna de claves">
+                    <Icon name="eye" size={15} />{todas ? "Ocultar Claves" : "Ver Claves"}
+                  </button>}
+                  {puede("claves.exportar") && <button className="btn sm" onClick={exportar} title="Exportar a Excel"><Icon name="down" size={15} />Exportar Excel</button>}
+                  <button className="btn sm" onClick={load} title="Refrescar"><Icon name="refresh" size={15} />Refrescar</button>
+                </span>
+              </>}
+              actions={puede("claves.eliminar") ? (r) => (
+                <button className="act-btn del" title="Eliminar clave" onClick={() => borrar(r)}><Icon name="trash" size={14} /></button>
+              ) : undefined} />}
       </div>
-      {cargando
-        ? <div className="grid-empty" style={{ padding: 20 }}>Cargando…</div>
-        : <DataGrid columns={cols} rows={filtered} getKey={(r) => r.id} label="Claves de clientes"
-            scrollClass="fact-scroll" storageKey="claves" searchable emptyLabel="No hay claves para mostrar."
-            actionsWidth="92px"
-            toolbar={<div className="qfbar">
-              {qfiltros.map((f) => (
-                <button key={f.k} className={"qf" + (quick === f.k ? " on" : "")} onClick={() => setQuick(f.k)}>
-                  {f.lbl}<span className="n">{f.n}</span>
-                </button>
-              ))}
-            </div>}
-            actions={puede("claves.eliminar") ? (r) => (
-              <button className="act-btn del" title="Eliminar clave" onClick={() => borrar(r)}><Icon name="trash" size={14} /></button>
-            ) : undefined} />}
+      <div className="gframe-foot">
+        {rows.length} registro{rows.length === 1 ? "" : "s"}
+        {(quick || "") && <><span className="gf-dot">·</span> {filtered.length} en vista</>}
+        {actualizado && <><span className="gf-dot">·</span> Actualizado: {actualizado}</>}
+      </div>
       {tip && <div className="utip-pop" style={{ left: tip.x, top: tip.y }}>{tip.t}</div>}
     </div>
   );

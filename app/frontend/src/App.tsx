@@ -27,6 +27,9 @@ const TITLES: Record<Page, [string, string]> = {
   generar: ["Generar Consultas", "Arma consultas sobre la base sin escribir SQL"],
   config: ["Configuración", "Roles, permisos y manual de usuario"],
 };
+// Pantallas migradas al marco de grilla (gframe): la tarjeta llena el alto y
+// solo scrollea la grilla (se van sumando por fases).
+const GFRAME = new Set<Page>(["claves"]);
 // Grupo del menú al que pertenece cada pantalla (línea dorada sobre el título).
 const GRUPO: Record<Page, string> = {
   clientes: "Maestros", responsables: "Maestros", claves: "Maestros",
@@ -178,7 +181,7 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
             </div>
           </div>
         </header>
-        <div className="content">
+        <div className={"content" + (GFRAME.has(page) ? " content-gframe" : "")}>
           {vistas.has("clientes") && puede("clientes.ver") && <div style={{ display: page === "clientes" ? "contents" : "none" }}><Clientes esSuper={user.rol === "superadmin"} esAdmin={user.rol === "superadmin" || user.rol === "admin"} puede={puede} active={page === "clientes"} /></div>}
           {vistas.has("responsables") && puede("responsables.ver") && <div style={{ display: page === "responsables" ? "contents" : "none" }}><Responsables esSuper={user.rol === "superadmin"} puede={puede} active={page === "responsables"} /></div>}
           {vistas.has("claves") && puede("claves.ver") && <div style={{ display: page === "claves" ? "contents" : "none" }}><Claves esSuper={user.rol === "superadmin"} puede={puede} active={page === "claves"} /></div>}

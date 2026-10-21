@@ -89,6 +89,34 @@ button{font-family:inherit}
 .side-srv{gap:10px;padding:12px 10px 4px}
 .srv-dot{width:9px;height:9px;border-radius:50%;flex:none;background:#3ccf6e;box-shadow:0 0 0 3px rgba(60,207,110,.22)}
 .srv-dot.off{background:#e05252;box-shadow:0 0 0 3px rgba(224,82,82,.25)}
+/* ===== Marco de grilla (gframe): la tarjeta llena el alto; grilla cerrada + filas compactas =====
+   La clase va en .content según la página activa (no :has, porque las páginas quedan montadas). */
+.content.content-gframe{overflow:hidden;padding-bottom:26px}
+.gframe{display:flex;flex-direction:column;height:calc(100vh - var(--top-h) - 52px);min-height:360px}
+.gframe>.card-h{position:relative;border-bottom:none;padding:13px 16px}
+.gframe>.card-h::after{content:"";position:absolute;left:16px;right:16px;bottom:0;height:1px;background:var(--line-2)}
+.gframe-body{flex:1;min-height:0;display:flex;flex-direction:column;padding:16px}
+.gframe-body .grid-toolbar{padding:0 0 12px}
+.gframe-body .grid-scroll{flex:1;min-height:0;max-height:none;border:1px solid #BCC8D6;border-radius:2px}
+.gframe-body table{font-size:11.5px}
+.gframe-body tbody td{padding:0 8px;height:var(--row-h,23px);border-right:1px solid #E3E8EF;border-bottom:1px solid #E3E8EF}
+.gframe-body tbody td:last-child{border-right:none}
+.gframe-body .act-btn{width:20px;height:18px;border-radius:4px}
+.gframe-body .act-btn svg{width:14px;height:14px}
+.gframe-body .act-btns{gap:3px}
+.gframe-foot{position:relative;flex:none;margin:0 16px;padding:9px 0 12px;font-size:12px;font-weight:600;color:var(--ok);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gframe-foot::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:var(--gold)}
+.gframe-foot .gf-dot{color:var(--ink-3);font-weight:400}
+.gframe-body tfoot tr.grid-total td{box-shadow:inset 0 1px 0 #BCC8D6}
+.gframe-body .grid-scroll::-webkit-scrollbar{width:13px;height:13px}
+.gframe-body .grid-scroll::-webkit-scrollbar-track:vertical{background:#F4F6F9;border-left:1px solid #BCC8D6}
+.gframe-body .grid-scroll::-webkit-scrollbar-track:horizontal{background:#F4F6F9;border-top:1px solid #BCC8D6}
+.gframe-body .grid-scroll::-webkit-scrollbar-thumb{background:#B4C0CF;border-radius:7px;border:3px solid transparent;background-clip:content-box}
+.gframe-body .grid-scroll::-webkit-scrollbar-thumb:hover{background:#8FA0B5;border:3px solid transparent;background-clip:content-box}
+.gframe-body .grid-scroll::-webkit-scrollbar-corner{background:#F4F6F9}
+.gframe-sinh .gframe-body .grid-toolbar{position:relative;padding:0 0 14px;margin-bottom:16px}
+.gframe-sinh .gframe-body .grid-toolbar::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--line-2)}
+.gframe-body .grid-toolbar .gf-end{order:99;margin-left:auto;display:flex;align-items:center;gap:8px}
 .top-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
 .search{display:flex;align-items:center;gap:8px;background:var(--card-2);border:1px solid var(--line);border-radius:8px;padding:7px 11px;width:250px;color:var(--ink-3)}
 .search input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;color:var(--ink);width:100%}
