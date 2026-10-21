@@ -19,7 +19,8 @@ html,body,#root{margin:0;padding:0;height:100%}
 body{font-family:var(--font);color:var(--ink);background:var(--page);-webkit-font-smoothing:antialiased;font-size:14px}
 h1,h2,h3,h4,p,table{margin:0}
 button{font-family:inherit}
-.app{min-height:100vh;display:grid;grid-template-columns:238px 1fr;transition:grid-template-columns .18s ease}
+.app{min-height:100vh;display:grid;grid-template-columns:238px 1fr;transition:grid-template-columns .18s ease;--top-h:60px}
+.app.con-marco{--top-h:95px}
 .app.nav-col{grid-template-columns:70px 1fr}
 /* Colapsar/expandir menú lateral */
 .side{position:relative}
@@ -69,6 +70,25 @@ button{font-family:inherit}
 .topbar{height:60px;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 26px;position:sticky;top:0;z-index:5}
 .topbar h2{font-size:16px;font-weight:700}
 .topbar .sub{font-size:12px;color:var(--ink-3);margin-top:1px}
+/* ===== Marco nuevo de la App: barra superior con franja de contexto + usuario ===== */
+.topbar.marco{height:auto;flex-direction:column;align-items:stretch;gap:0;padding:0}
+.ctx-band{display:flex;align-items:stretch;background:#092f61;color:#fff;font-size:11.5px;font-weight:600;height:30px}
+.ctx-cell{display:flex;align-items:center;padding:0 18px;border-right:1px solid #ffffff2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.ctx-cell.ctx-firma{flex:1.4;padding-left:28px}
+.ctx-end{display:flex;align-items:center;padding:0 14px 0 18px}
+.ctx-pill{background:#E8F4EC;color:#2e7d32;border-radius:10px;padding:2px 11px;font-size:11px;font-weight:700;white-space:nowrap}
+.topbar-row{height:64px;display:flex;align-items:center;gap:16px;padding:0 26px}
+.tb-eyebrow{font-size:10px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--gold);margin-bottom:2px}
+.topbar.marco h2{font-size:18px;font-weight:700;line-height:1.15}
+.tb-user{margin-left:auto;display:flex;align-items:center;gap:12px}
+.tb-who{display:flex;align-items:center;gap:9px;padding:4px 6px;border-radius:8px}
+.tb-who .avatar{width:32px;height:32px}
+.tb-name{font-size:12px;font-weight:700;color:var(--ink);text-transform:uppercase;line-height:1.2}
+.tb-name span{display:block;font-size:10.5px;font-weight:400;color:var(--ink-3);text-transform:none}
+/* Pie del menú: estado del servidor de datos (el usuario subió a la barra) */
+.side-srv{gap:10px;padding:12px 10px 4px}
+.srv-dot{width:9px;height:9px;border-radius:50%;flex:none;background:#3ccf6e;box-shadow:0 0 0 3px rgba(60,207,110,.22)}
+.srv-dot.off{background:#e05252;box-shadow:0 0 0 3px rgba(224,82,82,.25)}
 .top-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
 .search{display:flex;align-items:center;gap:8px;background:var(--card-2);border:1px solid var(--line);border-radius:8px;padding:7px 11px;width:250px;color:var(--ink-3)}
 .search input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;color:var(--ink);width:100%}
@@ -162,7 +182,7 @@ td.center,th.center{text-align:center}
 .segtabs button{border:none;background:none;font:inherit;font-size:13px;font-weight:600;color:var(--ink-2);padding:7px 15px;border-radius:9px;cursor:pointer;transition:.15s}
 .segtabs button:hover{color:var(--primary)}
 .segtabs button.on{background:var(--card);color:var(--primary);box-shadow:0 1px 3px rgba(0,0,0,.09)}
-.grid-scroll.cat-scroll{max-height:calc(100vh - 240px);overflow:auto}
+.grid-scroll.cat-scroll{max-height:calc(100vh - var(--top-h) - 180px);overflow:auto}
 .grid-scroll.cat-scroll table{border-collapse:separate;border-spacing:0}
 .grid-scroll.cat-scroll thead th{position:sticky;top:0;z-index:3;background:var(--grid-header);box-shadow:inset 0 -1px 0 var(--line-2)}
 /* Grilla de obligaciones dentro de la ficha del cliente (drawer): scroll propio acotado. */
@@ -206,7 +226,7 @@ td.center,th.center{text-align:center}
 .tabs{display:flex;flex-wrap:wrap;gap:4px;background:var(--card);border-bottom:1px solid var(--line);padding:9px 16px 0}
 /* Catálogos: PANEL INTEGRADO — nav lateral azul (#0836c7) + contenido en un solo marco */
 .cat-layout{display:flex;align-items:stretch;background:var(--card);border:1px solid var(--line);
-  border-radius:14px;overflow:hidden;box-shadow:var(--shadow-2);height:calc(100vh - 150px)}
+  border-radius:14px;overflow:hidden;box-shadow:var(--shadow-2);height:calc(100vh - var(--top-h) - 90px)}
 .cat-nav{flex:0 0 205px;background:#E4E9F1;border-right:1px solid var(--line-2);
   padding:0 10px 14px;display:flex;flex-direction:column;gap:3px;overflow-y:auto}
 .cat-nav-title{height:64px;flex:0 0 auto;display:flex;align-items:flex-end;
@@ -359,7 +379,7 @@ td.center,th.center{text-align:center}
 .fact-kpis .ft-pct{margin-left:auto;display:inline-flex;align-items:center;gap:8px;padding:5px 12px}
 .fact-kpis .ft-pct em{font-style:normal;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:var(--ink-2)}
 .fact-kpis .ft-pct input{width:56px;text-align:center;padding:6px 8px;border-radius:7px;border:1px solid var(--line-2);font:inherit;font-weight:700}
-.grid-scroll.fact-scroll{max-height:calc(100vh - 275px)}
+.grid-scroll.fact-scroll{max-height:calc(100vh - var(--top-h) - 215px)}
 .cbo-opt{padding:7px 10px;font-size:12.5px;cursor:pointer;display:flex;gap:9px;align-items:baseline;border-bottom:1px solid var(--line)}
 .cbo-opt:last-child{border-bottom:none}
 .cbo-opt:hover{background:var(--info-bg)}
@@ -485,9 +505,9 @@ input[type="password"]::-ms-clear{display:none}
   --grid-negative:var(--err); --grid-border:#E8ECF2; --grid-row:var(--card);
   --grid-row-alt:var(--card); --grid-row-active:#F5F8FC; --grid-cell-active:#FDF6E8;
 }
-.grid-scroll{max-height:calc(100vh - 260px);overflow:auto;outline:none}
+.grid-scroll{max-height:calc(100vh - var(--top-h) - 200px);overflow:auto;outline:none}
 /* Clientes: la grilla reserva alto para KPIs + filtros rápidos, sin scroll de sección */
-.grid-scroll.cli-scroll{max-height:calc(100vh - 288px)}
+.grid-scroll.cli-scroll{max-height:calc(100vh - var(--top-h) - 228px)}
 .grid-scroll.claves-modal-scroll{max-height:min(58vh,520px)}
 /* Fila Firma (select) + datos del RUT: nombre · tarjeta · nombramiento */
 .firma-row{display:grid;grid-template-columns:1fr 150px 160px;gap:14px;align-items:end}
@@ -651,7 +671,7 @@ tfoot .grid-total .grid-total-lbl{color:var(--ink-2);text-transform:uppercase;le
 .rp-tools .search.sm{padding:7px 12px}
 /* Superficie blanca uniforme para TODA la matriz (evita el efecto "panel blanco"
    solo en la columna de permisos sobre el fondo gris del contenido). */
-.rp-scroll{overflow:auto;background:var(--card);border-radius:14px;padding:0 16px 14px;max-height:calc(100vh - 232px)}
+.rp-scroll{overflow:auto;background:var(--card);border-radius:14px;padding:0 16px 14px;max-height:calc(100vh - var(--top-h) - 172px)}
 /* width:auto = la matriz queda COMPACTA a la izquierda (casillas junto a su fila),
    no estirada a todo el ancho con las casillas al extremo derecho. */
 .rp-mtx{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:13.5px}
@@ -968,7 +988,7 @@ table.mtx td.mtx-c.hoy{background:var(--primary);color:#fff;font-weight:700;bord
   padding:6px 10px;font:inherit;font-size:13px;color:var(--ink);background:var(--card)}
 .cons-tabsel select:focus{outline:none;border-color:var(--primary)}
 .cons-tabsel .hint{font-size:12px;color:var(--ink-3)}
-.cons-p{display:flex;flex-direction:column;min-width:0;height:calc(100vh - 470px);min-height:290px}
+.cons-p{display:flex;flex-direction:column;min-width:0;height:calc(100vh - var(--top-h) - 410px);min-height:290px}
 .cons-p .card-h{padding:11px 14px}
 .cons-tools{padding:9px 12px;border-bottom:1px solid var(--line)}
 .cons-tools .search{width:100%;padding:5px 9px}
@@ -1052,10 +1072,10 @@ table.mtx td.mtx-c.hoy{background:var(--primary);color:#fff;font-weight:700;bord
 .cons-sql{margin:12px 14px 0;padding:10px 12px;background:var(--card-2);border:1px solid var(--line);border-radius:8px;
   font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.5;color:var(--ink-2);
   white-space:pre-wrap;word-break:break-word;max-height:132px;overflow:auto}
-.grid-scroll.cons-scroll{max-height:calc(100vh - 300px)}
+.grid-scroll.cons-scroll{max-height:calc(100vh - var(--top-h) - 240px)}
 /* Consultas en 2 pestañas: sin la grilla apilada debajo, los paneles usan más alto */
-.cons-tabbed .cons-p{height:calc(100vh - 310px)}
-.cons-tabbed .grid-scroll.cons-scroll{max-height:calc(100vh - 220px)}
+.cons-tabbed .cons-p{height:calc(100vh - var(--top-h) - 250px)}
+.cons-tabbed .grid-scroll.cons-scroll{max-height:calc(100vh - var(--top-h) - 160px)}
 /* Barra de consultas guardadas */
 .cons-saved{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);
   border-radius:12px;padding:8px 12px;box-shadow:var(--shadow-2)}
@@ -1130,7 +1150,7 @@ table.mtx td.mtx-c.hoy{background:var(--primary);color:#fff;font-weight:700;bord
 
 /* ------------------------------ Manual de usuario -------------------------- */
 .man .man-body{display:flex;gap:0;min-height:0}
-.man .man-idx{width:264px;flex:none;border-right:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 300px);overflow:auto}
+.man .man-idx{width:264px;flex:none;border-right:1px solid var(--line);padding:12px;display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - var(--top-h) - 240px);overflow:auto}
 .man .man-search{display:flex;align-items:center;gap:8px;background:var(--card-2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--ink-3)}
 .man .man-search input{border:none;background:none;outline:none;width:100%;font-family:inherit;font-size:13px;color:var(--ink)}
 .man .man-idx nav{display:flex;flex-direction:column;gap:2px}
@@ -1138,7 +1158,7 @@ table.mtx td.mtx-c.hoy{background:var(--primary);color:#fff;font-weight:700;bord
 .man .man-item svg{color:#f7931e;flex:none}
 .man .man-item:hover{background:var(--info-bg)}
 .man .man-item.on{background:var(--info-bg);color:var(--nav-600);font-weight:600}
-.man .man-content{flex:1;min-width:0;padding:16px 22px 22px;max-height:calc(100vh - 300px);overflow:auto}
+.man .man-content{flex:1;min-width:0;padding:16px 22px 22px;max-height:calc(100vh - var(--top-h) - 240px);overflow:auto}
 .man .man-content code{font-family:var(--mono,monospace);font-size:.86em;background:var(--card-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
 .man .man-ver{margin-top:22px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 

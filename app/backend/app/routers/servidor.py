@@ -9,6 +9,7 @@ nunca exponen ni piden las credenciales (usuario/clave/BD), que viven en el
 from __future__ import annotations
 
 import re
+import socket
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -34,12 +35,26 @@ def _validar(u: Ubicacion) -> None:
         raise HTTPException(400, "El puerto debe estar entre 1 y 65535.")
 
 
+def _ip_local() -> str:
+    """IP LAN de este equipo (la que usan los demás para verlo). Sin tráfico real."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except OSError:
+        return ""
+
+
 @router.get("")
 def info() -> dict:
-    """Host y puerto actuales + si la base responde en este momento."""
+    """Host y puerto actuales + si la base responde + datos del equipo (franja)."""
     inf = config.servidor_info()
     ok, _ = probar_conexion()
     inf["conectado"] = ok
+    inf["hostname"] = socket.gethostname()
+    inf["ip_equipo"] = _ip_local()
     return inf
 
 
