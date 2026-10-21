@@ -399,13 +399,13 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
                   </button>
                 ))}
               </div>
-              <span className="gf-end"><button className="btn primary sm" onClick={() => { setAutoRut(false); setEdit(vacio()); }}><Icon name="plus" size={16} />Nuevo cliente</button></span>
+              {puede("clientes.crear") && <span className="gf-end"><button className="btn primary sm" onClick={() => { setAutoRut(false); setEdit(vacio()); }}><Icon name="plus" size={16} />Nuevo cliente</button></span>}
             </>}
             onView={(rs) => setOrden(rs.map((r) => r.id))}
             actions={(r) => <>
-              {esAdmin && <button className="act-btn" title="Ver claves del cliente" onClick={() => setVerClaves(r)}><Icon name="lock" size={15} /></button>}
-              {esAdmin && <button className="act-btn rut" title="Comparar con RUT (abre la ficha)" onClick={() => abrir(r.id, true)}><Icon name="upload" size={15} /></button>}
-              {esAdmin && <button className="act-btn edit" title="Abrir ficha" onClick={() => abrir(r.id)}><Icon name="edit" size={15} /></button>}
+              {puede("claves.ver") && <button className="act-btn" title="Ver claves del cliente" onClick={() => setVerClaves(r)}><Icon name="lock" size={15} /></button>}
+              {puede("clientes.editar") && <button className="act-btn rut" title="Comparar con RUT (abre la ficha)" onClick={() => abrir(r.id, true)}><Icon name="upload" size={15} /></button>}
+              {puede("clientes.editar") && <button className="act-btn edit" title="Abrir ficha" onClick={() => abrir(r.id)}><Icon name="edit" size={15} /></button>}
             </>} />
         </div>
         <div className="gframe-foot">
