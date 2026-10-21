@@ -716,7 +716,13 @@ tfoot .grid-total .grid-total-lbl{color:var(--ink-2);text-transform:uppercase;le
 .rp-tools .search.sm{padding:7px 12px}
 /* Superficie blanca uniforme para TODA la matriz (evita el efecto "panel blanco"
    solo en la columna de permisos sobre el fondo gris del contenido). */
-.rp-scroll{overflow:auto;background:var(--card);border-radius:14px;padding:0 16px 14px;max-height:calc(100vh - var(--top-h) - 172px)}
+.rp-scroll{overflow:auto;background:var(--card);border:1px solid #BCC8D6;border-radius:2px;padding:0 16px 14px;max-height:calc(100vh - var(--top-h) - 172px)}
+/* Scrollbar con carril (familia del marco gframe) */
+.rp-scroll::-webkit-scrollbar{width:13px;height:13px}
+.rp-scroll::-webkit-scrollbar-track:vertical{background:#F4F6F9;border-left:1px solid #BCC8D6}
+.rp-scroll::-webkit-scrollbar-track:horizontal{background:#F4F6F9;border-top:1px solid #BCC8D6}
+.rp-scroll::-webkit-scrollbar-thumb{background:#B4C0CF;border-radius:7px;border:3px solid transparent;background-clip:content-box}
+.rp-scroll::-webkit-scrollbar-thumb:hover{background:#8FA0B5;border:3px solid transparent;background-clip:content-box}
 /* width:auto = la matriz queda COMPACTA a la izquierda (casillas junto a su fila),
    no estirada a todo el ancho con las casillas al extremo derecho. */
 .rp-mtx{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:13.5px}
