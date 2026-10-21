@@ -29,7 +29,7 @@ const TITLES: Record<Page, [string, string]> = {
 };
 // Pantallas migradas al marco de grilla (gframe): la tarjeta llena el alto y
 // solo scrollea la grilla (se van sumando por fases).
-const GFRAME = new Set<Page>(["claves", "responsables", "clientes", "cobros"]);
+const GFRAME = new Set<Page>(["claves", "responsables", "clientes", "cobros", "consultas"]);
 // Grupo del menú al que pertenece cada pantalla (línea dorada sobre el título).
 const GRUPO: Record<Page, string> = {
   clientes: "Maestros", responsables: "Maestros", claves: "Maestros",

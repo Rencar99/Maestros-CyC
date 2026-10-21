@@ -82,7 +82,7 @@ export function ConsultasPublicas() {
 
   return (
     <div className="cpub">
-      <div className="card">
+      <div className="card gframe">
         <div className="cpub-bar2">
           <span className="cpub-title"><Icon name="search" size={18} />Consultas disponibles</span>
           <select className="cpub-select" value={selId} onChange={(e) => ejecutar(e.target.value)}
@@ -92,17 +92,23 @@ export function ConsultasPublicas() {
           </select>
           {sel?.descripcion && <span className="cpub-seldesc" title={sel.descripcion}>{sel.descripcion}</span>}
           <span className="cpub-spacer" />
-          {res && <span className="cpub-count"><b>{res.total}</b> fila{res.total === 1 ? "" : "s"}{res.truncado ? ` · tope ${res.limite}` : ""}</span>}
           <button className="btn sm" onClick={exportar} disabled={!res || corriendo}>
             <Icon name="down" size={14} />Exportar Excel</button>
         </div>
-        {res
-          ? <DataGrid columns={colsRes} rows={res.filas} getKey={(r) => r.__i}
-                      label={sel?.nombre || "Consulta"} scrollClass="cons-scroll"
-                      emptyLabel="La consulta no devolvió filas." />
-          : <div className="cpub-empty">
-              {corriendo ? "Ejecutando…" : "Elige una consulta arriba para ver los resultados."}
-            </div>}
+        <div className="gframe-body">
+          {res
+            ? <DataGrid columns={colsRes} rows={res.filas} getKey={(r) => r.__i}
+                        label={sel?.nombre || "Consulta"} fitRows exportable={false}
+                        emptyLabel="La consulta no devolvió filas." />
+            : <div className="cpub-empty">
+                {corriendo ? "Ejecutando…" : "Elige una consulta arriba para ver los resultados."}
+              </div>}
+        </div>
+        <div className="gframe-foot">
+          {res
+            ? <>{res.total} fila{res.total === 1 ? "" : "s"}{res.truncado && <><span className="gf-dot">·</span> tope {res.limite}</>}</>
+            : "Elige una consulta para ver sus resultados"}
+        </div>
       </div>
     </div>
   );
