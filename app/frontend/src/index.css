@@ -120,6 +120,20 @@ button{font-family:inherit}
 /* Franjas propias dentro del gframe (ej. KPIs de Facturación): inset de 16px para
    alinear con la grilla, sin pegar al borde de la tarjeta. */
 .gframe>.fact-kpis{margin:12px 16px 0}
+/* Catálogos (panel integrado): grillas con el MISMO look compacto del gframe
+   (caja cerrada, separadores de columna, filas 23px, scrollbar con carril). */
+.cat-content .grid-scroll{border:1px solid #BCC8D6;border-radius:2px}
+.cat-content table{font-size:11.5px}
+.cat-content tbody td{padding:0 8px;height:23px;border-right:1px solid #E3E8EF;border-bottom:1px solid #E3E8EF}
+.cat-content tbody td:last-child{border-right:none}
+.cat-content .act-btn{width:20px;height:18px;border-radius:4px}
+.cat-content .act-btn svg{width:14px;height:14px}
+.cat-content .grid-scroll::-webkit-scrollbar{width:13px;height:13px}
+.cat-content .grid-scroll::-webkit-scrollbar-track:vertical{background:#F4F6F9;border-left:1px solid #BCC8D6}
+.cat-content .grid-scroll::-webkit-scrollbar-track:horizontal{background:#F4F6F9;border-top:1px solid #BCC8D6}
+.cat-content .grid-scroll::-webkit-scrollbar-thumb{background:#B4C0CF;border-radius:7px;border:3px solid transparent;background-clip:content-box}
+.cat-content .grid-scroll::-webkit-scrollbar-thumb:hover{background:#8FA0B5;border:3px solid transparent;background-clip:content-box}
+.cat-content .grid-scroll::-webkit-scrollbar-corner{background:#F4F6F9}
 .top-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
 .search{display:flex;align-items:center;gap:8px;background:var(--card-2);border:1px solid var(--line);border-radius:8px;padding:7px 11px;width:250px;color:var(--ink-3)}
 .search input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;color:var(--ink);width:100%}
