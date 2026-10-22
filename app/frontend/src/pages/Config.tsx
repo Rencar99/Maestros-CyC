@@ -10,7 +10,7 @@ import { Explorador } from "../components/Explorador";
  *  las cuentas de cobro. Editable solo por Super; guardado como parámetros clave-valor. */
 function DatosCobroCard() {
   const toast = useToast();
-  const [f, setF] = useState({ banco: "", tipo_cuenta: "Ahorros", numero_cuenta: "", titular: "", carpeta: "" });
+  const [f, setF] = useState({ banco: "", tipo_cuenta: "Ahorros", numero_cuenta: "", titular: "", carpeta: "", nota_383: "" });
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [explorar, setExplorar] = useState(false);
@@ -38,6 +38,10 @@ function DatosCobroCard() {
             <div className="f" style={{ marginTop: 10 }}><label>Carpeta de las cuentas de cobro
               <button type="button" className="lbl-ic" title="Elegir carpeta…" onClick={() => setExplorar(true)}><Icon name="folder" size={14} /></button></label>
               <input value={f.carpeta} onChange={(e) => set({ carpeta: e.target.value })} placeholder="Carpeta base donde se guardan los PDF (se organiza por año)" />
+            </div>
+            <div className="f" style={{ marginTop: 10 }}><label>Nota art. 383 ET</label>
+              <textarea value={f.nota_383} onChange={(e) => set({ nota_383: e.target.value })} rows={3}
+                placeholder="Texto de la nota del art. 383 ET" style={{ resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />
             </div>
             <div style={{ marginTop: 14, padding: "10px 12px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: 8, fontSize: 12.5, lineHeight: 1.6, color: "var(--ink-2)" }}>
               <b>Así saldrá en la cuenta de cobro:</b><br />

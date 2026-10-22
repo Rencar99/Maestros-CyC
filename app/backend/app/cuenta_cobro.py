@@ -99,14 +99,16 @@ def _miles(n) -> str:
 def construir_html(*, numero: str, fecha: date, deudor: str, deudor_doc: str,
                    emisor_nombre: str, emisor_cedula: str, emisor_direccion: str,
                    emisor_celular: str, nota_383: bool, concepto: str, valor,
-                   pago_banco: str, pago_tipo: str, pago_numero: str, pago_titular: str) -> str:
+                   pago_banco: str, pago_tipo: str, pago_numero: str, pago_titular: str,
+                   nota_383_texto: str = "") -> str:
     """HTML de la cuenta de cobro con diseño: encabezado del EMISOR (quien cobra),
     secciones en marcos, valor destacado, nota 383 condicional y firma del emisor."""
     f = fecha
     fecha_txt = f"{f.day:02d}/{f.month:02d}/{f.year}"
     letras = num_a_letras(valor)
     ini = ("".join(p[0] for p in emisor_nombre.split()[:2]).upper()) or "·"
-    nota = (f'<div class="nota"><b>Nota (art. 383 ET):</b> {escape(_NOTA_383)}</div>') if nota_383 else ""
+    nota_txt = (nota_383_texto or "").strip() or _NOTA_383
+    nota = (f'<div class="nota"><b>Nota (art. 383 ET):</b> {escape(nota_txt)}</div>') if nota_383 else ""
     firma_extra = ""
     if emisor_direccion.strip():
         firma_extra += f"<br>Dirección: {escape(emisor_direccion)}"

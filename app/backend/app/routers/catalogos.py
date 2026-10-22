@@ -328,7 +328,7 @@ def borrar_entidad(item_id: int, session: Session = Depends(get_session),
 def _emisor_dict(e: Emisor) -> dict:
     return {"id": e.id, "nombre": e.nombre, "cedula": e.cedula, "direccion": e.direccion,
             "celular": e.celular, "prefijo": e.prefijo, "consecutivo": e.consecutivo,
-            "nota_383": e.nota_383, "activo": e.activo}
+            "nota_383": e.nota_383, "firma": e.firma, "activo": e.activo}
 
 
 class EmisorIn(BaseModel):
@@ -339,6 +339,7 @@ class EmisorIn(BaseModel):
     prefijo: str = ""
     consecutivo: int = 0
     nota_383: bool = False
+    firma: str = ""
     activo: bool = True
 
 
@@ -358,7 +359,8 @@ def crear_emisor(data: EmisorIn, session: Session = Depends(get_session),
         raise HTTPException(409, "Ya existe un emisor con ese nombre")
     e = Emisor(nombre=nombre, cedula=data.cedula.strip(), direccion=data.direccion.strip(),
                celular=data.celular.strip(), prefijo=data.prefijo.strip().upper(),
-               consecutivo=max(0, int(data.consecutivo or 0)), nota_383=data.nota_383, activo=data.activo)
+               consecutivo=max(0, int(data.consecutivo or 0)), nota_383=data.nota_383,
+               firma=data.firma, activo=data.activo)
     session.add(e)
     session.commit()
     session.refresh(e)
@@ -384,6 +386,7 @@ def actualizar_emisor(item_id: int, data: EmisorIn, session: Session = Depends(g
     e.prefijo = data.prefijo.strip().upper()
     e.consecutivo = max(0, int(data.consecutivo or 0))
     e.nota_383 = data.nota_383
+    e.firma = data.firma
     e.activo = data.activo
     session.add(e)
     session.commit()

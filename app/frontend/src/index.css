@@ -891,6 +891,16 @@ tfoot .grid-total .grid-total-lbl{color:var(--ink-2);text-transform:uppercase;le
 .foto-ph svg{stroke:currentColor;fill:none;stroke-width:1.5}
 .foto-ov{position:absolute;inset:0;display:grid;place-items:center;background:rgba(18,36,63,.5);color:#fff;font-size:10.5px;font-weight:700;opacity:0;transition:.15s;border-radius:50%}
 .foto-drop:hover .foto-ov{opacity:1}
+/* Firma del emisor: caja apaisada (la firma se estampa luego en la cuenta de cobro). */
+.firma-up{display:flex;align-items:flex-start;gap:10px}
+.firma-drop{position:relative;width:260px;height:96px;border-radius:10px;border:1.5px dashed var(--line-2);background:var(--card-2);display:grid;place-items:center;cursor:pointer;overflow:hidden;transition:.15s}
+.firma-drop:hover{border-color:var(--primary);background:#F4F8FD}
+.firma-drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.firma-drop img{max-width:100%;max-height:100%;object-fit:contain}
+.firma-drop .foto-ov{border-radius:10px}
+.firma-drop:hover .foto-ov{opacity:1}
+.firma-ph{display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--ink-3);font-size:12px;font-weight:600}
+.firma-ph svg{stroke:currentColor;fill:none;stroke-width:1.5}
 
 /* Botones de opción excluyentes (segmented control) */
 .radios{display:inline-flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden;width:max-content}

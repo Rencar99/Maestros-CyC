@@ -584,7 +584,7 @@ def _cc_html(cc: "CuentaCobro") -> str:
         numero=cc.numero, fecha=cc.fecha, deudor=cc.deudor, deudor_doc=cc.deudor_doc,
         emisor_nombre=cc.emisor_nombre, emisor_cedula=cc.emisor_cedula,
         emisor_direccion=cc.emisor_direccion, emisor_celular=cc.emisor_celular,
-        nota_383=cc.nota_383, concepto=cc.concepto, valor=cc.valor or 0,
+        nota_383=cc.nota_383, nota_383_texto=cc.nota_383_texto, concepto=cc.concepto, valor=cc.valor or 0,
         pago_banco=cc.pago_banco, pago_tipo=cc.pago_tipo,
         pago_numero=cc.pago_numero, pago_titular=cc.pago_titular)
 
@@ -637,7 +637,7 @@ def _generar_cc(session: Session, fid: int, item_id: int, creado_por: str) -> "t
         deudor=it.nombre or cli.nombre, deudor_doc=deudor_doc,
         email_destino=(cli.email or "").strip(),
         emisor_nombre=em.nombre, emisor_cedula=em.cedula, emisor_direccion=em.direccion,
-        emisor_celular=em.celular, nota_383=em.nota_383,
+        emisor_celular=em.celular, nota_383=em.nota_383, nota_383_texto=pago["nota_383"],
         valor=it.valor,
         pago_banco=pago["banco"], pago_tipo=pago["tipo_cuenta"],
         pago_numero=pago["numero_cuenta"], pago_titular=pago["titular"],
@@ -769,7 +769,7 @@ def cuenta_cobro_pdf(fid: int, item_id: int, session: Session = Depends(get_sess
             numero=numero, fecha=date.today(),
             deudor=it.nombre or cli.nombre, deudor_doc=deudor_doc,
             emisor_nombre=em.nombre, emisor_cedula=em.cedula, emisor_direccion=em.direccion,
-            emisor_celular=em.celular, nota_383=em.nota_383, concepto=it.concepto,
+            emisor_celular=em.celular, nota_383=em.nota_383, nota_383_texto=pago["nota_383"], concepto=it.concepto,
             valor=it.valor or 0, pago_banco=pago["banco"], pago_tipo=pago["tipo_cuenta"],
             pago_numero=pago["numero_cuenta"], pago_titular=pago["titular"])
         nombre_cli = cli.nombre

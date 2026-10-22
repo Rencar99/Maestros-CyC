@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlmodel import Session
 
+from ..cuenta_cobro import _NOTA_383 as _NOTA_383_DEF
 from ..db import get_session
 from ..deps import get_current_user, require_perm
 from ..models import Parametro
@@ -21,6 +22,7 @@ _COBRO_DEF = {
     "cobro_numero_cuenta": "78400013127",
     "cobro_titular": "Cardona & Cardona Consultores S.A.S",
     "cobro_carpeta": "",     # carpeta base donde se guardan los PDF de las cuentas de cobro
+    "cobro_nota_383": _NOTA_383_DEF,   # texto de la nota del art. 383 ET (el emisor decide si se incluye)
 }
 
 
@@ -44,6 +46,7 @@ class CobroIn(BaseModel):
     numero_cuenta: str = ""
     titular: str = ""
     carpeta: str = ""
+    nota_383: str = ""
 
 
 def _cobro(session: Session) -> dict:
@@ -53,6 +56,7 @@ def _cobro(session: Session) -> dict:
         "numero_cuenta": _get(session, "cobro_numero_cuenta", _COBRO_DEF["cobro_numero_cuenta"]),
         "titular": _get(session, "cobro_titular", _COBRO_DEF["cobro_titular"]),
         "carpeta": _get(session, "cobro_carpeta", _COBRO_DEF["cobro_carpeta"]),
+        "nota_383": _get(session, "cobro_nota_383", _COBRO_DEF["cobro_nota_383"]),
     }
 
 
@@ -70,6 +74,7 @@ def guardar_cobro(data: CobroIn, session: Session = Depends(get_session),
     _set(session, "cobro_numero_cuenta", data.numero_cuenta.strip())
     _set(session, "cobro_titular", data.titular.strip())
     _set(session, "cobro_carpeta", data.carpeta.strip())
+    _set(session, "cobro_nota_383", data.nota_383.strip() or _COBRO_DEF["cobro_nota_383"])
     session.commit()
     return _cobro(session)
 

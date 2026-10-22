@@ -51,6 +51,7 @@ class Emisor(SQLModel, table=True):
     prefijo: str = ""                  # iniciales para el N° de la cuenta (ej. "MB")
     consecutivo: int = 0               # último número usado; el siguiente = consecutivo + 1
     nota_383: bool = False             # incluir la nota del art. 383 ET en la cuenta de cobro
+    firma: str = ""                    # imagen de la firma (data URI base64) para la cuenta de cobro
     activo: bool = True
 
 
@@ -557,6 +558,7 @@ class CuentaCobro(SQLModel, table=True):
     emisor_direccion: str = ""
     emisor_celular: str = ""
     nota_383: bool = False
+    nota_383_texto: str = ""               # foto del texto del 383 al generar (editable en Datos de cobro)
 
     # --- Contenido ---
     valor: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(14, 2)))

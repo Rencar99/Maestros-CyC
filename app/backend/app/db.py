@@ -115,6 +115,12 @@ def _ensure_columns() -> None:
         # Emisor de la cuenta de cobro asignado al cliente (FK a emisor; NULL = sin asignar).
         conn.execute(text(
             "ALTER TABLE cliente ADD COLUMN IF NOT EXISTS emisor_id INTEGER"))
+        # Firma del emisor (data URI base64) para estamparla en la cuenta de cobro.
+        conn.execute(text(
+            "ALTER TABLE emisor ADD COLUMN IF NOT EXISTS firma VARCHAR NOT NULL DEFAULT ''"))
+        # Foto del texto de la nota del art. 383 al generar la cuenta de cobro (editable en Datos de cobro).
+        conn.execute(text(
+            "ALTER TABLE cuentacobro ADD COLUMN IF NOT EXISTS nota_383_texto VARCHAR NOT NULL DEFAULT ''"))
         # URL de acceso del portal en la credencial del cliente.
         conn.execute(text(
             "ALTER TABLE clienteclave ADD COLUMN IF NOT EXISTS url VARCHAR NOT NULL DEFAULT ''"))

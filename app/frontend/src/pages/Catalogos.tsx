@@ -551,19 +551,26 @@ function FormulariosCard() {
 
 /** Catálogo de Emisores: personas que firman/emiten las cuentas de cobro a nombre
  *  de la firma. Cada emisor lleva su propio consecutivo (ej. MB-421). */
-interface EmisorItem { id: number; nombre: string; cedula: string; direccion: string; celular: string; prefijo: string; consecutivo: number; nota_383: boolean; activo: boolean; }
+interface EmisorItem { id: number; nombre: string; cedula: string; direccion: string; celular: string; prefijo: string; consecutivo: number; nota_383: boolean; firma: string; activo: boolean; }
 
 function EmisorModal({ em, onClose, onSaved }: { em: EmisorItem; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const editando = !!em.id;
   const [f, setF] = useState<EmisorItem>(em);
   const set = (patch: Partial<EmisorItem>) => setF((x) => ({ ...x, ...patch }));
+  const onFirma = (file?: File) => {
+    if (!file) return;
+    const rd = new FileReader();
+    rd.onload = (e) => set({ firma: String(e.target?.result || "") });
+    rd.readAsDataURL(file);
+  };
   const guardar = async () => {
     const nombre = f.nombre.trim();
     if (!nombre) { toast("El nombre del emisor es obligatorio", true); return; }
     try {
       const payload = { nombre, cedula: f.cedula.trim(), direccion: f.direccion.trim(), celular: f.celular.trim(),
-        prefijo: f.prefijo.trim().toUpperCase(), consecutivo: Math.max(0, Number(f.consecutivo) || 0), nota_383: f.nota_383, activo: f.activo };
+        prefijo: f.prefijo.trim().toUpperCase(), consecutivo: Math.max(0, Number(f.consecutivo) || 0),
+        nota_383: f.nota_383, firma: f.firma, activo: f.activo };
       if (editando) await api.put(`/catalogos/emisor/${em.id}`, payload);
       else await api.post("/catalogos/emisor", payload);
       toast(editando ? "Emisor actualizado ✓" : "Emisor creado ✓");
@@ -574,20 +581,41 @@ function EmisorModal({ em, onClose, onSaved }: { em: EmisorItem; onClose: () => 
     <Modal title={editando ? "Editar emisor" : "Nuevo emisor"} icon="user" size="md" onClose={onClose}
            onSave={guardar}
            aviso={`Próximo N° de cuenta de cobro: ${(f.prefijo.trim().toUpperCase() || "—")}-${Math.max(0, Number(f.consecutivo) || 0) + 1}`}>
-      <div className="obl-grid">
-        <label className="cq-fld obl-wide"><span>Nombre completo</span>
-          <input value={f.nombre} autoFocus onChange={(e) => set({ nombre: e.target.value })} placeholder="Ej. María Bernarda Fernández Garrido" /></label>
-        <label className="cq-fld"><span>Cédula</span>
-          <input value={f.cedula} onChange={(e) => set({ cedula: e.target.value })} placeholder="Ej. 45.461.353" /></label>
-        <label className="cq-fld"><span>Celular</span>
-          <input value={f.celular} onChange={(e) => set({ celular: e.target.value })} placeholder="Ej. 310 706 3656" /></label>
-        <label className="cq-fld obl-wide"><span>Dirección</span>
-          <input value={f.direccion} onChange={(e) => set({ direccion: e.target.value })} placeholder="Ej. Brr los Abetos Mz D Lt 18" /></label>
-        <label className="cq-fld"><span>Prefijo (iniciales del N°)</span>
-          <input value={f.prefijo} maxLength={6} onChange={(e) => set({ prefijo: e.target.value.toUpperCase() })} placeholder="Ej. MB" /></label>
-        <label className="cq-fld"><span>Consecutivo (último usado)</span>
-          <input type="number" min={0} value={f.consecutivo} onChange={(e) => set({ consecutivo: Number(e.target.value) })} title="El siguiente N° será este + 1" /></label>
-        <div className="obl-wide" style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 320, marginTop: 2 }}>
+      <div className="fieldgroup"><h4>Datos del emisor</h4>
+        <div className="obl-grid">
+          <label className="cq-fld obl-wide"><span>Nombre completo</span>
+            <input value={f.nombre} autoFocus onChange={(e) => set({ nombre: e.target.value })} placeholder="Ej. María Bernarda Fernández Garrido" /></label>
+          <label className="cq-fld"><span>Cédula</span>
+            <input value={f.cedula} onChange={(e) => set({ cedula: e.target.value })} placeholder="Ej. 45.461.353" /></label>
+          <label className="cq-fld"><span>Celular</span>
+            <input value={f.celular} onChange={(e) => set({ celular: e.target.value })} placeholder="Ej. 310 706 3656" /></label>
+          <label className="cq-fld obl-wide"><span>Dirección</span>
+            <input value={f.direccion} onChange={(e) => set({ direccion: e.target.value })} placeholder="Ej. Brr los Abetos Mz D Lt 18" /></label>
+        </div>
+      </div>
+
+      <div className="fieldgroup"><h4>Numeración de la cuenta de cobro</h4>
+        <div className="obl-grid">
+          <label className="cq-fld"><span>Prefijo (iniciales del N°)</span>
+            <input value={f.prefijo} maxLength={6} onChange={(e) => set({ prefijo: e.target.value.toUpperCase() })} placeholder="Ej. MB" /></label>
+          <label className="cq-fld"><span>Consecutivo (último usado)</span>
+            <input type="number" min={0} value={f.consecutivo} onChange={(e) => set({ consecutivo: Number(e.target.value) })} title="El siguiente N° será este + 1" /></label>
+        </div>
+      </div>
+
+      <div className="fieldgroup"><h4>Firma</h4>
+        <div className="firma-up">
+          <label className="firma-drop" title="Cargar / cambiar firma (imagen; idealmente PNG con fondo transparente)">
+            {f.firma ? <img src={f.firma} alt="firma" /> : <span className="firma-ph"><Icon name="edit" size={24} />Subir firma</span>}
+            <input type="file" accept="image/*" onChange={(e) => onFirma(e.target.files?.[0])} />
+            {f.firma && <span className="foto-ov">Cambiar</span>}
+          </label>
+          {f.firma && <button type="button" className="foto-clr" title="Quitar firma" onClick={() => set({ firma: "" })}><Icon name="broom" size={15} /></button>}
+        </div>
+      </div>
+
+      <div className="fieldgroup"><h4>Estado</h4>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 320 }}>
           <Toggle label="Activo" color="green" checked={f.activo} onChange={(v) => set({ activo: v })} />
           <Toggle label="Incluye nota art. 383 ET" checked={f.nota_383} onChange={(v) => set({ nota_383: v })} />
         </div>
@@ -607,7 +635,7 @@ function EmisoresCard() {
     if ((await confirmar({ titulo: "Eliminar emisor", mensaje: `Se eliminará «${r.nombre}».`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
     try { await api.del(`/catalogos/emisor/${r.id}`); load(); toast("Eliminado"); } catch (e: any) { toast(e.message, true); }
   };
-  const vacio = (): EmisorItem => ({ id: 0, nombre: "", cedula: "", direccion: "", celular: "", prefijo: "", consecutivo: 0, nota_383: false, activo: true });
+  const vacio = (): EmisorItem => ({ id: 0, nombre: "", cedula: "", direccion: "", celular: "", prefijo: "", consecutivo: 0, nota_383: false, firma: "", activo: true });
   const siSi = (b: boolean) => <span style={{ color: b ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{b ? "Sí" : "No"}</span>;
   const cols: Column<EmisorItem>[] = [
     { key: "nombre", label: "Nombre", sortable: true, filterable: true, value: (r) => r.nombre },
