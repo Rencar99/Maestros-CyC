@@ -12,7 +12,7 @@ from ..db import get_session
 from ..deps import get_current_user, require_perm
 from ..graph_delegado import cuenta_de, iniciar_device_code, poll_token
 from ..models import Parametro, Usuario
-from ..security import decrypt, encrypt
+from ..security import encrypt
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
@@ -80,7 +80,9 @@ def guardar_cobro(data: CobroIn, session: Session = Depends(get_session),
     return _cobro(session)
 
 
-# ===================================================== Correo de envío (Microsoft 365 / Graph)
+# ===================================================== Plantilla del correo (asunto + cuerpo)
+# Cada responsable envía las CC desde SU propio correo (ver "Mi correo" / Graph delegado);
+# aquí solo vive la PLANTILLA (asunto y cuerpo) con que se arma el correo.
 _CORREO_ASUNTO_DEF = "Cuenta de cobro {numero} - Cardona & Cardona Consultores"
 _CORREO_CUERPO_DEF = ("Apreciado cliente,\n\nAdjunto encontrará la cuenta de cobro "
                       "{numero} correspondiente a {mes} de {anio}.\n\n"
@@ -88,61 +90,30 @@ _CORREO_CUERPO_DEF = ("Apreciado cliente,\n\nAdjunto encontrará la cuenta de co
 
 
 class CorreoIn(BaseModel):
-    remitente: str = ""        # buzón desde el que se envía (ej. facturacion@cardonaycardona.com)
-    tenant: str = ""           # Directory (tenant) ID de Azure
-    client_id: str = ""        # Application (client) ID
-    client_secret: str = ""    # se guarda cifrado; vacío = conservar el actual
     asunto: str = ""
     cuerpo: str = ""
 
 
 def _correo(session: Session) -> dict:
-    """Config del correo de envío. Incluye el secreto DESCIFRADO (uso interno)."""
-    sec_enc = _get(session, "correo_client_secret_enc", "")
-    secret = ""
-    if sec_enc:
-        try:
-            secret = decrypt(sec_enc)
-        except Exception:  # noqa: BLE001
-            secret = ""
+    """Plantilla del correo con que se envían las cuentas de cobro."""
     return {
-        "remitente": _get(session, "correo_remitente", ""),
-        "tenant": _get(session, "correo_tenant", ""),
-        "client_id": _get(session, "correo_client_id", ""),
-        "client_secret": secret,
         "asunto": _get(session, "correo_asunto", _CORREO_ASUNTO_DEF),
         "cuerpo": _get(session, "correo_cuerpo", _CORREO_CUERPO_DEF),
     }
 
 
-def _correo_configurado(session: Session) -> bool:
-    c = _correo(session)
-    return bool(c["remitente"] and c["tenant"] and c["client_id"] and c["client_secret"])
-
-
 @router.get("/correo")
 def obtener_correo(session: Session = Depends(get_session), _=Depends(require_perm("config.roles"))):
-    """Config del correo de envío. NUNCA devuelve el secreto en claro: solo si está puesto."""
-    c = _correo(session)
-    return {
-        "remitente": c["remitente"], "tenant": c["tenant"], "client_id": c["client_id"],
-        "asunto": c["asunto"], "cuerpo": c["cuerpo"],
-        "tiene_secret": bool(c["client_secret"]), "configurado": _correo_configurado(session),
-    }
+    return _correo(session)
 
 
 @router.put("/correo")
 def guardar_correo(data: CorreoIn, session: Session = Depends(get_session),
                    _=Depends(require_perm("config.roles"))):
-    _set(session, "correo_remitente", data.remitente.strip())
-    _set(session, "correo_tenant", data.tenant.strip())
-    _set(session, "correo_client_id", data.client_id.strip())
     _set(session, "correo_asunto", data.asunto.strip() or _CORREO_ASUNTO_DEF)
     _set(session, "correo_cuerpo", data.cuerpo.strip() or _CORREO_CUERPO_DEF)
-    if data.client_secret.strip():   # vacío = conservar el secreto actual
-        _set(session, "correo_client_secret_enc", encrypt(data.client_secret.strip()))
     session.commit()
-    return obtener_correo(session)
+    return _correo(session)
 
 
 # ===================================================== Mi correo (Graph delegado, por usuario)

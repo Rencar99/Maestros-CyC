@@ -56,45 +56,31 @@ function DatosCobroCard() {
   );
 }
 
-/** Cuenta de correo (Microsoft 365 / Graph) desde la que se envían las cuentas de
- *  cobro. El secreto se guarda cifrado y nunca se devuelve en claro. Solo Super. */
+/** Plantilla del correo (asunto + cuerpo) con que se envían las cuentas de cobro.
+ *  El envío lo hace cada responsable desde SU propio correo (ver "Mi correo"). Solo Super. */
 function CorreoEnvioCard() {
   const toast = useToast();
-  const [f, setF] = useState({ remitente: "", tenant: "", client_id: "", client_secret: "", asunto: "", cuerpo: "" });
-  const [tieneSecret, setTieneSecret] = useState(false);
-  const [configurado, setConfigurado] = useState(false);
+  const [f, setF] = useState({ asunto: "", cuerpo: "" });
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   useEffect(() => {
-    api.get("/config/correo").then((d: any) => {
-      setF({ remitente: d.remitente, tenant: d.tenant, client_id: d.client_id, client_secret: "", asunto: d.asunto, cuerpo: d.cuerpo });
-      setTieneSecret(!!d.tiene_secret); setConfigurado(!!d.configurado);
-    }).catch((e: any) => toast(e.message, true)).finally(() => setCargando(false));
+    api.get("/config/correo").then((d: any) => setF({ asunto: d.asunto, cuerpo: d.cuerpo }))
+      .catch((e: any) => toast(e.message, true)).finally(() => setCargando(false));
   }, []); // eslint-disable-line
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
   const guardar = async () => {
     setGuardando(true);
-    try {
-      const d: any = await api.put("/config/correo", f);
-      setF((x) => ({ ...x, client_secret: "", asunto: d.asunto, cuerpo: d.cuerpo }));
-      setTieneSecret(!!d.tiene_secret); setConfigurado(!!d.configurado);
-      toast("Cuenta de correo guardada ✓");
-    } catch (e: any) { toast(e.message, true); } finally { setGuardando(false); }
+    try { const d: any = await api.put("/config/correo", f); setF({ asunto: d.asunto, cuerpo: d.cuerpo }); toast("Plantilla guardada ✓"); }
+    catch (e: any) { toast(e.message, true); } finally { setGuardando(false); }
   };
   return (
     <div className="card">
-      <div className="card-h"><div><SecTitle icon="mail">Correo de envío</SecTitle>
-        <div className="hint">Cuenta Microsoft 365 desde la que se envían las cuentas de cobro (Graph). {configurado ? "Configurada ✓" : "Sin configurar."}</div></div></div>
+      <div className="card-h"><div><SecTitle icon="mail">Plantilla del correo</SecTitle>
+        <div className="hint">Asunto y cuerpo del correo con que se envían las cuentas de cobro. Cada responsable las envía desde su propio correo (pestaña "Mi correo").</div></div></div>
       <div style={{ padding: "14px 16px 18px", maxWidth: 620 }}>
         {cargando ? <div className="hint">Cargando…</div> : (
           <>
-            <div className="grid2">
-              <div className="f"><label>Remitente (buzón de la firma)</label><input value={f.remitente} onChange={(e) => set({ remitente: e.target.value })} placeholder="facturacion@cardonaycardona.com" /></div>
-              <div className="f"><label>Directory (tenant) ID</label><input value={f.tenant} onChange={(e) => set({ tenant: e.target.value })} placeholder="de Azure (App registration)" /></div>
-              <div className="f"><label>Application (client) ID</label><input value={f.client_id} onChange={(e) => set({ client_id: e.target.value })} placeholder="de Azure (App registration)" /></div>
-              <div className="f"><label>Client secret</label><input type="password" value={f.client_secret} onChange={(e) => set({ client_secret: e.target.value })} placeholder={tieneSecret ? "•••••• (guardado) — deja vacío para conservar" : "valor del secret de Azure"} /></div>
-            </div>
-            <div className="f" style={{ marginTop: 10 }}><label>Asunto del correo</label><input value={f.asunto} onChange={(e) => set({ asunto: e.target.value })} /></div>
+            <div className="f"><label>Asunto del correo</label><input value={f.asunto} onChange={(e) => set({ asunto: e.target.value })} /></div>
             <div className="f" style={{ marginTop: 10 }}><label>Cuerpo del correo</label><textarea rows={5} value={f.cuerpo} onChange={(e) => set({ cuerpo: e.target.value })} style={{ width: "100%", resize: "vertical" }} /></div>
             <div style={{ marginTop: 6, fontSize: 12, color: "var(--ink-3)" }}>Variables disponibles: {"{numero} {mes} {anio} {cliente}"}</div>
             <div style={{ marginTop: 16 }}><button className="btn primary" onClick={guardar} disabled={guardando}><Icon name="save" size={16} />{guardando ? "Guardando…" : "Guardar"}</button></div>
@@ -184,7 +170,7 @@ export function Config({ active = true, puede }: { active?: boolean; puede: (c: 
     { k: "manual", lbl: "Manual de usuario", icon: "file" },
     { k: "micorreo", lbl: "Mi correo", icon: "mail" },
     ...(sup ? [{ k: "cobro", lbl: "Datos de cobro", icon: "coins" }] : []),
-    ...(sup ? [{ k: "correo", lbl: "Correo de envío", icon: "mail" }] : []),
+    ...(sup ? [{ k: "correo", lbl: "Plantilla del correo", icon: "mail" }] : []),
     ...(sup ? [{ k: "servidor", lbl: "Servidor de datos", icon: "gear" }] : []),
   ];
   const [tab, setTab] = useState(tabs[0].k);

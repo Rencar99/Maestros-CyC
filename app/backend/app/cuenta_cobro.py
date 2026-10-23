@@ -100,7 +100,7 @@ def construir_html(*, numero: str, fecha: date, deudor: str, deudor_doc: str,
                    emisor_nombre: str, emisor_cedula: str, emisor_direccion: str,
                    emisor_celular: str, nota_383: bool, concepto: str, valor,
                    pago_banco: str, pago_tipo: str, pago_numero: str, pago_titular: str,
-                   nota_383_texto: str = "") -> str:
+                   nota_383_texto: str = "", firma: str = "") -> str:
     """HTML de la cuenta de cobro con diseño: encabezado del EMISOR (quien cobra),
     secciones en marcos, valor destacado, nota 383 condicional y firma del emisor."""
     f = fecha
@@ -114,6 +114,10 @@ def construir_html(*, numero: str, fecha: date, deudor: str, deudor_doc: str,
         firma_extra += f"<br>Dirección: {escape(emisor_direccion)}"
     if emisor_celular.strip():
         firma_extra += f"<br>Celular: {escape(emisor_celular)}"
+    # Firma del emisor (imagen). Si la tiene, se estampa sobre la línea de firma.
+    firma = (firma or "").strip()
+    firma_img = f'<img class="firma-img" src="{escape(firma)}" alt="firma">' if firma else ""
+    cor_mb = "8px" if firma else "34px"
     return f"""<!doctype html><html lang="es"><head><meta charset="utf-8">
 <style>
   @page {{ size: Letter; margin: 0; }}
@@ -145,6 +149,7 @@ def construir_html(*, numero: str, fecha: date, deudor: str, deudor_doc: str,
   .firma {{ margin-top: 30px; }}
   .firma .cor {{ font-size: 12.5px; color: #5d6b7e; margin-bottom: 34px; }}
   .firma .ln {{ border-top: 1px solid #333; width: 280px; padding-top: 6px; font-size: 12.5px; line-height: 1.7; }}
+  .firma .firma-img {{ max-height: 72px; max-width: 280px; display: block; margin: 0 0 2px; }}
 </style></head><body>
   <div class="hd">
     <div class="em">
@@ -177,7 +182,8 @@ def construir_html(*, numero: str, fecha: date, deudor: str, deudor_doc: str,
     </div>
     {nota}
     <div class="firma">
-      <div class="cor">Cordialmente,</div>
+      <div class="cor" style="margin-bottom:{cor_mb}">Cordialmente,</div>
+      {firma_img}
       <div class="ln"><b>{escape(emisor_nombre)}</b><br>C.C. {escape(emisor_cedula)}{firma_extra}</div>
     </div>
   </div>

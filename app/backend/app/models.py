@@ -358,7 +358,7 @@ class Cliente(SQLModel, table=True):
     notas: str = ""
     archivo_propuesta: str = ""    # ruta al archivo de la propuesta (una por cliente)
     ruta_trabajo: str = ""         # carpeta de trabajo del cliente (la leen otros aplicativos)
-    ruta_generador: str = ""       # archivo base (Generador de Mvto Contable) del cliente; guardado con token %OneDrive% (portable entre equipos)
+    ruta_generador: str = ""       # archivo base (Generador de Mvto Contable) del cliente; guardado con token %OneDriveCommercial% (portable entre equipos; ver sistema/_ruta_portable)
 
     # --- Trazabilidad / Auditoría ---
     rut_actualizado: str = ""      # fecha YYYY-MM-DD de la última toma del RUT
@@ -563,6 +563,7 @@ class CuentaCobro(SQLModel, table=True):
     emisor_celular: str = ""
     nota_383: bool = False
     nota_383_texto: str = ""               # foto del texto del 383 al generar (editable en Datos de cobro)
+    emisor_firma: str = ""                 # foto de la firma del emisor (data URI) al generar, para el PDF
 
     # --- Contenido ---
     valor: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(14, 2)))

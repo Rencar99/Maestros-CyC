@@ -129,6 +129,9 @@ def _ensure_columns() -> None:
         # Archivo base (Generador de Mvto Contable) por cliente; token %OneDrive% portable.
         conn.execute(text(
             "ALTER TABLE cliente ADD COLUMN IF NOT EXISTS ruta_generador VARCHAR NOT NULL DEFAULT ''"))
+        # Foto de la firma del emisor (data URI) en la cuenta de cobro, para estamparla en el PDF.
+        conn.execute(text(
+            "ALTER TABLE cuentacobro ADD COLUMN IF NOT EXISTS emisor_firma VARCHAR NOT NULL DEFAULT ''"))
         # URL de acceso del portal en la credencial del cliente.
         conn.execute(text(
             "ALTER TABLE clienteclave ADD COLUMN IF NOT EXISTS url VARCHAR NOT NULL DEFAULT ''"))
