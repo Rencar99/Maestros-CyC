@@ -358,6 +358,7 @@ class Cliente(SQLModel, table=True):
     notas: str = ""
     archivo_propuesta: str = ""    # ruta al archivo de la propuesta (una por cliente)
     ruta_trabajo: str = ""         # carpeta de trabajo del cliente (la leen otros aplicativos)
+    ruta_generador: str = ""       # archivo base (Generador de Mvto Contable) del cliente; guardado con token %OneDrive% (portable entre equipos)
 
     # --- Trazabilidad / Auditoría ---
     rut_actualizado: str = ""      # fecha YYYY-MM-DD de la última toma del RUT

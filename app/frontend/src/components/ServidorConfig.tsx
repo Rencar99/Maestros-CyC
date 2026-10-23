@@ -67,7 +67,7 @@ export function ServidorConfig({ variant, onListo, onClose }: {
       )}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "6px 14px" }}>
         <div className="fld"><label>Dirección del servidor (IP o nombre) <span className="req">*</span></label>
-          <input className="inp" value={ip} placeholder="apps-cyc  ·  192.168.8.28" onChange={(e) => { setIp(e.target.value); setPrueba(null); }} />
+          <input className="inp" value={ip} placeholder="DESKTOP-N8VFD87" onChange={(e) => { setIp(e.target.value); setPrueba(null); }} />
         </div>
         <div className="fld"><label>Puerto <span className="req">*</span></label>
           <input className="inp" type="number" min={1} max={65535} value={puerto} onChange={(e) => { setPuerto(Number(e.target.value)); setPrueba(null); }} />

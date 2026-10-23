@@ -134,6 +134,7 @@ export interface Cliente {
   notas: string;
   archivo_propuesta: string;
   ruta_trabajo: string;
+  ruta_generador: string;
   rut_actualizado: string;
   tiene_password?: boolean;
   password?: string;

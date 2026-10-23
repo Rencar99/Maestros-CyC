@@ -202,6 +202,7 @@ class ClienteBase(SQLModel):
     notas: str = ""
     archivo_propuesta: str = ""
     ruta_trabajo: str = ""
+    ruta_generador: str = ""
     rut_actualizado: str = ""
 
 

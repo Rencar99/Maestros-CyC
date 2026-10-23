@@ -24,6 +24,27 @@ from ..deps import get_current_user
 router = APIRouter(prefix="/api/sistema", tags=["sistema"])
 
 
+def _ruta_portable(abs_path: str) -> str:
+    """Si la ruta está bajo OneDrive, la devuelve como ``%OneDriveCommercial%\\<rel>``
+    (o ``%OneDrive%``), portable entre equipos; si no, la deja tal cual. Idempotente:
+    si ya trae un token ``%...%`` no la toca."""
+    ruta = (abs_path or "").strip()
+    if not ruta or ruta.startswith("%"):
+        return ruta
+    for var in ("OneDriveCommercial", "OneDrive"):
+        base = (os.environ.get(var) or "").rstrip("\\/")
+        if base and ruta.lower().startswith(base.lower()):
+            return f"%{var}%" + ruta[len(base):]
+    return ruta
+
+
+@router.get("/ruta-portable")
+def ruta_portable(ruta: str = "", _u=Depends(get_current_user)):
+    """Convierte una ruta ABSOLUTA a su forma PORTABLE (token %OneDrive%), para
+    guardarla y que cada equipo la resuelva con su propia variable de OneDrive."""
+    return {"ruta": _ruta_portable(ruta)}
+
+
 def _dentro_de_raiz(p: Path, raiz: Path) -> bool:
     try:
         p.resolve().relative_to(raiz)

@@ -284,7 +284,7 @@ function vacio(): Cliente {
     coordinador_impuestos_id: null, responsable_financiero_id: null, coordinador_financiero_id: null, responsable_registro_id: null,
     firma_contador_id: null, firma_revisor_id: null,
     responsable_cliente: "", email_responsable_cliente: "",
-    grupo: "", notas: "", archivo_propuesta: "", ruta_trabajo: "", rut_actualizado: "", servicios: [], municipios_ica: [], obligaciones: [],
+    grupo: "", notas: "", archivo_propuesta: "", ruta_trabajo: "", ruta_generador: "", rut_actualizado: "", servicios: [], municipios_ica: [], obligaciones: [],
   };
 }
 
@@ -858,7 +858,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     // obligaciones" (pestaña Obligaciones). Nada cambia en silencio.
     toast("Cambios aplicados. Revisa las obligaciones y pulsa «Guardar cambios».");
   };
-  const [explorar, setExplorar] = useState<{ modo: "carpeta" | "archivo"; key: keyof Cliente } | null>(null);
+  const [explorar, setExplorar] = useState<{ modo: "carpeta" | "archivo"; key: keyof Cliente; inicio?: string } | null>(null);
 
   const guardarRaw = async (): Promise<boolean> => {
     if (c.email_responsable_cliente && !emailOk(c.email_responsable_cliente)) {
@@ -1262,13 +1262,22 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                 <div className="f wide" style={{ marginTop: 12 }}><label>Ruta de trabajo del cliente</label>
                   <div className="filebox"><input value={c.ruta_trabajo} placeholder="carpeta de trabajo…" onChange={(e) => set("ruta_trabajo", e.target.value)} /><button type="button" className="btn sm" title="Buscar carpeta" onClick={() => setExplorar({ modo: "carpeta", key: "ruta_trabajo" })}><Icon name="folder" size={14} />Examinar…</button></div>
                 </div>
+                <div className="f wide" style={{ marginTop: 12 }}><label>Archivo base (Generador)</label>
+                  <div className="filebox"><input value={c.ruta_generador} placeholder="archivo base del cliente (Generador de Mvto Contable)…" onChange={(e) => set("ruta_generador", e.target.value)} /><button type="button" className="btn sm" title="Buscar archivo" onClick={() => setExplorar({ modo: "archivo", key: "ruta_generador", inicio: c.ruta_trabajo })}><Icon name="folder" size={14} />Examinar…</button></div>
+                </div>
               </div>
             </>
           )}
         </div>
       </div>
       </form>
-      {explorar && <Explorador modo={explorar.modo} onSelect={(ruta) => set(explorar.key, ruta)} onClose={() => setExplorar(null)} />}
+      {explorar && <Explorador modo={explorar.modo} inicio={explorar.inicio} onSelect={async (ruta) => {
+        if (explorar.key === "ruta_generador") {
+          let v = ruta;
+          try { const r: any = await api.get(`/sistema/ruta-portable?ruta=${encodeURIComponent(ruta)}`); v = r.ruta || ruta; } catch { /* usar la ruta tal cual */ }
+          set("ruta_generador", v);
+        } else { set(explorar.key, ruta); }
+      }} onClose={() => setExplorar(null)} />}
       {claveEdit && (
         <ClaveModal portales={portalesCat} setPortales={setPortalesCat}
           clave={claveEdit === "new" ? null : claveEdit}

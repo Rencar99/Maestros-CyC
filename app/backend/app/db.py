@@ -126,6 +126,9 @@ def _ensure_columns() -> None:
             "ALTER TABLE usuario ADD COLUMN IF NOT EXISTS correo_cuenta VARCHAR NOT NULL DEFAULT ''"))
         conn.execute(text(
             "ALTER TABLE usuario ADD COLUMN IF NOT EXISTS correo_token_enc VARCHAR NOT NULL DEFAULT ''"))
+        # Archivo base (Generador de Mvto Contable) por cliente; token %OneDrive% portable.
+        conn.execute(text(
+            "ALTER TABLE cliente ADD COLUMN IF NOT EXISTS ruta_generador VARCHAR NOT NULL DEFAULT ''"))
         # URL de acceso del portal en la credencial del cliente.
         conn.execute(text(
             "ALTER TABLE clienteclave ADD COLUMN IF NOT EXISTS url VARCHAR NOT NULL DEFAULT ''"))

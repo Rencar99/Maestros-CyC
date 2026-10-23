@@ -12,10 +12,11 @@ interface Data { ruta: string; padre: string; raiz: string; es_raiz: boolean; ca
  *  Interacción: un clic SELECCIONA la fila (y enfoca la lista para teclado); doble
  *  clic ENTRA a la carpeta / elige el archivo. Con la lista enfocada: ↑/↓ mueven la
  *  selección, Enter entra/elige, y escribir letras salta a la fila que coincide. */
-export function Explorador({ modo, onSelect, onClose, libre = true }: {
+export function Explorador({ modo, onSelect, onClose, inicio, libre = true }: {
   modo: "carpeta" | "archivo";
   onSelect: (ruta: string) => void;
   onClose: () => void;
+  inicio?: string;   // carpeta inicial donde abrir (si no, la carpeta de la firma)
   libre?: boolean;   // navegar todo el equipo (abre en la carpeta de la firma; se puede subir a cualquier unidad)
 }) {
   const toast = useToast();
@@ -33,7 +34,7 @@ export function Explorador({ modo, onSelect, onClose, libre = true }: {
       .catch((e: any) => toast(e.message, true))
       .finally(() => { setCargando(false); setTimeout(() => listRef.current?.focus(), 0); });
   };
-  useEffect(() => { cargar(""); }, []); // eslint-disable-line
+  useEffect(() => { cargar(inicio || ""); }, []); // eslint-disable-line
 
   const q = filtro.trim().toLowerCase();
   const carpetas = (data?.carpetas || []).filter((c) => !q || c.nombre.toLowerCase().includes(q));
