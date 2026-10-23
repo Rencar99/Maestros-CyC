@@ -148,7 +148,7 @@ def _sync_hijas(session: Session, cliente_id: int, data: ClienteCreate,
 
 
 # Campos comerciales que el Administrador NO puede ver ni modificar (solo superusuario).
-_COMERCIAL = ("archivo_propuesta", "ruta_trabajo", "ruta_generador")
+_COMERCIAL = ("archivo_propuesta", "ruta_trabajo")
 
 
 def _leer(session: Session, c: Cliente, ver_comercial: bool = True) -> ClienteRead:
