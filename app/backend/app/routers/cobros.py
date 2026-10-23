@@ -50,15 +50,17 @@ _MESES = ["", "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
 @router.post("/{fid}/item/{item_id}/enviar")
 def enviar(fid: int, item_id: int, session: Session = Depends(get_session),
            u: Usuario = Depends(require_perm("facturacion.editar"))):
-    """Envía por correo (Microsoft 365 / Graph) la cuenta de cobro en firme de un
-    ítem, con el PDF adjunto. Requiere que esté generada, que el cliente tenga
-    correo y que esté configurada la cuenta de envío."""
+    """Envía la cuenta de cobro en firme de un ítem (PDF adjunto) por Microsoft
+    365 (Graph DELEGADO): sale del propio correo del responsable que la envía.
+    Requiere que esté generada, que el cliente tenga correo y que el responsable
+    haya conectado su correo (Configuración → Mi correo)."""
     from datetime import datetime
     from .facturacion import _cc_existente, _cc_html
-    from .parametros import _correo, _correo_configurado
-    from ..correo import enviar_correo_graph
+    from .parametros import _correo
+    from ..graph_delegado import enviar as graph_enviar, refrescar
     from ..cuenta_cobro import html_a_pdf
-    from ..models import Cliente, FacturacionItem
+    from ..models import Cliente, FacturacionItem, Usuario
+    from ..security import decrypt, encrypt
 
     fac = session.get(Facturacion, fid)
     it = session.get(FacturacionItem, item_id)
@@ -71,10 +73,18 @@ def enviar(fid: int, item_id: int, session: Session = Depends(get_session),
                                   if it.cliente_id else "")
     if not correo:
         raise HTTPException(400, "El cliente no tiene correo registrado.")
-    if not _correo_configurado(session):
-        raise HTTPException(400, "Aún no está configurada la cuenta de correo de envío "
-                                 "(Configuración → Correo de envío).")
     cfg = _correo(session)
+    usr = session.get(Usuario, u.id)
+    if not usr or not usr.correo_token_enc:
+        raise HTTPException(400, "Conecta tu correo de Microsoft 365 primero (Configuración → Mi correo).")
+    try:
+        tokens = refrescar(decrypt(usr.correo_token_enc))
+    except Exception:  # noqa: BLE001
+        raise HTTPException(400, "Tu sesión de correo expiró; reconéctala en Configuración → Mi correo.")
+    if tokens.get("refresh_token"):
+        usr.correo_token_enc = encrypt(tokens["refresh_token"])
+        session.add(usr)
+        session.commit()
     mes_nom = _MESES[cc.mes] if 1 <= cc.mes <= 12 else str(cc.mes)
 
     def _fmt(t: str) -> str:
@@ -83,9 +93,9 @@ def enviar(fid: int, item_id: int, session: Session = Depends(get_session),
 
     pdf = html_a_pdf(_cc_html(cc))
     try:
-        enviar_correo_graph(cfg, destinatario=correo, asunto=_fmt(cfg["asunto"]),
-                            cuerpo=_fmt(cfg["cuerpo"]), pdf_bytes=pdf,
-                            nombre_pdf=f"CC {cc.numero}.pdf".replace("/", "-"))
+        graph_enviar(tokens["access_token"], destinatario=correo, asunto=_fmt(cfg["asunto"]),
+                     cuerpo=_fmt(cfg["cuerpo"]),
+                     adjuntos=[(f"CC {cc.numero}.pdf".replace("/", "-"), pdf)])
     except Exception as e:  # noqa: BLE001
         cc.error_envio = str(e)[:500]
         session.add(cc)

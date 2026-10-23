@@ -241,6 +241,9 @@ class Usuario(SQLModel, table=True):
     foto: str = ""                 # data URI base64 (opcional)
     cargo: str = ""                # solo Tipo interno
     telefono: str = ""
+    # Correo propio para enviar (Graph delegado): su cuenta M365 conectada + refresh token cifrado (Fernet).
+    correo_cuenta: str = ""
+    correo_token_enc: str = ""
     creado_at: datetime = Field(default_factory=datetime.utcnow)
 
 

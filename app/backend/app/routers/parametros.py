@@ -10,7 +10,8 @@ from sqlmodel import Session
 from ..cuenta_cobro import _NOTA_383 as _NOTA_383_DEF
 from ..db import get_session
 from ..deps import get_current_user, require_perm
-from ..models import Parametro
+from ..graph_delegado import cuenta_de, iniciar_device_code, poll_token
+from ..models import Parametro, Usuario
 from ..security import decrypt, encrypt
 
 router = APIRouter(prefix="/api/config", tags=["config"])
@@ -142,3 +143,63 @@ def guardar_correo(data: CorreoIn, session: Session = Depends(get_session),
         _set(session, "correo_client_secret_enc", encrypt(data.client_secret.strip()))
     session.commit()
     return obtener_correo(session)
+
+
+# ===================================================== Mi correo (Graph delegado, por usuario)
+# Cada responsable conecta SU cuenta de Microsoft 365 una vez (código de dispositivo)
+# y la app envía a su nombre. No requiere registrar app en Azure.
+class DeviceIn(BaseModel):
+    device_code: str
+
+
+@router.get("/mi-correo")
+def mi_correo(session: Session = Depends(get_session), u: Usuario = Depends(get_current_user)):
+    """Estado de la conexión de correo del usuario actual."""
+    usr = session.get(Usuario, u.id)
+    return {"conectado": bool(usr and usr.correo_token_enc), "cuenta": (usr.correo_cuenta if usr else "")}
+
+
+@router.post("/mi-correo/iniciar")
+def mi_correo_iniciar(_u: Usuario = Depends(get_current_user)):
+    """Arranca el inicio de sesión por código de dispositivo. Devuelve el código
+    y la URL donde el usuario debe escribirlo (microsoft.com/devicelogin)."""
+    try:
+        j = iniciar_device_code()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(502, str(e))
+    return {"user_code": j.get("user_code"), "verification_uri": j.get("verification_uri"),
+            "device_code": j.get("device_code"), "interval": j.get("interval", 5),
+            "expires_in": j.get("expires_in", 900), "message": j.get("message", "")}
+
+
+@router.post("/mi-correo/completar")
+def mi_correo_completar(data: DeviceIn, session: Session = Depends(get_session),
+                        u: Usuario = Depends(get_current_user)):
+    """Un intento de completar el inicio de sesión. El front lo llama cada pocos
+    segundos hasta que el usuario termina de autenticarse en el navegador."""
+    estado, res = poll_token(data.device_code)
+    if estado == "pendiente":
+        return {"estado": "pendiente"}
+    if estado == "error":
+        return {"estado": "error", "mensaje": res.get("msg", "No se completó el inicio de sesión.")}
+    refresh = res.get("refresh_token")
+    if not refresh:
+        return {"estado": "error", "mensaje": "Microsoft no devolvió el token de sesión; reintenta."}
+    cuenta = cuenta_de(res.get("access_token", ""))
+    usr = session.get(Usuario, u.id)
+    usr.correo_token_enc = encrypt(refresh)
+    usr.correo_cuenta = cuenta
+    session.add(usr)
+    session.commit()
+    return {"estado": "ok", "cuenta": cuenta}
+
+
+@router.post("/mi-correo/desconectar")
+def mi_correo_desconectar(session: Session = Depends(get_session),
+                          u: Usuario = Depends(get_current_user)):
+    usr = session.get(Usuario, u.id)
+    usr.correo_token_enc = ""
+    usr.correo_cuenta = ""
+    session.add(usr)
+    session.commit()
+    return {"ok": True}

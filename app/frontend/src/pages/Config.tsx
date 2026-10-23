@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { Icon, SecTitle, useToast } from "../ui";
 import { RolesPermisos } from "./RolesPermisos";
@@ -105,6 +105,75 @@ function CorreoEnvioCard() {
   );
 }
 
+/** Mi correo (Graph delegado): cada responsable conecta su cuenta de Microsoft
+ *  365 una sola vez (código de dispositivo) y la app envía los correos a su
+ *  nombre. No requiere Azure ni Outlook de escritorio. */
+function MiCorreoCard() {
+  const toast = useToast();
+  const [estado, setEstado] = useState<{ conectado: boolean; cuenta: string }>({ conectado: false, cuenta: "" });
+  const [cargando, setCargando] = useState(true);
+  const [flujo, setFlujo] = useState<{ user_code: string; verification_uri: string } | null>(null);
+  const [esperando, setEsperando] = useState(false);
+  const pollRef = useRef<number | null>(null);
+
+  const cargar = () => api.get("/config/mi-correo").then((d: any) => setEstado(d)).catch(() => {}).finally(() => setCargando(false));
+  useEffect(() => { cargar(); return () => { if (pollRef.current) window.clearInterval(pollRef.current); }; }, []); // eslint-disable-line
+
+  const detener = (msg?: string) => {
+    if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; }
+    setEsperando(false); setFlujo(null);
+    if (msg) toast(msg, true);
+  };
+  const conectar = async () => {
+    setEsperando(true);
+    try {
+      const d: any = await api.post("/config/mi-correo/iniciar", {});
+      setFlujo({ user_code: d.user_code, verification_uri: d.verification_uri });
+      try { window.open(d.verification_uri, "_blank"); } catch { /* el usuario abre el enlace a mano */ }
+      const vence = Date.now() + (d.expires_in || 900) * 1000;
+      pollRef.current = window.setInterval(async () => {
+        if (Date.now() > vence) { detener("El código expiró, intenta de nuevo."); return; }
+        try {
+          const r: any = await api.post("/config/mi-correo/completar", { device_code: d.device_code });
+          if (r.estado === "ok") { detener(); setEstado({ conectado: true, cuenta: r.cuenta }); toast(`Correo conectado: ${r.cuenta} ✓`); }
+          else if (r.estado === "error") { detener(r.mensaje || "No se completó el inicio de sesión."); }
+        } catch { /* reintentar en el próximo tick */ }
+      }, Math.max(3, d.interval || 5) * 1000);
+    } catch (e: any) { toast(e.message, true); setEsperando(false); }
+  };
+  const desconectar = async () => {
+    try { await api.post("/config/mi-correo/desconectar", {}); setEstado({ conectado: false, cuenta: "" }); toast("Correo desconectado"); }
+    catch (e: any) { toast(e.message, true); }
+  };
+
+  return (
+    <div className="card">
+      <div className="card-h"><div><SecTitle icon="mail">Mi correo</SecTitle><div className="hint">Conecta tu correo de Microsoft 365 para enviar los documentos a tu nombre.</div></div></div>
+      <div style={{ padding: "14px 16px 18px", maxWidth: 560 }}>
+        {cargando ? <div className="hint">Cargando…</div> : estado.conectado ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span className="srv-dot" /><div style={{ flex: 1 }}>Conectado como <b>{estado.cuenta || "—"}</b></div>
+            <button className="btn sm" onClick={desconectar}><Icon name="x" size={15} />Desconectar</button>
+          </div>
+        ) : flujo ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div>1. Se abrió <a href={flujo.verification_uri} target="_blank" rel="noreferrer">{flujo.verification_uri}</a> (si no, ábrelo tú).</div>
+            <div>2. Escribe este código e inicia sesión con tu correo de la firma:</div>
+            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: 3, fontFamily: "monospace", color: "var(--primary)" }}>{flujo.user_code}</div>
+            <div className="hint">Esperando a que completes el inicio de sesión…</div>
+            <div><button className="btn sm ghost" onClick={() => detener()}>Cancelar</button></div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="hint">Aún no has conectado tu correo. Se hace una sola vez.</div>
+            <div><button className="btn primary" onClick={conectar} disabled={esperando}><Icon name="mail" size={16} />Conectar mi correo</button></div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Pantalla Configuración: agrupa en pestañas los ajustes de administración.
  *  - "Manual de usuario": visible para todos. El resto: solo config.roles (Super).
  *  Por eso la pantalla es visible para todos; las pestañas se filtran por permiso. */
@@ -113,6 +182,7 @@ export function Config({ active = true, puede }: { active?: boolean; puede: (c: 
   const tabs = [
     ...(sup ? [{ k: "roles", lbl: "Roles y permisos", icon: "shield-check" }] : []),
     { k: "manual", lbl: "Manual de usuario", icon: "file" },
+    { k: "micorreo", lbl: "Mi correo", icon: "mail" },
     ...(sup ? [{ k: "cobro", lbl: "Datos de cobro", icon: "coins" }] : []),
     ...(sup ? [{ k: "correo", lbl: "Correo de envío", icon: "mail" }] : []),
     ...(sup ? [{ k: "servidor", lbl: "Servidor de datos", icon: "gear" }] : []),
@@ -130,6 +200,7 @@ export function Config({ active = true, puede }: { active?: boolean; puede: (c: 
       </div>
       {tab === "roles" && sup && <RolesPermisos active={active && tab === "roles"} />}
       {tab === "manual" && <ManualUsuario />}
+      {tab === "micorreo" && <MiCorreoCard />}
       {tab === "cobro" && sup && <DatosCobroCard />}
       {tab === "correo" && sup && <CorreoEnvioCard />}
       {tab === "servidor" && sup && <ServidorConfig variant="panel" />}

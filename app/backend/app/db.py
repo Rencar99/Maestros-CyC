@@ -121,6 +121,11 @@ def _ensure_columns() -> None:
         # Foto del texto de la nota del art. 383 al generar la cuenta de cobro (editable en Datos de cobro).
         conn.execute(text(
             "ALTER TABLE cuentacobro ADD COLUMN IF NOT EXISTS nota_383_texto VARCHAR NOT NULL DEFAULT ''"))
+        # Correo propio del responsable (Graph delegado): cuenta M365 + refresh token cifrado.
+        conn.execute(text(
+            "ALTER TABLE usuario ADD COLUMN IF NOT EXISTS correo_cuenta VARCHAR NOT NULL DEFAULT ''"))
+        conn.execute(text(
+            "ALTER TABLE usuario ADD COLUMN IF NOT EXISTS correo_token_enc VARCHAR NOT NULL DEFAULT ''"))
         # URL de acceso del portal en la credencial del cliente.
         conn.execute(text(
             "ALTER TABLE clienteclave ADD COLUMN IF NOT EXISTS url VARCHAR NOT NULL DEFAULT ''"))
