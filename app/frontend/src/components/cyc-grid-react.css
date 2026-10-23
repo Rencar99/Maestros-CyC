@@ -58,7 +58,7 @@ th.th-drag-over { box-shadow: inset 3px 0 0 #0836c7; }
   overflow: hidden;
   padding-left: 4px;
   color: #062d65;
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   text-align: left;
   text-overflow: ellipsis;
@@ -194,3 +194,146 @@ tbody tr.row-click { cursor: pointer; }
    eso no hay valor por defecto (23 px forzaría a todas las grillas) ni selector
    genérico. */
 .grid-scroll table[style*="--row-h"] tbody td { height: var(--row-h); }
+
+/* --- Iconos de acción (§2.16) ---------------------------------------------
+ * El componente pinta la celda de acciones como `<div class="act-btns">`, y lo
+ * que va dentro lo pone cada pantalla. Hasta el 23-oct-2026 el tamaño también
+ * lo ponía cada pantalla, y se vio a dónde lleva: el Calendario copió de otra
+ * App una caja de 20×18 con el dibujo a 14 y un disco de estado de 23 px —el
+ * alto exacto de la fila—, y la fila quedó ahogada.
+ *
+ * Los valores son los MISMOS de grilla/cyc-grid.css. Si cambia un número,
+ * cambia en las dos.
+ *
+ * El relleno de estado (un disco que distingue dos estados del mismo botón) no
+ * puede pasar de 17 px: la caja es 19 y la fila 23.
+ */
+.act-btns {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: 19px;
+}
+
+.act-btns button,
+.act-btns a {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #0a3a7a;
+  font-family: inherit;
+  /* 15 y no 14: a 14 el dibujo se lee chico al lado de los demás de la fila. */
+  font-size: 15px;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.act-btns svg {
+  width: 15px;
+  height: 15px;
+}
+
+.act-btns button:hover:not(:disabled),
+.act-btns a:hover {
+  background: #eaf0f9;
+}
+
+.act-btns button:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+
+/* El color dice el significado, no el relleno ni el tamaño. El azul de arriba
+   es abrir o ver; estos tres, el resto. */
+.act-btns .cyc-accion-borrar { color: #b42318 }
+.act-btns .cyc-accion-borrar:hover { color: #7f1d1d }
+.act-btns .cyc-accion-ok { color: #0f766e }
+.act-btns .cyc-accion-aviso { color: #9a6700 }
+
+/* --- Marco de grilla (§2.17) -----------------------------------------------
+ * Los mismos valores de grilla/cyc-grid.css. Si cambia un número, cambia en
+ * las dos. Aquí van solo las piezas estructurales: el alto del marco depende
+ * de la pantalla (barra superior, pestañas) y se queda en la hoja del
+ * aplicativo, igual que en la versión JS.
+ */
+.gframe {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.gframe > .gframe-h,
+.gframe > .card-h {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 16px;
+  border-bottom: none;
+}
+
+.gframe > .gframe-h::after,
+.gframe > .card-h::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 0;
+  height: 1px;
+  background: var(--line-2, var(--line, #e0e6ee));
+}
+
+.gframe-h i {
+  font-style: normal;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--blue, #0a3a7a);
+}
+
+.gframe-h h2 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--blue, #0a3a7a);
+}
+
+.gframe-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+
+.gframe-foot {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 16px;
+  padding: 9px 0 12px;
+  color: var(--ok, var(--green, #0f766e));
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gframe-foot::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: var(--gold, #f7931e);
+}
