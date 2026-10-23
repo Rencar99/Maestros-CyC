@@ -577,14 +577,20 @@ def _cc_existente(session: Session, anio: int, mes: int, cliente_id, concepto: s
         CuentaCobro.concepto == concepto)).first()
 
 
-def _cc_html(cc: "CuentaCobro") -> str:
-    """Reconstruye el HTML del documento desde la FOTO guardada en la cuenta de cobro."""
+def _cc_html(session: Session, cc: "CuentaCobro") -> str:
+    """Reconstruye el HTML del documento desde la FOTO guardada en la cuenta de cobro.
+    La firma cae a la del emisor ACTUAL si la foto quedó vacía (CC generadas antes de
+    cargarle la firma al emisor); las que ya la tienen conservan la congelada."""
     from ..cuenta_cobro import construir_html
+    firma = cc.emisor_firma
+    if not firma and cc.emisor_id:
+        em = session.get(Emisor, cc.emisor_id)
+        firma = em.firma if em else ""
     return construir_html(
         numero=cc.numero, fecha=cc.fecha, deudor=cc.deudor, deudor_doc=cc.deudor_doc,
         emisor_nombre=cc.emisor_nombre, emisor_cedula=cc.emisor_cedula,
         emisor_direccion=cc.emisor_direccion, emisor_celular=cc.emisor_celular,
-        nota_383=cc.nota_383, nota_383_texto=cc.nota_383_texto, firma=cc.emisor_firma,
+        nota_383=cc.nota_383, nota_383_texto=cc.nota_383_texto, firma=firma,
         concepto=cc.concepto, valor=cc.valor or 0,
         pago_banco=cc.pago_banco, pago_tipo=cc.pago_tipo,
         pago_numero=cc.pago_numero, pago_titular=cc.pago_titular)
@@ -655,7 +661,7 @@ def _generar_cc(session: Session, fid: int, item_id: int, creado_por: str) -> "t
             from ..cuenta_cobro import html_a_pdf
             os.makedirs(os.path.dirname(ruta), exist_ok=True)
             with open(ruta, "wb") as fh:
-                fh.write(html_a_pdf(_cc_html(cc)))
+                fh.write(html_a_pdf(_cc_html(session, cc)))
             cc.ruta_pdf = ruta
             session.add(cc)
             session.commit()
@@ -761,7 +767,7 @@ def cuenta_cobro_pdf(fid: int, item_id: int, session: Session = Depends(get_sess
     it0 = session.get(FacturacionItem, item_id)
     cc = _cc_existente(session, fac.anio, fac.mes, it0.cliente_id, it0.concepto) if (fac and it0) else None
     if cc:
-        html = _cc_html(cc)
+        html = _cc_html(session, cc)
         numero, nombre_cli = cc.numero, cc.deudor
     else:
         it, cli, em, deudor_doc = _cc_validar(session, fid, item_id)

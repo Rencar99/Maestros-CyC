@@ -91,7 +91,7 @@ def enviar(fid: int, item_id: int, session: Session = Depends(get_session),
         return (t.replace("{numero}", cc.numero).replace("{mes}", mes_nom)
                 .replace("{anio}", str(cc.anio)).replace("{cliente}", cc.deudor))
 
-    pdf = html_a_pdf(_cc_html(cc))
+    pdf = html_a_pdf(_cc_html(session, cc))
     try:
         graph_enviar(tokens["access_token"], destinatario=correo, asunto=_fmt(cfg["asunto"]),
                      cuerpo=_fmt(cfg["cuerpo"]),
