@@ -98,11 +98,15 @@ function MiCorreoCard() {
   const toast = useToast();
   const [estado, setEstado] = useState<{ conectado: boolean; cuenta: string }>({ conectado: false, cuenta: "" });
   const [cargando, setCargando] = useState(true);
+  const [errCarga, setErrCarga] = useState(false);
   const [flujo, setFlujo] = useState<{ user_code: string; verification_uri: string } | null>(null);
   const [esperando, setEsperando] = useState(false);
   const pollRef = useRef<number | null>(null);
 
-  const cargar = () => api.get("/config/mi-correo").then((d: any) => setEstado(d)).catch(() => {}).finally(() => setCargando(false));
+  // Si la consulta falla (p.ej. el servidor reiniciando por un release) NO afirmamos
+  // "no conectado" —eso asusta sin motivo—: marcamos el error y ofrecemos reintentar.
+  const cargar = () => api.get("/config/mi-correo").then((d: any) => { setEstado(d); setErrCarga(false); }).catch(() => setErrCarga(true)).finally(() => setCargando(false));
+  const reintentar = () => { setCargando(true); cargar(); };
   useEffect(() => { cargar(); return () => { if (pollRef.current) window.clearInterval(pollRef.current); }; }, []); // eslint-disable-line
 
   const detener = (msg?: string) => {
@@ -136,7 +140,12 @@ function MiCorreoCard() {
     <div className="card">
       <div className="card-h"><div><SecTitle icon="mail">Mi correo</SecTitle><div className="hint">Conecta tu correo de Microsoft 365 para enviar los documentos a tu nombre.</div></div></div>
       <div style={{ padding: "14px 16px 18px", maxWidth: 560 }}>
-        {cargando ? <div className="hint">Cargando…</div> : estado.conectado ? (
+        {cargando ? <div className="hint">Cargando…</div> : errCarga ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="hint">No pude verificar el estado de tu correo (¿el servidor estaba reiniciando?). Tu conexión no se perdió; reintenta.</div>
+            <div><button className="btn sm" onClick={reintentar}><Icon name="mail" size={15} />Reintentar</button></div>
+          </div>
+        ) : estado.conectado ? (
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span className="srv-dot" /><div style={{ flex: 1 }}>Conectado como <b>{estado.cuenta || "—"}</b></div>
             <button className="btn sm" onClick={desconectar}><Icon name="x" size={15} />Desconectar</button>
