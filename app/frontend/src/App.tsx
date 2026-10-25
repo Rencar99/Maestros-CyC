@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, clearToken, getToken } from "./api";
 import { Responsable } from "./types";
-import { ConfirmProvider, Icon, ToastProvider, useConfirm } from "./ui";
+import { ConfirmProvider, Icon, ToastProvider } from "./ui";
 import { Splash } from "./components/Splash";
 import { Login } from "./pages/Login";
 import { Clientes } from "./pages/Clientes";
@@ -77,12 +77,21 @@ export default function App() {
   );
 }
 
-/** Shell autenticado: menú lateral + barra superior (franja + usuario) + contenido.
- *  Va aparte para poder usar useConfirm (la confirmación de «Cerrar sesión»). */
+/** Shell autenticado: menú lateral + barra superior (franja + usuario) + contenido. */
 type SrvInfo = { host?: string; puerto?: number; conectado?: boolean; hostname?: string; ip_equipo?: string; version?: string };
 function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | null) => void }) {
-  const confirmar = useConfirm();
   const [page, setPage] = useState<Page>("clientes");
+  // Menú del usuario (estilo cuenta): se abre desde el chip de arriba a la derecha.
+  const [uMenu, setUMenu] = useState(false);
+  const uMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!uMenu) return;
+    const fuera = (e: MouseEvent) => { if (uMenuRef.current && !uMenuRef.current.contains(e.target as Node)) setUMenu(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setUMenu(false); };
+    document.addEventListener("mousedown", fuera);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", fuera); document.removeEventListener("keydown", esc); };
+  }, [uMenu]);
   // "keep-alive": una vez visitada, la sección se mantiene montada (conserva su
   // estado: facturación generada, filtros de grilla, etc.) y solo se oculta.
   const [vistas, setVistas] = useState<Set<Page>>(() => new Set<Page>(["clientes"]));
@@ -114,11 +123,7 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
     }
   }, [page]); // eslint-disable-line
 
-  const salir = async () => {
-    if ((await confirmar({ titulo: "Cerrar sesión", mensaje: `¿Cerrar la sesión de ${user.nombre}?`, confirmar: "Sí, cerrar sesión" })) === "si") {
-      clearToken(); onUser(null);
-    }
-  };
+  const salir = () => { clearToken(); onUser(null); };
 
   const srvOk = srv ? srv.conectado !== false : undefined;
 
@@ -182,12 +187,24 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
               <div className="tb-eyebrow">{GRUPO[page]}</div>
               <h2>{TITLES[page][0]}</h2>
             </div>
-            <div className="tb-user">
-              <div className="tb-who" title={user.nombre}>
+            <div className="tb-user" ref={uMenuRef}>
+              <button className={"tb-who" + (uMenu ? " open" : "")} title={user.nombre}
+                onClick={() => setUMenu((o) => !o)} aria-haspopup="menu" aria-expanded={uMenu}>
                 <span className="avatar">{user.foto ? <img src={user.foto} alt="" /> : inicial}</span>
                 <span className="tb-name">{user.nombre}<span>{rolLbl}</span></span>
-              </div>
-              <button className="btn sm" onClick={salir}><Icon name="logout" size={15} /> Cerrar sesión</button>
+                <Icon name="chevron-down" size={15} />
+              </button>
+              {uMenu && (
+                <div className="tb-menu" role="menu">
+                  <div className="tb-menu-head">
+                    <span className="avatar">{user.foto ? <img src={user.foto} alt="" /> : inicial}</span>
+                    <div className="tb-menu-id"><b>{user.nombre}</b><span>{rolLbl}</span></div>
+                  </div>
+                  <button className="tb-menu-item danger" role="menuitem" onClick={() => { setUMenu(false); salir(); }}>
+                    <Icon name="logout" size={16} /> Cerrar sesión
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </header>

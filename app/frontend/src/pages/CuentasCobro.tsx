@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Icon, SecTitle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
+import { Modal } from "../components/Modal";
 
 interface Row {
   item_id: number; cliente: string; concepto: string; valor: number | null;
@@ -26,6 +27,7 @@ export function CuentasCobro({ active }: { active: boolean }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [cargando, setCargando] = useState(false);
   const [actualizado, setActualizado] = useState("");
+  const [componer, setComponer] = useState<Row | null>(null);
 
   const periodo = `${anio}-${String(mes).padStart(2, "0")}`;
   const cargar = () => {
@@ -74,13 +76,6 @@ export function CuentasCobro({ active }: { active: boolean }) {
     if (!fid) return;
     try { await api.openPdf(`/facturacion/${fid}/item/${r.item_id}/cuenta-cobro.pdf`); }
     catch (e: any) { toast(e.message, true); }
-  };
-  const enviarUno = async (r: Row) => {
-    if (!fid) return;
-    try {
-      await api.post(`/cobros/${fid}/item/${r.item_id}/enviar`, {});
-      toast(`Enviada a ${r.correo} ✓`); cargar();
-    } catch (e: any) { toast(e.message, true); }
   };
   const enviarTodas = async () => {
     if (!fid) return;
@@ -161,14 +156,94 @@ export function CuentasCobro({ active }: { active: boolean }) {
                   disabled={!!r.numero || !r.tiene_emisor} onClick={() => generarUno(r)}><Icon name="clipboard-check" size={15} /></button>
                 <button className="act-btn" title={r.numero ? "Revisar PDF" : "Vista previa (PDF)"}
                   disabled={!r.numero && !r.tiene_emisor} onClick={() => revisar(r)}><Icon name="eye" size={15} /></button>
-                <button className="act-btn" title={!r.numero ? "Genera primero" : !r.correo ? "El cliente no tiene correo" : r.estado === "enviada" ? "Reenviar por correo" : "Enviar por correo"}
-                  disabled={!r.numero || !r.correo} onClick={() => enviarUno(r)}><Icon name="mail" size={15} /></button>
+                <button className="act-btn" title={!r.numero ? "Genera primero" : r.estado === "enviada" ? "Reenviar por correo" : !r.correo ? "Enviar (escribe el destinatario)" : "Enviar por correo"}
+                  disabled={!r.numero} onClick={() => setComponer(r)}><Icon name="mail" size={15} /></button>
               </span>} />}
       </div>
       <div className="gframe-foot">
         {rows.length} ítem{rows.length === 1 ? "" : "s"} de cobro
         {actualizado && <><span className="gf-dot">·</span> Actualizado: {actualizado}</>}
       </div>
+      {componer && fid && <EnviarCorreoModal fid={fid} row={componer} onClose={() => setComponer(null)} onSent={cargar} />}
     </div>
+  );
+}
+
+/** Modal de envío estilo Outlook: De (fijo = correo conectado), Para (editable),
+ *  CC/CCO opcionales, Asunto y Mensaje (precargados de la plantilla, editables) y
+ *  el PDF como adjunto. El botón "Enviar" de la cabecera dispara el correo. */
+function EnviarCorreoModal({ fid, row, onClose, onSent }: {
+  fid: number; row: Row; onClose: () => void; onSent: () => void;
+}) {
+  const toast = useToast();
+  const [cargando, setCargando] = useState(true);
+  const [enviando, setEnviando] = useState(false);
+  const [conectado, setConectado] = useState(true);
+  const [de, setDe] = useState("");
+  const [para, setPara] = useState("");
+  const [cc, setCc] = useState("");
+  const [cco, setCco] = useState("");
+  const [asunto, setAsunto] = useState("");
+  const [cuerpo, setCuerpo] = useState("");
+  const [adjunto, setAdjunto] = useState("");
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    api.get(`/cobros/${fid}/item/${row.item_id}/correo-preview`)
+      .then((d: any) => {
+        setDe(d.de || ""); setConectado(!!d.conectado); setPara(d.para || "");
+        setAsunto(d.asunto || ""); setCuerpo(d.cuerpo || ""); setAdjunto(d.adjunto || "");
+      })
+      .catch((e: any) => setErr(e.message))
+      .finally(() => setCargando(false));
+  }, []); // eslint-disable-line
+
+  const enviar = async () => {
+    if (!para.trim()) { toast("Indica el destinatario (Para).", true); return; }
+    setEnviando(true);
+    try {
+      const r: any = await api.post(`/cobros/${fid}/item/${row.item_id}/enviar`, { para, cc, cco, asunto, cuerpo });
+      toast(`Enviada a ${r.correo} ✓`); onSent(); onClose();
+    } catch (e: any) { toast(e.message, true); setEnviando(false); }
+  };
+  const verPdf = () => api.openPdf(`/facturacion/${fid}/item/${row.item_id}/cuenta-cobro.pdf`).catch((e: any) => toast(e.message, true));
+
+  const aviso = err ? err
+    : !conectado ? "No has conectado tu correo (Configuración → Mi correo). Conéctalo para poder enviar."
+    : undefined;
+
+  return (
+    <Modal title="Enviar cuenta de cobro" sub={`${row.cliente}${row.numero ? " · " + row.numero : ""}`}
+           icon="mail" size="md" onClose={onClose} onSave={enviar} saving={enviando}
+           saveLabel="Enviar" saveIcon="mail"
+           canSave={conectado && !!para.trim() && !cargando}
+           aviso={aviso} avisoTone={err ? "err" : "warn"}>
+      {cargando ? <div className="hint">Cargando…</div> : (<>
+        <div className="fieldgroup"><h4>Destinatarios</h4>
+          <div className="obl-grid">
+            <label className="cq-fld obl-wide"><span>De</span>
+              <input value={de || "(sin correo conectado)"} disabled /></label>
+            <label className="cq-fld obl-wide"><span>Para</span>
+              <input value={para} onChange={(e) => setPara(e.target.value)} placeholder="correo@cliente.com" /></label>
+            <label className="cq-fld"><span>CC</span>
+              <input value={cc} onChange={(e) => setCc(e.target.value)} placeholder="Opcional · separa con coma" /></label>
+            <label className="cq-fld"><span>CCO</span>
+              <input value={cco} onChange={(e) => setCco(e.target.value)} placeholder="Opcional · separa con coma" /></label>
+          </div>
+        </div>
+        <div className="fieldgroup"><h4>Mensaje</h4>
+          <div className="obl-grid">
+            <label className="cq-fld obl-wide"><span>Asunto</span>
+              <input value={asunto} onChange={(e) => setAsunto(e.target.value)} /></label>
+            <label className="cq-fld obl-wide"><span>Cuerpo</span>
+              <textarea value={cuerpo} rows={8} onChange={(e) => setCuerpo(e.target.value)} /></label>
+          </div>
+          {adjunto && <label className="cq-fld" style={{ marginTop: 12 }}><span>Adjunto</span>
+            <div className="cc-adjunto" onClick={verPdf} title="Ver el PDF adjunto">
+              <Icon name="file" size={15} /><span className="cc-adj-n">{adjunto}</span><span className="cc-adj-ver">Ver</span>
+            </div></label>}
+        </div>
+      </>)}
+    </Modal>
   );
 }

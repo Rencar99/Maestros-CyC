@@ -83,10 +83,10 @@ def guardar_cobro(data: CobroIn, session: Session = Depends(get_session),
 # ===================================================== Plantilla del correo (asunto + cuerpo)
 # Cada responsable envía las CC desde SU propio correo (ver "Mi correo" / Graph delegado);
 # aquí solo vive la PLANTILLA (asunto y cuerpo) con que se arma el correo.
-_CORREO_ASUNTO_DEF = "Cuenta de cobro {numero} - Cardona & Cardona Consultores"
+_CORREO_ASUNTO_DEF = "Cuenta de cobro {numero} - {emisor}"
 _CORREO_CUERPO_DEF = ("Apreciado cliente,\n\nAdjunto encontrará la cuenta de cobro "
                       "{numero} correspondiente a {mes} de {anio}.\n\n"
-                      "Cordialmente,\nCardona & Cardona Consultores S.A.S")
+                      "Cordialmente,\n{emisor}")
 
 
 class CorreoIn(BaseModel):

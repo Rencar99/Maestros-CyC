@@ -82,15 +82,23 @@ def cuenta_de(access_token: str) -> str:
         return ""
 
 
+def _destinatarios(valores: list[str] | None) -> list[dict]:
+    return [{"emailAddress": {"address": v}} for v in (valores or []) if (v or "").strip()]
+
+
 def enviar(access_token: str, *, destinatario: str, asunto: str, cuerpo: str,
+           cc: list[str] | None = None, cco: list[str] | None = None,
            adjuntos: list[tuple[str, bytes]] | None = None, html: bool = False) -> None:
     """Envía un correo COMO el usuario del token (sale de su propio buzón),
-    con los adjuntos indicados. Lanza RuntimeError con mensaje claro si falla."""
+    con los adjuntos indicados y copias CC/CCO opcionales. Lanza RuntimeError con
+    mensaje claro si falla."""
     msg = {
         "message": {
             "subject": asunto,
             "body": {"contentType": "HTML" if html else "Text", "content": cuerpo},
             "toRecipients": [{"emailAddress": {"address": destinatario}}],
+            "ccRecipients": _destinatarios(cc),
+            "bccRecipients": _destinatarios(cco),
             "attachments": [
                 {"@odata.type": "#microsoft.graph.fileAttachment", "name": nombre,
                  "contentBytes": base64.b64encode(data).decode()}

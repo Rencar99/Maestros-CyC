@@ -9,9 +9,9 @@ from sqlmodel import Session, select
 from ..db import get_session
 from ..deps import get_current_user, require_perm
 from ..models import (AnclaPeriodo, Cargo, Ciiu, ClienteObligacion, Emisor, Entidad, FormaCobro,
-                      GrupoEconomico, Municipio, ObligacionCumplimiento, ObligacionTipo,
-                      PlazoVencimiento, Portal, Responsabilidad, RolServicio, Software,
-                      TipoDocumento)
+                      GrupoEconomico, Municipio, ObligacionCumplimiento, ObligacionEtapa,
+                      ObligacionTipo, PlazoVencimiento, Portal, Responsabilidad, RolServicio,
+                      Software, TipoDocumento)
 from ..schemas import CatItemCreate, CatItemRead, CatItemUpdate, CiiuRead
 from ..seed import bootstrap_ciiu, cargar_municipios
 
@@ -259,6 +259,101 @@ def borrar_obligacion_tipo(item_id: int, session: Session = Depends(get_session)
                                  "Desactívala en su lugar.")
     session.delete(t)
     session.commit()
+
+
+# ===================================================== Etapas de la obligación (plantilla)
+# Subtareas con vencimiento ANTERIOR al de la obligación (p. ej. EXÓGENA: preparar data,
+# Formato 1001, 1002…). Maestros define la PLANTILLA por tipo de obligación; el Calendario
+# la materializa por cliente y lleva el avance por período. ``dias_antes`` son días HÁBILES.
+def _etapa_dict(e: ObligacionEtapa) -> dict:
+    return {"id": e.id, "obligacion_tipo_id": e.obligacion_tipo_id, "orden": e.orden,
+            "nombre": e.nombre, "codigo": e.codigo, "dias_antes": e.dias_antes,
+            "activa": e.activa, "nota": e.nota}
+
+
+class EtapaIn(BaseModel):
+    nombre: str
+    codigo: str = ""
+    dias_antes: int = 0
+    activa: bool = True
+    nota: str = ""
+
+
+class OrdenIn(BaseModel):
+    ids: list[int]
+
+
+@router.get("/obligacion-tipo/{tid}/etapas")
+def listar_etapas(tid: int, session: Session = Depends(get_session), _u=Depends(get_current_user)):
+    """Etapas (plantilla) de un tipo de obligación, en orden."""
+    filas = session.exec(select(ObligacionEtapa)
+                         .where(ObligacionEtapa.obligacion_tipo_id == tid)
+                         .order_by(ObligacionEtapa.orden)).all()
+    return [_etapa_dict(e) for e in filas]
+
+
+@router.post("/obligacion-tipo/{tid}/etapas", status_code=201)
+def crear_etapa(tid: int, data: EtapaIn, session: Session = Depends(get_session),
+                _admin=Depends(require_perm("catalogos.editar"))):
+    if not session.get(ObligacionTipo, tid):
+        raise HTTPException(404, "Obligación no encontrada")
+    if not data.nombre.strip():
+        raise HTTPException(400, "El nombre de la etapa es obligatorio")
+    ultimo = session.exec(select(ObligacionEtapa)
+                          .where(ObligacionEtapa.obligacion_tipo_id == tid)
+                          .order_by(ObligacionEtapa.orden.desc())).first()
+    e = ObligacionEtapa(
+        obligacion_tipo_id=tid, orden=(ultimo.orden + 1) if ultimo else 1,
+        nombre=data.nombre.strip(), codigo=data.codigo.strip(),
+        dias_antes=max(0, data.dias_antes), activa=data.activa, nota=data.nota.strip())
+    session.add(e)
+    session.commit()
+    session.refresh(e)
+    return _etapa_dict(e)
+
+
+@router.put("/etapa/{eid}")
+def actualizar_etapa(eid: int, data: EtapaIn, session: Session = Depends(get_session),
+                     _admin=Depends(require_perm("catalogos.editar"))):
+    e = session.get(ObligacionEtapa, eid)
+    if not e:
+        raise HTTPException(404, "Etapa no encontrada")
+    if not data.nombre.strip():
+        raise HTTPException(400, "El nombre de la etapa es obligatorio")
+    e.nombre = data.nombre.strip()
+    e.codigo = data.codigo.strip()
+    e.dias_antes = max(0, data.dias_antes)
+    e.activa = data.activa
+    e.nota = data.nota.strip()
+    session.add(e)
+    session.commit()
+    return _etapa_dict(e)
+
+
+@router.delete("/etapa/{eid}", status_code=204)
+def borrar_etapa(eid: int, session: Session = Depends(get_session),
+                 _admin=Depends(require_perm("catalogos.editar"))):
+    e = session.get(ObligacionEtapa, eid)
+    if not e:
+        raise HTTPException(404, "Etapa no encontrada")
+    session.delete(e)
+    session.commit()
+
+
+@router.put("/obligacion-tipo/{tid}/etapas/orden")
+def reordenar_etapas(tid: int, data: OrdenIn, session: Session = Depends(get_session),
+                     _admin=Depends(require_perm("catalogos.editar"))):
+    """Fija el orden de las etapas: orden = posición en la lista de ids recibida."""
+    for pos, eid in enumerate(data.ids, start=1):
+        e = session.get(ObligacionEtapa, eid)
+        if e and e.obligacion_tipo_id == tid:
+            e.orden = pos
+            session.add(e)
+    session.commit()
+    filas = session.exec(select(ObligacionEtapa)
+                         .where(ObligacionEtapa.obligacion_tipo_id == tid)
+                         .order_by(ObligacionEtapa.orden)).all()
+    return [_etapa_dict(e) for e in filas]
 
 
 # ============================================================ Entidades (nombre + sigla)

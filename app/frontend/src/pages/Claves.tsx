@@ -8,7 +8,7 @@ import { Column, DataGrid } from "../components/DataGrid";
  *  La clave va oculta (••••) con botón de revelar y copiar por fila. */
 interface ClaveRow {
   id: number; cliente_id: number; num_id: string; cliente: string; estado: string; tipo: string;
-  portal: string; usuario: string; comentario: string; url: string;
+  rl: string; portal: string; usuario: string; comentario: string; url: string;
   tiene_clave: boolean; actualizado_at: string | null;
 }
 
@@ -83,30 +83,29 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
     }
   };
 
+  // Esta pantalla muestra SOLO las claves de clientes ACTIVOS; las inactivas no se listan.
+  const activas = useMemo(() => rows.filter((r) => r.estado === "Act"), [rows]);
+
   const filtered = useMemo(() => {
     // La búsqueda por texto ahora la hace el buscador global de la grilla (todas las columnas).
-    // Aquí solo quedan los filtros rápidos (chips).
-    return rows.filter((r) => {
-      if (quick === "act" && r.estado !== "Act") return false;
-      if (quick === "ina" && r.estado !== "Ina") return false;
+    // Aquí solo quedan los filtros rápidos (chips): Jurídicas / Naturales, sobre las activas.
+    return activas.filter((r) => {
       if (quick === "jur" && r.tipo !== "Jur") return false;
       if (quick === "nat" && r.tipo !== "Nat") return false;
       return true;
     });
-  }, [rows, quick]);
+  }, [activas, quick]);
 
   const qfiltros = [
-    { k: "", lbl: "Todas", n: rows.length },
-    { k: "act", lbl: "Activos", n: rows.filter((r) => r.estado === "Act").length },
-    { k: "ina", lbl: "Inactivos", n: rows.filter((r) => r.estado === "Ina").length },
-    { k: "jur", lbl: "Jurídicas", n: rows.filter((r) => r.tipo === "Jur").length },
-    { k: "nat", lbl: "Naturales", n: rows.filter((r) => r.tipo === "Nat").length },
+    { k: "", lbl: "Todas", n: activas.length },
+    { k: "jur", lbl: "Jurídicas", n: activas.filter((r) => r.tipo === "Jur").length },
+    { k: "nat", lbl: "Naturales", n: activas.filter((r) => r.tipo === "Nat").length },
   ];
 
   const cols: Column<ClaveRow>[] = [
     { key: "num_id", label: "Id", type: "code", sortable: true, width: "12ch", value: (r) => r.num_id || "", render: (r) => <span className="mono">{r.num_id || "—"}</span> },
     { key: "cliente", label: "Cliente", sortable: true, filterable: true, className: "cli-full", value: (r) => r.cliente || "" },
-    { key: "estado", label: "Estado", type: "status", filterable: true, width: "9ch", value: (r) => (r.estado === "Act" ? "Activo" : r.estado === "Ina" ? "Inactivo" : "—"), render: (r) => r.estado === "Act" ? <span className="tag act">Activo</span> : r.estado === "Ina" ? <span className="tag ina">Inactivo</span> : <span style={{ color: "var(--ink-3)" }}>—</span> },
+    { key: "rl", label: "RL", sortable: true, filterable: true, width: "22ch", value: (r) => r.rl || "", render: (r) => r.rl ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.rl}>{r.rl}</span> : <span style={{ color: "var(--ink-3)" }}>—</span> },
     { key: "tipo", label: "Tipo", type: "status", filterable: true, width: "7ch", value: (r) => r.tipo || "—", render: (r) => r.tipo ? <span className={"tag " + (r.tipo === "Jur" ? "jur" : "nat")}>{r.tipo}</span> : <span style={{ color: "var(--ink-3)" }}>—</span> },
     { key: "portal", label: "Portal", align: "left", sortable: true, filterable: true, width: "20ch", value: (r) => r.portal || "—", render: (r) => r.portal ? <span className="tag int">{r.portal}</span> : <span className="tag ina">—</span> },
     { key: "url", label: "URL", align: "left", sortable: true, filterable: true, width: "24ch", value: (r) => r.url || "", render: (r) => r.url
@@ -143,7 +142,7 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
         {cargando
           ? <div className="grid-empty" style={{ padding: 20 }}>Cargando…</div>
           : <DataGrid columns={cols} rows={filtered} getKey={(r) => r.id} label="Claves de clientes"
-              storageKey="claves" searchable exportable={false} fitRows emptyLabel="No hay claves para mostrar."
+              storageKey="claves2" searchable exportable={false} fitRows emptyLabel="No hay claves para mostrar."
               actionsWidth="92px"
               toolbar={<>
                 <div className="qfbar">
@@ -166,7 +165,7 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
               ) : undefined} />}
       </div>
       <div className="gframe-foot">
-        {rows.length} registro{rows.length === 1 ? "" : "s"}
+        {activas.length} registro{activas.length === 1 ? "" : "s"}
         {(quick || "") && <><span className="gf-dot">·</span> {filtered.length} en vista</>}
         {actualizado && <><span className="gf-dot">·</span> Actualizado: {actualizado}</>}
       </div>

@@ -180,7 +180,7 @@ const SECCIONES: Sec[] = [
   },
   {
     id: "catalogos", titulo: "Catálogos", icono: "cat",
-    texto: "listas maestras obligaciontipo disparador familia duplicar cargos formas cobro entidades portales municipios ciiu formularios numero codigo calendario revisar dian de todos mantenimiento responsabilidades tipos documento software grupos activa inmutable genera pago formulario de pago plazo fatal consecuencia ineficacia exclusion rst hito recibo",
+    texto: "listas maestras obligaciontipo disparador familia duplicar cargos formas cobro entidades portales municipios ciiu formularios numero codigo calendario revisar dian de todos mantenimiento responsabilidades tipos documento software grupos activa inmutable genera pago formulario de pago plazo fatal consecuencia ineficacia exclusion rst hito recibo etapas subtareas pasos previos preparar data formato 1001 1003 1005 dias habiles antes orden reordenar nueva etapa flujo",
     cuerpo: (
       <>
         <P>🗃️ Las <b>listas maestras</b> que alimentan los combos y las reglas de toda la App. Se eligen en la columna izquierda y casi todas se editan igual: <b>+</b> para agregar, lápiz para editar, 🗑️ para borrar (si no está en uso).</P>
@@ -196,12 +196,21 @@ const SECCIONES: Sec[] = [
           <li><b>Plazo de pago fatal</b> y <b>Consecuencia:</b> plazo extra para pagar y qué pasa si no se paga (p. ej. <i>ineficacia</i> de la retención, <i>exclusión</i> del Régimen Simple). Alimentan el <b>segundo hito</b> (verificar el pago) en el Calendario.</li>
           <li><b>Activa:</b> interruptor universal — una obligación inactiva no se deriva a nadie.</li>
         </L>
-        <P>El modal de la obligación organiza estos campos en <b>subsecciones</b> (Identificación, Generación, Pago, Estado); los de pago se ven siempre y se habilitan al marcar <i>Genera pago</i>.</P>
+        <P>El modal de la obligación organiza estos campos en <b>subsecciones</b> (Identificación, Generación, Pago y Etapas). <b>Activa</b> vive en el título de Identificación y <b>Genera pago</b> en el de Pago; los demás campos de pago se ven siempre y se habilitan al marcar <i>Genera pago</i>.</P>
         <L>
           <li>📑 <b>Duplicar:</b> crea una nueva a partir de una existente (abre el modal con los datos ya puestos).</li>
           <li>🔄 <b>Revisar DIAN de todos:</b> mantenimiento en lote — compara el RUT de todos los clientes contra sus obligaciones y permite agregar faltantes / quitar sobrantes.</li>
         </L>
         <Nota>No se puede borrar una obligación con <b>entradas en el Calendario</b> (asignada a clientes, con plazos, cumplimientos o anclas). Si ya no se usa, <b>desactívala</b> en lugar de borrarla.</Nota>
+
+        <H e="🪜">Etapas de la obligación (subtareas previas)</H>
+        <P>Algunas obligaciones no se hacen de un solo golpe: tienen <b>pasos internos</b> que vencen <b>antes</b> que la obligación (p. ej. la <b>Exógena</b>: preparar la data → Formato 1001 → 1003 → 1005… → revisión y envío). Esos pasos son las <b>Etapas</b>, y se definen al <b>fondo del modal</b> de la obligación (sección <b>Etapas</b>, siempre visible).</P>
+        <L>
+          <li><b>＋ Nueva etapa</b> abre un formulario pequeño: <b>Nombre</b>, <b>Código</b> (opcional, p. ej. <code>1001</code>), <b>Días hábiles antes</b>, <b>Activa</b> y una <b>Nota</b>.</li>
+          <li><b>Días hábiles antes</b> es el corazón: cuántos días <b>hábiles antes del vencimiento</b> de la obligación debe quedar lista esa etapa. El <b>Calendario</b> usa ese número para calcular la fecha de cada etapa (ver <i>Obligaciones y Calendario</i>).</li>
+          <li>Ordénalas con <b>↑/↓</b> (el orden es el flujo de trabajo), edítalas o elimínalas. La tabla tiene su <b>propio scroll</b>: el formulario de arriba queda fijo.</li>
+        </L>
+        <Nota>Las etapas <b>cuelgan de la obligación</b>: para agregarlas, la obligación debe estar <b>guardada</b>. En una obligación <b>nueva</b>, primero guárdala; luego vuelve a abrirla y agrégalas.</Nota>
 
         <H e="📚">Otros catálogos</H>
         <L>
@@ -328,7 +337,7 @@ const SECCIONES: Sec[] = [
   },
   {
     id: "obligaciones", titulo: "Obligaciones y Calendario", icono: "calendar",
-    texto: "reparto calendario fechas vencimientos digito nit festivos aplicabilidad disparador cerebro cumplimiento derivada manual por revisar fuente unica reconciliacion genera pago segundo hito verificar pago recibo 490 formulario de pago como se forma generar calendarios año plazos fecha inicio por regla importar plantilla leer oficial excel dane municipio flag sin plazos publicar cruce mes año carga semaforo",
+    texto: "reparto calendario fechas vencimientos digito nit festivos aplicabilidad disparador cerebro cumplimiento derivada manual por revisar fuente unica reconciliacion genera pago segundo hito verificar pago recibo 490 formulario de pago como se forma generar calendarios año plazos fecha inicio por regla importar plantilla leer oficial excel dane municipio flag sin plazos publicar cruce mes año carga semaforo etapas subtareas pasos previos preparar data formato 1001 dias habiles antes plantilla materializar por cliente avance check vigencia molde impacta plazo fatal consecuencia ineficacia exclusion rst presentar que hago en cada app relacion dos apps",
     cuerpo: (
       <>
         <P>📅 Explica de dónde salen las obligaciones y las fechas, para entender por qué Maestros y el Calendario trabajan juntos sin duplicarse.</P>
@@ -359,7 +368,22 @@ const SECCIONES: Sec[] = [
         <Nota tipo="warn">Si una obligación nueva sale <b>«sin plazos»</b> o no aparece, falta <b>cargar sus plazos del año</b> en el Calendario (paso 2). En las <b>municipales</b> (ICA / ReteICA / Autorretención), además, el plazo lleva el <b>código DANE</b> del municipio y el cliente debe tener ese municipio con el <b>flag marcado</b>.</Nota>
 
         <Nota>Como el Calendario ya registra trabajo (cumplimientos/revisiones), <b>no se puede quitar una obligación que tenga esas entradas</b>; primero se desactiva o se limpian sus registros.</Nota>
-        <Nota tipo="tip">Cuando una obligación <b>genera pago</b> (se marca en su catálogo, con su <i>formulario de pago</i>), el Calendario suma un <b>segundo hito</b> para <b>verificar el pago</b> con el recibo (490), además de la presentación.</Nota>
+        <H e="🪜">Etapas: qué haces en cada app</H>
+        <P>Las <b>etapas</b> (los pasos previos de una obligación — preparar data, Formato 1001, 1002…, revisión) se reparten entre las dos apps igual que todo lo demás:</P>
+        <L>
+          <li>🧠 <b>En Maestros</b> defines la <b>plantilla</b> de etapas de cada <b>tipo</b> de obligación (orden, nombre y, sobre todo, los <b>días hábiles antes</b>). Es el "molde": vale para todos los clientes que tengan esa obligación. Se hace en <i>Catálogos → Obligaciones</i>, al fondo del modal.</li>
+          <li>🗓️ <b>En el Calendario</b> esa plantilla se <b>materializa por cliente</b> y el motor <b>deriva la fecha</b> de cada etapa = <b>vencimiento − días hábiles antes</b> (saltando festivos). Ahí también se registra el <b>avance</b>: un <b>check por etapa</b>, con su fecha, dentro de la obligación del período.</li>
+        </L>
+        <P><b>Cómo impacta lo uno en lo otro:</b> si cambias la plantilla en Maestros (agregas una etapa, mueves el orden, ajustas los días), el Calendario lo toma para lo que se materialice de ahí en adelante. El Calendario puede además <b>afinar por cliente</b> (una etapa extra, otros días) <b>sin tocar</b> tu plantilla — con <b>vigencia</b> desde/hasta, para no perder el histórico.</P>
+        <Nota tipo="tip">Regla simple: <b>el "qué" y el "cuántos días antes" se definen en Maestros; el "cuándo exacto" y el "ya se hizo" viven en el Calendario.</b></Nota>
+
+        <H e="💵">Obligaciones de pago (el segundo hito)</H>
+        <P>Cuando una obligación <b>genera pago</b> (se marca en su catálogo de Maestros, con su <b>Formulario de pago</b>), no basta con <b>presentarla</b>: hay que <b>pagarla</b>. Por eso el Calendario le agrega un <b>segundo hito</b>:</P>
+        <OL>
+          <li><b>1.er hito — presentar:</b> la declaración se presenta en su fecha de vencimiento (lo de siempre).</li>
+          <li><b>2.º hito — verificar el pago:</b> el Calendario cruza el pago con el <b>recibo oficial (490)</b> de ese formulario. Mientras no se verifique, la obligación no queda realmente cerrada.</li>
+        </OL>
+        <P>El <b>Plazo de pago fatal</b> y la <b>Consecuencia</b> (que defines en el catálogo de Maestros) le dicen al Calendario <b>hasta cuándo</b> hay para pagar y <b>qué está en juego</b> si no se paga a tiempo (p. ej. <i>ineficacia</i> de la retención, <i>exclusión</i> del Régimen Simple), para que alerte con la gravedad que corresponde.</P>
       </>
     ),
   },

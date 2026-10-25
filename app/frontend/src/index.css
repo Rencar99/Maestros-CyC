@@ -91,11 +91,24 @@ button{font-family:inherit}
 .topbar-row{height:64px;display:flex;align-items:center;gap:16px;padding:0 26px}
 .tb-eyebrow{font-size:10px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--gold);margin-bottom:2px}
 .topbar.marco h2{font-size:18px;font-weight:700;line-height:1.15}
-.tb-user{margin-left:auto;display:flex;align-items:center;gap:12px}
-.tb-who{display:flex;align-items:center;gap:9px;padding:4px 6px;border-radius:8px}
+.tb-user{position:relative;margin-left:auto;display:flex;align-items:center;gap:12px}
+.tb-who{display:flex;align-items:center;gap:9px;padding:5px 8px;border:none;background:none;border-radius:8px;cursor:pointer;font:inherit;transition:background .12s}
+.tb-who:hover,.tb-who.open{background:var(--info-bg)}
+.tb-who>svg{color:var(--ink-3);margin-left:2px}
 .tb-who .avatar{width:32px;height:32px}
 .tb-name{font-size:12px;font-weight:700;color:var(--ink);text-transform:uppercase;line-height:1.2}
 .tb-name span{display:block;font-size:10.5px;font-weight:400;color:var(--ink-3);text-transform:none}
+/* Menú de cuenta (estilo DIAN): se abre desde el chip; hoy solo Cerrar sesión. */
+.tb-menu{position:absolute;top:calc(100% + 6px);right:0;min-width:240px;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-2);padding:6px;z-index:60;animation:fade .14s ease}
+.tb-menu-head{display:flex;align-items:center;gap:10px;padding:8px 10px 10px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.tb-menu-head .avatar{width:34px;height:34px}
+.tb-menu-id b{display:block;font-size:12.5px;color:var(--ink);line-height:1.3}
+.tb-menu-id span{font-size:11px;color:var(--ink-3)}
+.tb-menu-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border:none;background:none;border-radius:7px;cursor:pointer;font:inherit;font-size:13px;color:var(--ink-2);text-align:left}
+.tb-menu-item:hover{background:var(--page)}
+.tb-menu-item.danger{color:var(--err)}
+.tb-menu-item.danger:hover{background:var(--err-bg)}
+.tb-menu-item svg{color:currentColor;flex:none}
 /* Pie del menú: estado del servidor de datos (el usuario subió a la barra) */
 .side-srv{gap:10px;padding:12px 10px 4px}
 .srv-dot{width:9px;height:9px;border-radius:50%;flex:none;background:#3ccf6e;box-shadow:0 0 0 3px rgba(60,207,110,.22)}
@@ -423,6 +436,25 @@ td.center,th.center{text-align:center}
 .cc-est.warn{background:var(--warn-bg);color:var(--warn)}
 .cc-sub{font-size:11px;color:var(--ink-3);margin-top:1px}
 .cc-nocorreo{color:var(--err);font-size:12px;display:inline-flex;align-items:center;gap:4px}
+.cc-adjunto{display:inline-flex;align-items:center;gap:7px;margin-top:10px;padding:6px 11px;border:1px solid var(--line-2);border-radius:6px;background:var(--info-bg);color:var(--ink-2);font-size:12px;cursor:pointer;max-width:100%}
+.cc-adjunto:hover{border-color:var(--primary)}
+.cc-adjunto .cc-adj-n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc-adjunto .cc-adj-ver{margin-left:4px;color:var(--primary);font-weight:700}
+/* Modal de obligación: el formulario queda fijo y SOLO la grilla de etapas
+   scrollea (el modal no). Mismo patrón que las fichas (modal-body:has(...)). */
+/* Un poco más ancho que un md normal (solo este modal) para que Pago quepa en
+   una línea y la grilla de etapas gane espacio. */
+.modal-card.md:has(.oblig-layout){max-width:1000px}
+.modal-body:has(.oblig-layout){display:flex;flex-direction:column;overflow:hidden}
+.oblig-layout{display:flex;flex-direction:column;flex:1;min-height:0}
+.oblig-layout>.fieldgroup{flex:none}
+.oblig-layout>.etapas-fg{flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:0}
+/* La grilla de etapas es una Grilla CyC estándar (DataGrid) enmarcada en la
+   sección: llena el alto que queda y scrollea ella sola (el form queda fijo). */
+.etapas-fg .grid-scroll{flex:1;min-height:280px;max-height:none;margin-top:10px;border:1px solid #BCC8D6;border-radius:2px}
+.etapas-fg td:nth-child(2){white-space:normal;line-height:1.3}
+.etapas-fg .act-btn{width:24px;height:22px;border-radius:4px}
+.etapas-fg .act-btn svg{width:14px;height:14px}
 .fact-kpis{display:flex;align-items:center;gap:0;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;margin:0 0 12px}
 .fact-kpis .ft{display:inline-flex;flex-direction:column;align-items:flex-start;gap:1px;padding:5px 18px;margin-left:14px;border-left:3px solid var(--ink-3);background:none;font-size:16px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.2}
 .fact-kpis .ft:first-child{margin-left:4px}
@@ -1181,6 +1213,10 @@ table.mtx td.mtx-c.hoy{background:var(--primary);color:#fff;font-weight:700;bord
 /* Modal de Obligaciones: rejilla de 2 columnas */
 .obl-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .obl-grid .obl-wide{grid-column:1 / -1}
+/* Fila de campos con ancho PROPIO por campo (no estirar al ancho del modal):
+   se empacan a la izquierda y envuelven; el ancho lo define cada .cq-fld. */
+.obl-row{display:flex;flex-wrap:wrap;gap:13px 16px;align-items:flex-start}
+.obl-row>.obl-full{flex:1 1 100%;width:auto}
 .obl-grid .obl-check{flex-direction:row;align-items:center;gap:9px}
 .obl-grid .obl-check input{width:16px;height:16px;accent-color:var(--azul-vivo)}
 .obl-grid .obl-check span{font-size:13px;font-weight:600;color:var(--ink)}

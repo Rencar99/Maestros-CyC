@@ -112,6 +112,27 @@ class ObligacionTipo(SQLModel, table=True):
     consecuencia_impago: str = ""        # "ineficacia" | "exclusion_rst" | "" (solo intereses)
 
 
+class ObligacionEtapa(SQLModel, table=True):
+    """Plantilla de ETAPAS/SUBTAREAS de una obligación, con vencimiento ANTERIOR
+    al de la obligación (p. ej. EXOG: preparar data, Formato 1001, 1002…).
+
+    Maestros es DUEÑO de esta plantilla (catálogo); el Calendario la materializa
+    por cliente (``clienteobligacionetapa``) y lleva el avance por período
+    (``etapacumplimiento``) — esas dos tablas las crea y gobierna el Calendario.
+    ``dias_antes`` son días HÁBILES antes del vencimiento de la obligación; el
+    Calendario deriva la fecha con su motor de hábiles + festivos.
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    obligacion_tipo_id: Optional[int] = Field(default=None, foreign_key="obligaciontipo.id", index=True)
+    orden: int = 0
+    nombre: str = ""                 # "Preparar la data", "Formato 1001"
+    codigo: str = ""                 # clave corta opcional ("1001", "1002")
+    dias_antes: int = 0              # días HÁBILES antes del vencimiento de la obligación
+    activa: bool = True
+    nota: str = ""
+
+
 class Cargo(SQLModel, table=True):
     """Cargos de la firma (lista editable desde Catálogos)."""
 

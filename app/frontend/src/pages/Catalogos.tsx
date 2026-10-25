@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { CatItem } from "../types";
 import { Icon, Toggle, useConfirm, useToast } from "../ui";
@@ -155,11 +155,41 @@ const DISP_TXT: Record<string, string> = { "": "— (manual)", renta_jur: "Renta
 interface EntidadItem { id: number; nombre: string; sigla: string; activo: boolean; }
 
 /** Modal (estándar CyC) para crear/editar una obligación del catálogo. */
-function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose, onSaved }: { obl: Oblig; entidades: EntidadItem[]; formularios: FormularioItem[]; onEntidadCreada: (e: EntidadItem) => void; onClose: () => void; onSaved: () => void }) {
+function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose, onSaved, foco }: { obl: Oblig; entidades: EntidadItem[]; formularios: FormularioItem[]; onEntidadCreada: (e: EntidadItem) => void; onClose: () => void; onSaved: () => void; foco?: "etapas" }) {
   const toast = useToast();
+  const confirmar = useConfirm();
   const editando = !!obl.id;
   const [f, setF] = useState<Oblig>(obl);
   const set = (patch: Partial<Oblig>) => setF((x) => ({ ...x, ...patch }));
+  // Etapas (subtareas) de la obligación: se gestionan aquí mismo. Cuelgan del id,
+  // así que solo cuando la obligación ya existe (editando).
+  const [etapas, setEtapas] = useState<Etapa[]>([]);
+  const [etEdit, setEtEdit] = useState<Etapa | null>(null);
+  const etapasRef = useRef<HTMLDivElement>(null);
+  const cargarEtapas = () => { if (obl.id) api.get(`/catalogos/obligacion-tipo/${obl.id}/etapas`).then(setEtapas).catch(() => {}); };
+  useEffect(() => { cargarEtapas(); }, []); // eslint-disable-line
+  useEffect(() => { if (foco === "etapas") etapasRef.current?.scrollIntoView({ block: "start" }); }, [foco]);
+  const moverEtapa = async (r: Etapa, dir: -1 | 1) => {
+    const i = etapas.findIndex((x) => x.id === r.id);
+    const j = i + dir;
+    if (j < 0 || j >= etapas.length) return;
+    const ids = etapas.map((x) => x.id);
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    try { setEtapas(await api.put(`/catalogos/obligacion-tipo/${obl.id}/etapas/orden`, { ids })); }
+    catch (e: any) { toast(e.message, true); }
+  };
+  const borrarEtapa = async (r: Etapa) => {
+    if ((await confirmar({ titulo: "Eliminar etapa", mensaje: `Se eliminará la etapa «${r.nombre}».`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
+    try { await api.del(`/catalogos/etapa/${r.id}`); cargarEtapas(); toast("Etapa eliminada ✓"); } catch (e: any) { toast(e.message, true); }
+  };
+  const nuevaEtapa = (): Etapa => ({ id: 0, obligacion_tipo_id: obl.id, orden: 0, nombre: "", codigo: "", dias_antes: 0, activa: true, nota: "" });
+  const colsEtapa: Column<Etapa>[] = [
+    { key: "orden", label: "#", align: "center", width: "44px", value: (r) => String(r.orden), render: (r) => <span className="pill">{r.orden}</span> },
+    { key: "nombre", label: "Etapa", value: (r) => r.nombre, render: (r) => <div>{r.nombre}{r.nota && <div className="cc-sub">{r.nota}</div>}</div> },
+    { key: "codigo", label: "Código", align: "center", width: "90px", value: (r) => r.codigo, render: (r) => r.codigo ? <span className="pill">{r.codigo}</span> : <span style={{ color: "var(--ink-3)" }}>—</span> },
+    { key: "dias_antes", label: "Días háb.", align: "center", width: "90px", value: (r) => String(r.dias_antes) },
+    { key: "activa", label: "Activa", align: "center", width: "80px", value: (r) => (r.activa ? "Sí" : "No"), render: (r) => <span style={{ color: r.activa ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{r.activa ? "Sí" : "No"}</span> },
+  ];
   // Crear entidad al vuelo (patrón "+") desde el campo Ente.
   const [entCreando, setEntCreando] = useState(false);
   const [entTxt, setEntTxt] = useState("");
@@ -200,17 +230,21 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
     } catch (e: any) { toast(e.message, true); }
   };
   return (
+    <>
     <Modal title={editando ? "Editar obligación" : "Nueva obligación"} icon="clipboard-check" size="md"
            onClose={onClose}
-           onSave={guardar}
-           aviso={editando ? "El código y el ente son la llave estable: no se cambian en una obligación existente." : undefined}>
-      <div className="fieldgroup"><h4>Identificación</h4>
-        <div className="obl-grid">
-          <label className="cq-fld"><span>Código</span>
+           onSave={guardar}>
+      <div className="oblig-layout">
+      <div className="fieldgroup"><h4 style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          Identificación
+          <span style={{ textTransform: "none", fontWeight: 400 }}><Toggle label="Activa" color="green" checked={f.activo} onChange={(v) => set({ activo: v })} /></span>
+        </h4>
+        <div className="obl-row">
+          <label className="cq-fld" style={{ width: 190 }}><span>Código</span>
             <input value={f.codigo} disabled={editando} style={{ textTransform: "uppercase" }} autoFocus={!editando}
                    title={editando ? "El código es la llave estable — no se puede cambiar" : ""}
                    onChange={(e) => set({ codigo: e.target.value })} placeholder="Ej. IVA_BIM" /></label>
-          <label className="cq-fld"><span>Ente</span>
+          <label className="cq-fld" style={{ width: 250 }}><span>Ente</span>
             {entCreando ? (
               <div className="catsel-row">
                 <input autoFocus value={entTxt} placeholder="Nueva entidad…" style={{ flex: 1 }}
@@ -231,51 +265,52 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
                 {!editando && <button type="button" className="icon-btn add-plus" title="Crear nueva entidad" onClick={() => { setEntTxt(""); setEntCreando(true); }}><Icon name="plus" size={16} /></button>}
               </div>
             )}</label>
-          <label className="cq-fld obl-wide"><span>Obligación</span>
+          <label className="cq-fld" style={{ width: 230 }}><span>Familia</span>
+            <select value={f.familia || "otras"} onChange={(e) => set({ familia: e.target.value })}>
+              {FAMILIAS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+          <label className="cq-fld obl-full"><span>Obligación</span>
             <input value={f.descripcion} disabled={editando}
                    title={editando ? "No se puede cambiar en una obligación existente" : ""}
                    onChange={(e) => set({ descripcion: e.target.value })} placeholder="Descripción de la obligación" /></label>
-          <label className="cq-fld"><span>Familia</span>
-            <select value={f.familia || "otras"} onChange={(e) => set({ familia: e.target.value })}>
-              {FAMILIAS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
         </div>
       </div>
 
       <div className="fieldgroup"><h4>Generación (Calendario)</h4>
-        <div className="obl-grid">
-          <label className="cq-fld"><span>Criterio</span>
+        <div className="obl-row">
+          <label className="cq-fld" style={{ width: 215 }}><span>Criterio</span>
             <select value={f.criterio} onChange={(e) => set({ criterio: e.target.value })}>
               {f.criterio && !CRITERIOS.includes(f.criterio) && <option value={f.criterio}>{CRIT_TXT[f.criterio] || f.criterio}</option>}
               {CRITERIOS.map((o) => <option key={o} value={o}>{CRIT_TXT[o] || o}</option>)}</select></label>
-          <label className="cq-fld"><span>Disparador (DIAN)</span>
+          <label className="cq-fld" style={{ width: 245 }}><span>Disparador (DIAN)</span>
             <select value={f.disparador} disabled={editando}
               title={editando ? "No se puede cambiar en una obligación existente" : ""}
               onChange={(e) => set({ disparador: e.target.value })}>
               {DISPARADORES.map((o) => <option key={o} value={o}>{DISP_TXT[o] ?? o}</option>)}</select></label>
-          <label className="cq-fld"><span>Tamaño de intervalo</span>
+          <label className="cq-fld" style={{ width: 135 }}><span>Tamaño de intervalo</span>
             <input type="number" min={0} value={f.tam_intervalo} disabled={!(f.criterio === "nit1" || f.criterio === "nit2")}
               title={(f.criterio === "nit1" || f.criterio === "nit2") ? "" : "Solo aplica cuando el criterio es por dígito de NIT"}
               onChange={(e) => set({ tam_intervalo: Number(e.target.value) || 0 })} /></label>
-          <label className="cq-fld"><span>Paso (días hábiles)</span>
+          <label className="cq-fld" style={{ width: 150 }}><span>Paso (días hábiles)</span>
             <input type="number" min={1} value={f.paso_dias_habiles} disabled={!(f.criterio === "nit1" || f.criterio === "nit2")}
               title={(f.criterio === "nit1" || f.criterio === "nit2") ? "" : "Solo aplica cuando el criterio es por dígito de NIT"}
               onChange={(e) => set({ paso_dias_habiles: Number(e.target.value) || 1 })} /></label>
         </div>
       </div>
 
-      <div className="fieldgroup"><h4>Pago</h4>
-        <div className="obl-grid">
-          <label className="cq-fld"><span>Genera pago</span>
-            <Toggle checked={f.genera_pago} color="green" label={f.genera_pago ? "Sí" : "No"}
-              onChange={(v) => set({ genera_pago: v, formulario_pago: v ? f.formulario_pago : "", plazo_pago_fatal_num: v ? f.plazo_pago_fatal_num : 0, plazo_pago_fatal_unidad: v ? f.plazo_pago_fatal_unidad : "", consecuencia_impago: v ? f.consecuencia_impago : "" })}
-              title="¿Esta obligación genera un pago a verificar? (retención, IVA, renta, consumo, ICA/ReteICA)" /></label>
-          <label className="cq-fld"><span>Formulario de pago</span>
+      <div className="fieldgroup"><h4 style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          Pago
+          <span style={{ textTransform: "none", fontWeight: 400 }}><Toggle checked={f.genera_pago} color="green" label={f.genera_pago ? "Sí" : "No"}
+            onChange={(v) => set({ genera_pago: v, formulario_pago: v ? f.formulario_pago : "", plazo_pago_fatal_num: v ? (f.plazo_pago_fatal_num || 60) : 0, plazo_pago_fatal_unidad: v ? (f.plazo_pago_fatal_unidad || "dias") : "", consecuencia_impago: v ? f.consecuencia_impago : "" })}
+            title="¿Esta obligación genera un pago a verificar? (retención, IVA, renta, consumo, ICA/ReteICA)" /></span>
+        </h4>
+        <div className="obl-row">
+          <label className="cq-fld" style={{ width: 300 }}><span>Formulario de pago</span>
             <select value={f.formulario_pago} disabled={!f.genera_pago} onChange={(e) => set({ formulario_pago: e.target.value })}>
               <option value="">— ninguno (municipal / sin 490) —</option>
               {f.formulario_pago && !formularios.some((x) => x.numero === f.formulario_pago) && <option value={f.formulario_pago}>{f.formulario_pago}</option>}
               {formularios.filter((x) => x.activo && x.numero).map((x) => <option key={x.id} value={x.numero}>{x.nombre}</option>)}
             </select></label>
-          <label className="cq-fld"><span>Plazo de pago fatal</span>
+          <label className="cq-fld" style={{ width: 280 }}><span>Plazo de pago fatal</span>
             <div className="catsel-row">
               <input type="number" min={0} style={{ width: 80 }} disabled={!f.genera_pago} value={f.plazo_pago_fatal_num}
                 onChange={(e) => set({ plazo_pago_fatal_num: Number(e.target.value) || 0 })} />
@@ -285,7 +320,7 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
                 <option value="meses">meses (desde el vencimiento)</option>
               </select>
             </div></label>
-          <label className="cq-fld"><span>Consecuencia si no paga</span>
+          <label className="cq-fld" style={{ width: 300 }}><span>Consecuencia si no paga</span>
             <select value={f.consecuencia_impago} disabled={!f.genera_pago} onChange={(e) => set({ consecuencia_impago: e.target.value })}>
               <option value="">Ninguna (solo intereses)</option>
               <option value="ineficacia">Ineficacia (se da por no presentada)</option>
@@ -294,9 +329,74 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
         </div>
       </div>
 
-      <div className="fieldgroup"><h4>Estado</h4>
+      <div className="fieldgroup etapas-fg" ref={etapasRef}>
+        <h4 style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          Etapas
+          {editando && <button type="button" className="btn sm primary" onClick={() => setEtEdit(nuevaEtapa())}><Icon name="plus" size={14} />Nueva etapa</button>}
+        </h4>
+        {!editando ? (
+          <div className="hint">Guarda la obligación para agregarle etapas.</div>
+        ) : (
+          <DataGrid columns={colsEtapa} rows={etapas} getKey={(r) => r.id} label="Etapas"
+            storageKey="cat-etapas-grid" scrollClass="etapas-grid" actionsWidth="118px"
+            searchable={false} exportable={false}
+            emptyLabel="Sin etapas. Usa «＋ Nueva etapa» (arriba)."
+            actions={(r) => <>
+              <button className="act-btn" title="Subir" disabled={etapas[0]?.id === r.id} onClick={() => moverEtapa(r, -1)}><Icon name="arrow-up" size={15} /></button>
+              <button className="act-btn" title="Bajar" disabled={etapas[etapas.length - 1]?.id === r.id} onClick={() => moverEtapa(r, 1)}><Icon name="arrow-down" size={15} /></button>
+              <button className="act-btn" title="Editar" onClick={() => setEtEdit(r)}><Icon name="edit" size={15} /></button>
+              <button className="act-btn del" title="Eliminar" onClick={() => borrarEtapa(r)}><Icon name="trash" size={15} /></button>
+            </>} />
+        )}
+      </div>
+      </div>
+    </Modal>
+    {etEdit && <EtapaModal tid={obl.id} etapa={etEdit.id ? etEdit : null} onClose={() => setEtEdit(null)} onSaved={cargarEtapas} />}
+    </>
+  );
+}
+
+interface Etapa { id: number; obligacion_tipo_id: number; orden: number; nombre: string; codigo: string; dias_antes: number; activa: boolean; nota: string; }
+
+/** Formulario de una etapa (subtarea) de la obligación. */
+function EtapaModal({ tid, etapa, onClose, onSaved }: { tid: number; etapa: Etapa | null; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const editando = !!etapa && etapa.id > 0;
+  const [f, setF] = useState<Etapa>(etapa ?? { id: 0, obligacion_tipo_id: tid, orden: 0, nombre: "", codigo: "", dias_antes: 0, activa: true, nota: "" });
+  const set = (p: Partial<Etapa>) => setF((x) => ({ ...x, ...p }));
+  const nombreRef = useRef<HTMLInputElement>(null);
+  const guardar = async () => {
+    if (!f.nombre.trim()) { toast("El nombre de la etapa es obligatorio", true); return; }
+    const payload = { nombre: f.nombre.trim(), codigo: f.codigo.trim(), dias_antes: Number(f.dias_antes) || 0, activa: f.activa, nota: f.nota.trim() };
+    try {
+      if (editando) {
+        await api.put(`/catalogos/etapa/${f.id}`, payload);
+        toast("Etapa actualizada ✓"); onSaved(); onClose();
+      } else {
+        // Crear y SEGUIR: guarda, refresca la grilla y deja el modal abierto con los
+        // mismos valores (reutilizables) para cargar la siguiente etapa de corrido.
+        // Se cierra con la × cuando termines.
+        await api.post(`/catalogos/obligacion-tipo/${tid}/etapas`, payload);
+        toast("Etapa creada ✓"); onSaved();
+        setTimeout(() => { nombreRef.current?.focus(); nombreRef.current?.select(); }, 0);
+      }
+    } catch (e: any) { toast(e.message, true); }
+  };
+  return (
+    <Modal title={editando ? "Editar etapa" : "Nueva etapa"} icon="list" size="md" onClose={onClose} onSave={guardar}
+           saveLabel={editando ? "Guardar" : "Guardar y seguir"}>
+      <div className="fieldgroup"><h4>Etapa</h4>
         <div className="obl-grid">
-          <div><Toggle label="Activa" color="green" checked={f.activo} onChange={(v) => set({ activo: v })} /></div>
+          <label className="cq-fld obl-wide"><span>Nombre</span>
+            <input ref={nombreRef} value={f.nombre} autoFocus onChange={(e) => set({ nombre: e.target.value })} placeholder="Ej. Preparar la data, Formato 1001" /></label>
+          <label className="cq-fld"><span>Código (opcional)</span>
+            <input value={f.codigo} onChange={(e) => set({ codigo: e.target.value })} placeholder="Ej. 1001" /></label>
+          <label className="cq-fld"><span>Días hábiles antes</span>
+            <input type="number" min={0} value={f.dias_antes} title="Días hábiles antes del vencimiento de la obligación (el Calendario deriva la fecha)"
+                   onChange={(e) => set({ dias_antes: Number(e.target.value) || 0 })} /></label>
+          <label className="cq-fld obl-wide"><span>Nota (opcional)</span>
+            <input value={f.nota} onChange={(e) => set({ nota: e.target.value })} /></label>
+          <div className="obl-wide"><Toggle label="Activa" color="green" checked={f.activa} onChange={(v) => set({ activa: v })} /></div>
         </div>
       </div>
     </Modal>
@@ -308,6 +408,7 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
   const confirmar = useConfirm();
   const [items, setItems] = useState<Oblig[]>([]);
   const [edit, setEdit] = useState<Oblig | null>(null);
+  const [focoEtapas, setFocoEtapas] = useState(false);
   const [entidades, setEntidades] = useState<EntidadItem[]>([]);
   const [formularios, setFormularios] = useState<FormularioItem[]>([]);
   // Revisión DIAN en lote (revisable, nada se aplica en silencio). Muestra el
@@ -345,7 +446,7 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
     if ((await confirmar({ titulo: "Eliminar obligación", mensaje: `Se eliminará «${r.descripcion}» (${r.codigo}). No se puede si está asignada a clientes o con plazos.`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
     try { await api.del(`/catalogos/obligacion-tipo/${r.id}`); load(); toast("Eliminada"); } catch (e: any) { toast(e.message, true); }
   };
-  const vacio = (): Oblig => ({ id: 0, codigo: "", descripcion: "", ente: "DIAN", criterio: "nit1", periodicidad: "", origen: "manual", disparador: "", activo: true, tam_intervalo: 0, paso_dias_habiles: 1, familia: "otras", genera_pago: false, formulario_pago: "", plazo_pago_fatal_num: 0, plazo_pago_fatal_unidad: "", consecuencia_impago: "" });
+  const vacio = (): Oblig => ({ id: 0, codigo: "", descripcion: "", ente: "DIAN", criterio: "nit1", periodicidad: "", origen: "manual", disparador: "", activo: true, tam_intervalo: 0, paso_dias_habiles: 1, familia: "otras", genera_pago: false, formulario_pago: "", plazo_pago_fatal_num: 60, plazo_pago_fatal_unidad: "dias", consecuencia_impago: "" });
 
   const cols: Column<Oblig>[] = [
     { key: "codigo", label: "Código", sortable: true, filterable: true, width: "130px", value: (r) => r.codigo, render: (r) => <span className="pill">{r.codigo}</span> },
@@ -366,18 +467,19 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
           {esSuper && <button className="btn sm" onClick={abrirBatch}
             title="Revisa el diff DIAN de todos los clientes con RUT y aplica agregar/quitar (con confirmación). Úsalo tras cambiar una regla del catálogo. Conserva las manuales.">
             <Icon name="check-circle" size={15} />Revisar DIAN de todos</button>}
-          {puedeEditar && <button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nueva Obligación</button>}
+          {puedeEditar && <button className="btn primary sm" onClick={() => { setFocoEtapas(false); setEdit(vacio()); }}><Icon name="plus" size={16} />Nueva Obligación</button>}
         </>}>
         <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
           label="Obligaciones" scrollClass="cat-scroll" storageKey="cat-oblig" fitRows
-          searchable exportable actionsWidth="120px" emptyLabel="Sin obligaciones."
+          searchable exportable actionsWidth="150px" emptyLabel="Sin obligaciones."
           actions={puedeEditar ? (r) => <>
-            <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
-            <button className="act-btn" title="Duplicar (nueva con estos datos)" onClick={() => setEdit({ ...r, id: 0 })}><Icon name="copy" size={15} /></button>
+            <button className="act-btn" title="Etapas (subtareas)" onClick={() => { setFocoEtapas(true); setEdit(r); }}><Icon name="list" size={15} /></button>
+            <button className="act-btn" title="Editar" onClick={() => { setFocoEtapas(false); setEdit(r); }}><Icon name="edit" size={15} /></button>
+            <button className="act-btn" title="Duplicar (nueva con estos datos)" onClick={() => { setFocoEtapas(false); setEdit({ ...r, id: 0 }); }}><Icon name="copy" size={15} /></button>
             <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
           </> : undefined} />
       </CatShell>
-      {edit && <ObligacionModal obl={edit} entidades={entidades} formularios={formularios}
+      {edit && <ObligacionModal obl={edit} entidades={entidades} formularios={formularios} foco={focoEtapas ? "etapas" : undefined}
         onEntidadCreada={(e) => setEntidades((prev) => [...prev, e].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")))}
         onClose={() => setEdit(null)} onSaved={load} />}
       {batchOpen && <Modal title="Revisar obligaciones DIAN — todos los clientes" icon="check-circle" size="md"

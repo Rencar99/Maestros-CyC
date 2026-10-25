@@ -82,7 +82,7 @@ function CorreoEnvioCard() {
           <>
             <div className="f"><label>Asunto del correo</label><input value={f.asunto} onChange={(e) => set({ asunto: e.target.value })} /></div>
             <div className="f" style={{ marginTop: 10 }}><label>Cuerpo del correo</label><textarea rows={5} value={f.cuerpo} onChange={(e) => set({ cuerpo: e.target.value })} style={{ width: "100%", resize: "vertical" }} /></div>
-            <div style={{ marginTop: 6, fontSize: 12, color: "var(--ink-3)" }}>Variables disponibles: {"{numero} {mes} {anio} {cliente}"}</div>
+            <div style={{ marginTop: 6, fontSize: 12, color: "var(--ink-3)" }}>Variables disponibles: {"{numero} {mes} {anio} {cliente} {emisor}"}</div>
             <div style={{ marginTop: 16 }}><button className="btn primary" onClick={guardar} disabled={guardando}><Icon name="save" size={16} />{guardando ? "Guardando…" : "Guardar"}</button></div>
           </>
         )}
