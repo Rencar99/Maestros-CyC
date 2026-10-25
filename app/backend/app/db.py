@@ -74,6 +74,7 @@ def init_db() -> None:
 
     SQLModel.metadata.create_all(engine)
     _ensure_columns()
+    _ensure_views()
 
 
 def _ensure_columns() -> None:
@@ -198,6 +199,70 @@ def _ensure_columns() -> None:
         if not ya_fatal:
             _sembrar_pago_fatal(conn)
         _agente_retenedor_derivado(conn)
+
+
+def _ensure_views() -> None:
+    """Vistas de PERMISOS EFECTIVOS para las otras apps (Calendario, Liquidador,
+    Descargas DIAN), que leen esta BD compartida directo. Son la FUENTE ÚNICA que
+    reemplaza el que cada app traduzca el texto `usuario.rol`: así crear/renombrar
+    roles deja de mover autorizaciones en silencio. ``CREATE OR REPLACE`` idempotente
+    (se refresca en cada arranque). Solo Postgres.
+
+    - ``usuario_permiso_efectivo(usuario_id, usuario, permiso)``: una fila por par.
+      El Super (texto 'superadmin' O rol de sistema activo) aparece con TODOS los
+      permisos del catálogo, expandidos en filas (ninguna app reescribe "si super→
+      todo"). Calca ``deps.permisos_de``. Solo usuarios activos; en la vía por rol,
+      solo roles activos.
+    - ``usuario_formulario_autorizado(usuario_id, usuario, formulario, formulario_numero,
+      formulario_id)``: quién puede PRESENTAR cada formulario (matriz usuario×formulario).
+      El Super puede todos (expandido). ``formulario`` = `codigo_calendario` (llave
+      estable); se incluye `numero` ("350") por conveniencia. Solo formularios activos.
+
+    ⚠️ Contrato cross-app: la `clave` de permiso y el `codigo_calendario` son
+    identificadores ESTABLES (no renombrar sin avisar a las 3 apps; la etiqueta sí
+    es libre). GRANT SELECT al rol de conexión ``cardona_app``.
+    """
+    if _ES_SQLITE:
+        return
+    from .config import DB_SCHEMA as s
+    with engine.begin() as conn:
+        conn.execute(text(f'''
+CREATE OR REPLACE VIEW "{s}".usuario_permiso_efectivo AS
+SELECT u.id AS usuario_id, u.usuario AS usuario, p.clave AS permiso
+  FROM "{s}".usuario u
+  CROSS JOIN "{s}".permiso p
+ WHERE u.activo
+   AND (u.rol = 'superadmin'
+        OR EXISTS (SELECT 1 FROM "{s}".rol r
+                    WHERE r.id = u.rol_id AND r.sistema AND r.activo))
+UNION
+SELECT u.id, u.usuario, rp.permiso_clave
+  FROM "{s}".usuario u
+  JOIN "{s}".rol r ON r.id = u.rol_id AND r.activo AND NOT r.sistema
+  JOIN "{s}".rolpermiso rp ON rp.rol_id = r.id
+ WHERE u.activo AND u.rol IS DISTINCT FROM 'superadmin'
+'''))
+        conn.execute(text(f'''
+CREATE OR REPLACE VIEW "{s}".usuario_formulario_autorizado AS
+SELECT u.id AS usuario_id, u.usuario AS usuario,
+       f.codigo_calendario AS formulario, f.numero AS formulario_numero, f.id AS formulario_id
+  FROM "{s}".usuario u
+  CROSS JOIN "{s}".formulario f
+ WHERE u.activo AND f.activo
+   AND (u.rol = 'superadmin'
+        OR EXISTS (SELECT 1 FROM "{s}".rol r
+                    WHERE r.id = u.rol_id AND r.sistema AND r.activo))
+UNION
+SELECT u.id, u.usuario, f.codigo_calendario, f.numero, f.id
+  FROM "{s}".usuario u
+  JOIN "{s}".usuarioformulario uf ON uf.usuario_id = u.id
+  JOIN "{s}".formulario f ON f.id = uf.formulario_id AND f.activo
+ WHERE u.activo AND u.rol IS DISTINCT FROM 'superadmin'
+'''))
+        # GRANT SELECT al rol de conexión de las otras apps (si existe ese rol).
+        if conn.execute(text("SELECT 1 FROM pg_roles WHERE rolname='cardona_app'")).first():
+            for v in ("usuario_permiso_efectivo", "usuario_formulario_autorizado"):
+                conn.execute(text(f'GRANT SELECT ON "{s}".{v} TO cardona_app'))
 
 
 def _sembrar_pago(conn) -> None:
