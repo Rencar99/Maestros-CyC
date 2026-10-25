@@ -17,7 +17,7 @@ const SEC: Record<string, { lbl: string; icon: string }> = {
 const SENSIBLE = new Set(["eliminar", "revelar"]);   // acciones sensibles → color peligro
 // Permisos que además definen el "rol efectivo" que leen otras apps (Calendario,
 // Liquidador, Descargas DIAN): concederlos a un rol lo vuelve 'admin' allá.
-const CROSS_APP = new Set(["config.roles", "responsables.editar", "catalogos.editar"]);
+const CROSS_APP = new Set(["config.roles", "responsables.editar", "catalogos.editar", "clientes.ver_todos"]);
 
 type Mapa = Record<number, Set<string>>;
 const clonar = (m: Mapa): Mapa => Object.fromEntries(Object.entries(m).map(([k, v]) => [Number(k), new Set(v)]));

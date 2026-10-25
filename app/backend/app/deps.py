@@ -8,6 +8,14 @@ from .db import get_session
 from .models import Permiso, Rol, RolPermiso, Usuario
 from .security import leer_token
 
+# Permisos que hacen a un rol "administrador de la firma" (texto de compat 'admin',
+# y permiso cross-app `clientes.ver_todos`). Son los que SOLO tienen los roles de
+# GESTIÓN (Coordinador/Administrador), nunca un rol operativo como Contador (que
+# crea/edita datos pero no administra). Fuente ÚNICA: la usan `responsables._sync_rol`,
+# la siembra de `seed` y la prueba de regresión. ⚠️ Contrato cross-app: cambiar este
+# conjunto mueve autorizaciones en Calendario/Liquidador/Descargas DIAN.
+ADMIN_PERMISOS = {"config.roles", "responsables.editar", "catalogos.editar"}
+
 
 def permisos_de(session: Session, user: Usuario) -> set[str]:
     """Conjunto de claves de permiso del usuario. Super (por rol de sistema o por

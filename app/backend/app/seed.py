@@ -13,6 +13,7 @@ from pathlib import Path
 from sqlmodel import Session, select
 
 from .db import engine
+from .deps import ADMIN_PERMISOS
 from .models import (Cargo, Ciiu, Entidad, FormaCobro, Municipio, ObligacionTipo,
                      Permiso, Responsabilidad, Rol, RolPermiso, TipoDocumento,
                      Usuario)
@@ -75,7 +76,11 @@ def bootstrap_formas_cobro() -> None:
 PERMISOS_CAT = [
     ("clientes", [("ver", "Ver"), ("crear", "Crear"), ("editar", "Editar"),
                   ("eliminar", "Eliminar"), ("exportar", "Exportar"), ("importar", "Importar"),
-                  ("ver_confidencial", "Ver confidenciales")]),
+                  ("ver_confidencial", "Ver confidenciales"),
+                  # Alcance: ve TODOS los clientes (no solo los asignados). Lo consumen
+                  # otras apps vía la vista de permisos efectivos (Liquidador, Descargas
+                  # DIAN). Solo roles de gestión; NO derivar de permisos de escritura.
+                  ("ver_todos", "Ver todos los clientes")]),
     ("responsables", [("ver", "Ver"), ("crear", "Crear"), ("editar", "Editar"), ("eliminar", "Eliminar")]),
     ("claves", [("ver", "Ver"), ("crear", "Crear"), ("editar", "Editar"),
                 ("eliminar", "Eliminar"), ("revelar", "Revelar clave"), ("exportar", "Exportar")]),
@@ -88,7 +93,7 @@ PERMISOS_CAT = [
 
 # Permisos por rol semilla (replican el comportamiento actual). Super = todos.
 _ADMIN_PERMS = (
-    ["clientes." + a for a in ("ver", "crear", "editar", "eliminar", "exportar")]
+    ["clientes." + a for a in ("ver", "crear", "editar", "eliminar", "exportar", "ver_todos")]
     + ["responsables." + a for a in ("ver", "crear", "editar", "eliminar")]
     + ["claves." + a for a in ("ver", "crear", "editar", "eliminar", "revelar", "exportar")]
     + ["catalogos.ver", "catalogos.editar"]
@@ -114,6 +119,7 @@ def bootstrap_roles() -> None:
         # 1) Catálogo de permisos (idempotente por clave; refresca etiqueta/orden).
         orden = 0
         nuevo_generar = False
+        nuevo_ver_todos = False
         for sec, accs in PERMISOS_CAT:
             for acc, etq in accs:
                 clave = f"{sec}.{acc}"
@@ -121,6 +127,8 @@ def bootstrap_roles() -> None:
                 if not p:
                     if clave == "consultas.generar":
                         nuevo_generar = True
+                    if clave == "clientes.ver_todos":
+                        nuevo_ver_todos = True
                     s.add(Permiso(clave=clave, seccion=sec, accion=acc, etiqueta=etq, orden=orden))
                 else:
                     p.etiqueta = etq; p.orden = orden; s.add(p)
@@ -155,6 +163,19 @@ def bootstrap_roles() -> None:
                     RolPermiso.permiso_clave == "consultas.ver")).first()
                 if not tiene:
                     s.add(RolPermiso(rol_id=rol.id, permiso_clave="consultas.ver"))
+            s.commit()
+        # 3c) Migración única al estrenar "clientes.ver_todos": concederlo SOLO a los
+        #     roles de GESTIÓN existentes (los que ya tienen algún ADMIN_PERMISOS:
+        #     Coordinador/Administrador), NO a Consulta/Contador — eso ensancharía el
+        #     acceso en silencio, justo lo que evitamos. El Super lo tiene por `sistema`.
+        if nuevo_ver_todos:
+            for rol in s.exec(select(Rol)).all():
+                if rol.sistema:
+                    continue
+                claves = set(s.exec(select(RolPermiso.permiso_clave).where(
+                    RolPermiso.rol_id == rol.id)).all())
+                if claves & ADMIN_PERMISOS and "clientes.ver_todos" not in claves:
+                    s.add(RolPermiso(rol_id=rol.id, permiso_clave="clientes.ver_todos"))
             s.commit()
         # 4) Migrar usuarios sin rol_id, según su `rol` de texto.
         mapa = {"superadmin": roles["Super Usuario"].id,

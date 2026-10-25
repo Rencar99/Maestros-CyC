@@ -6,20 +6,15 @@ from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from ..db import get_session
-from ..deps import get_current_user, require_perm
+from ..deps import ADMIN_PERMISOS, get_current_user, require_perm
 from ..models import Cliente, Rol, RolPermiso, Usuario, UsuarioFormulario
 from ..schemas import ResponsableCreate, ResponsableRead, ResponsableUpdate
 from ..security import decrypt, encrypt, hash_password
 
 router = APIRouter(prefix="/api/responsables", tags=["responsables"])
 
-# Permisos que hacen a un rol "admin" (texto de compat 'admin'). Son los que SOLO
-# tienen los roles de gestión de la firma (Coordinador/Administrador), nunca un rol
-# operativo como Contador. Fuente ÚNICA de la regla: la usan `_sync_rol` y la prueba
-# de regresión. ⚠️ Contrato cross-app: el texto `usuario.rol` lo leen literal
-# Calendario / Liquidador / Descargas DIAN para autorizar — cambiar este conjunto
-# mueve autorizaciones en esas apps. Ver memoria rbac-roles-permisos.
-ADMIN_PERMISOS = {"config.roles", "responsables.editar", "catalogos.editar"}
+# ADMIN_PERMISOS (regla de rol "admin") vive en deps.py (fuente única); se re-exporta
+# aquí por compatibilidad de imports (p.ej. la prueba de regresión).
 
 
 def _read(u: Usuario) -> ResponsableRead:
