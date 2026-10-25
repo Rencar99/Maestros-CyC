@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
+import { useActiveReload } from "../useActiveReload";
 import { CatItem, Cliente, ClienteClave, ClienteListItem, MunicipioIca, Obligacion, Responsable, Servicio } from "../types";
 import { ClaveCell, copiar, fmtMiles, fmtTel, Icon, money, pesos, soloDig, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
@@ -297,9 +298,9 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
     api.get("/catalogos/responsabilidad").then(setRespsCat).catch(() => {});
     api.get("/catalogos/emisor").then((es: any[]) => setEmisores(es.filter((e) => e.activo))).catch(() => {});
   }, []); // eslint-disable-line
-  // El dataset lo carga el efecto de `active`: cubre el montaje (active ya es true)
-  // y el regreso a la pestaña (la App mantiene las páginas montadas). Un solo fetch.
-  useEffect(() => { if (active) load(); }, [active]); // eslint-disable-line
+  // Carga al montar y al volver a la pestaña, pero solo si hubo escrituras desde la
+  // última vez (keep-alive + epoch de datos): no re-consulta en navegación sin cambios.
+  useActiveReload(active, load);
 
   const [autoRut, setAutoRut] = useState(false);
   const [orden, setOrden] = useState<number[]>([]);   // orden visible de la grilla (para navegar)
@@ -642,7 +643,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     if (!oblDraft) return;
     if (!oblDraft.obligacion_tipo_id) { toast("Elige la obligación del catálogo", true); return; }
     if (obl.some((o) => o.obligacion_tipo_id === oblDraft.obligacion_tipo_id)) { toast("Esa obligación ya está en el cliente", true); return; }
-    setC((o) => ({ ...o, obligaciones: [...(o.obligaciones ?? []), { obligacion_tipo_id: oblDraft.obligacion_tipo_id, periodicidad: "", desde: "", observaciones: "" }] }));
+    setC((o) => ({ ...o, obligaciones: [...(o.obligaciones ?? []), mkObl(oblDraft.obligacion_tipo_id!)] }));
     setOblDraft(null);
   };
   // Revisar obligaciones DIAN (100% manual, nada se aplica solo). Pide al backend
@@ -655,7 +656,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     if (!(c.responsabilidades || []).length) { toast("Primero importa el RUT (no hay responsabilidades para revisar).", true); return; }
     setRevisando(true);
     try {
-      const r = await api.post("/clientes/derivar-preview", c);
+      const r = await api.query("/clientes/derivar-preview", c);
       const aplic = (r.aplican || []) as number[];
       const aplicSet = new Set(aplic);
       const present = (c.obligaciones ?? []).map((o) => o.obligacion_tipo_id);

@@ -9,7 +9,7 @@ from __future__ import annotations
 from sqlalchemy.orm import defer
 from sqlmodel import Session, select
 
-from .deps import permisos_de
+from .deps import es_super, permisos_de
 from .models import Cliente, Usuario
 
 
@@ -22,7 +22,11 @@ def cliente_liviano():
 
 
 def ve_confidencial(session: Session, user: Usuario) -> bool:
-    """¿Es "supervisor"? (permiso clientes.ver_confidencial; Super siempre)."""
+    """¿Es "supervisor"? (permiso clientes.ver_confidencial; Super siempre). Super
+    corta temprano (es_super) para no expandir todo el catálogo de permisos solo
+    para comprobar una membresía."""
+    if es_super(session, user):
+        return True
     return "clientes.ver_confidencial" in permisos_de(session, user)
 
 
@@ -52,3 +56,25 @@ def ids_asignados(session: Session, user: Usuario) -> set[int] | None:
     if user.rol in ("admin", "superadmin"):
         return None
     return asignados_de(session, user)
+
+
+def alcance_de(session: Session, user: Usuario) -> tuple[set[int] | None, set[int]]:
+    """``(permitidos, ocultos)`` en UNA sola pasada, para los endpoints que necesitan
+    ambos (lo normal). Evita recalcular ``asignados_de`` (lo hacían `ids_asignados` y
+    `confid_ocultos` por separado) y corta Super sin expandir el catálogo de permisos.
+      · permitidos: ids visibles por asignación; ``None`` = ve TODOS (Admin/Super).
+      · ocultos: confidenciales que el usuario NO puede ver (supervisor → ∅)."""
+    es_sup = es_super(session, user)
+    admin_like = es_sup or user.rol == "admin"
+    supervisor = es_sup or ("clientes.ver_confidencial" in permisos_de(session, user))
+    asignados = None
+    if not admin_like or not supervisor:
+        asignados = asignados_de(session, user)  # una sola vez
+    permitidos = None if admin_like else asignados
+    if supervisor:
+        ocultos: set[int] = set()
+    else:
+        conf = set(session.exec(
+            select(Cliente.id).where(Cliente.confidencial == True)).all())  # noqa: E712
+        ocultos = conf - (asignados or set())
+    return permitidos, ocultos

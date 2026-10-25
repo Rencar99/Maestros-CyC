@@ -138,8 +138,18 @@ def _sync_hijas(session: Session, cliente_id: int, data: ClienteCreate,
                                         **s.model_dump()))
     for m in data.municipios_ica:
         session.add(ClienteMunicipioIca(cliente_id=cliente_id, **m.model_dump()))
-    for ob in data.obligaciones:
-        session.add(ClienteObligacion(cliente_id=cliente_id, **ob.model_dump()))
+    # La periodicidad de la obligación del cliente NO se edita por cliente (no hay
+    # UI para ella): es un atributo del catálogo. Fuente única = ObligacionTipo, para
+    # que el Calendario genere los vencimientos con la frecuencia correcta. Ignoramos
+    # lo que mande el front (histórico: caía "Mensual" por el default del schema).
+    if data.obligaciones:
+        _tids = {ob.obligacion_tipo_id for ob in data.obligaciones if ob.obligacion_tipo_id}
+        _per = {t.id: t.periodicidad for t in session.exec(
+            select(ObligacionTipo).where(ObligacionTipo.id.in_(_tids))).all()} if _tids else {}
+        for ob in data.obligaciones:
+            d = ob.model_dump()
+            d["periodicidad"] = (_per.get(ob.obligacion_tipo_id) or "").strip() or "Anual"
+            session.add(ClienteObligacion(cliente_id=cliente_id, **d))
 
 
 # Campos comerciales que el Administrador NO puede ver ni modificar (solo superusuario).
@@ -172,14 +182,13 @@ def _leer(session: Session, c: Cliente, ver_comercial: bool = True) -> ClienteRe
 def listar(session: Session = Depends(get_session), user: Usuario = Depends(get_current_user)):
     # Alcance por asignación: cada usuario ve SOLO sus clientes asignados
     # (responsable/coordinador de impuestos o financiero). Admin/Super ven todos.
-    ids = _ids_asignados(session, user)
+    ids, ocultos = _alcance_de(session, user)    # asignación + confidenciales, una pasada
     # Sin columnas pesadas (logo/objeto_social/notas): el listado no las usa.
     q = select(Cliente).options(*cliente_liviano())
     if ids is not None:
         if not ids:
             return []
         q = q.where(Cliente.id.in_(ids))
-    ocultos = _confid_ocultos(session, user)     # confidenciales: supervisor O asignado
     if ocultos:
         q = q.where(Cliente.id.notin_(ocultos))
     clientes = session.exec(q).all()
@@ -270,9 +279,9 @@ def obtener(cid: int, session: Session = Depends(get_session), u: Usuario = Depe
     c = session.get(Cliente, cid)
     if not c:
         raise HTTPException(404, "Cliente no encontrado")
-    if cid in _confid_ocultos(session, u):   # confidencial que no puede ver (ni asignado ni supervisor)
+    ids, ocultos = _alcance_de(session, u)   # alcance por asignación (None=todos) + confidenciales
+    if cid in ocultos:   # confidencial que no puede ver (ni asignado ni supervisor)
         raise HTTPException(404, "Cliente no encontrado")
-    ids = _ids_asignados(session, u)   # alcance por asignación (None = Admin/Super = todos)
     if ids is not None and cid not in ids:
         raise HTTPException(403, "Este cliente no está asignado a tu usuario")
     return _leer(session, c, ver_comercial=(u.rol == "superadmin"))
@@ -337,8 +346,8 @@ def _clave_dict(k: ClienteClave, portales: dict) -> dict:
 
 
 # Reglas de alcance/confidencialidad: fuente única en ``scope`` (ver scope.py).
-from ..scope import (cliente_liviano, confid_ocultos as _confid_ocultos,  # noqa: E402
-                     ids_asignados as _ids_asignados, ve_confidencial as _ve_confidencial)
+from ..scope import (alcance_de as _alcance_de, cliente_liviano,  # noqa: E402
+                     ve_confidencial as _ve_confidencial)
 
 
 @router.get("/claves/todas")
@@ -347,8 +356,7 @@ def listar_todas_claves(session: Session = Depends(get_session),
     """Todas las claves visibles para el usuario (SIN la clave en claro).
     Admin/Super ven todas; los demás solo las de sus clientes asignados.
     Alimenta la vista global 'Claves'. Se revela una a una con /claves/{kid}/revelar."""
-    permitidos = _ids_asignados(session, user)
-    ocultos = _confid_ocultos(session, user)
+    permitidos, ocultos = _alcance_de(session, user)
     portales = {p.id: p.descripcion for p in session.exec(select(Portal)).all()}
     clientes = {c.id: c for c in session.exec(select(Cliente).options(*cliente_liviano())).all()}
     filas = []
@@ -377,9 +385,9 @@ def revelar_clave_global(kid: int, session: Session = Depends(get_session),
     k = session.get(ClienteClave, kid)
     if not k:
         raise HTTPException(404, "Clave no encontrada")
-    if k.cliente_id in _confid_ocultos(session, user):   # confidencial no visible para este usuario
+    permitidos, ocultos = _alcance_de(session, user)
+    if k.cliente_id in ocultos:   # confidencial no visible para este usuario
         raise HTTPException(404, "Clave no encontrada")
-    permitidos = _ids_asignados(session, user)
     if permitidos is not None and k.cliente_id not in permitidos:
         raise HTTPException(403, "No tiene acceso a las claves de este cliente")
     if not k.clave_enc:
@@ -392,8 +400,7 @@ def revelar_todas_claves(session: Session = Depends(get_session),
                          user: Usuario = Depends(require_perm("claves.revelar"))):
     """Devuelve {id, clave} en claro de todas las claves visibles para el usuario
     (Admin/Super o sus clientes asignados). Alimenta el 'mostrar toda la columna'."""
-    permitidos = _ids_asignados(session, user)
-    ocultos = _confid_ocultos(session, user)
+    permitidos, ocultos = _alcance_de(session, user)
     out = []
     for k in session.exec(select(ClienteClave)).all():
         if permitidos is not None and k.cliente_id not in permitidos:
@@ -416,8 +423,7 @@ def exportar_claves(session: Session = Depends(get_session),
     Respeta el filtro por asignación (cada quien exporta solo lo suyo)."""
     from ..export_xlsx import tabla_simple
 
-    permitidos = _ids_asignados(session, user)
-    ocultos = _confid_ocultos(session, user)
+    permitidos, ocultos = _alcance_de(session, user)
     portales = {p.id: p.descripcion for p in session.exec(select(Portal)).all()}
     clientes = {c.id: c for c in session.exec(select(Cliente).options(*cliente_liviano())).all()}
     filas = []

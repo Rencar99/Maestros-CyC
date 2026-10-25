@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import { useActiveReload } from "../useActiveReload";
 import { Responsable } from "../types";
 import { fmtTel, Icon, soloDig, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
@@ -49,8 +50,8 @@ export function Responsables({ esSuper = false, puede, active = true }: { esSupe
     load();
     api.get("/catalogos/cargo").then((cs: Cat[]) => setCargos(cs.filter((c) => c.activo))).catch(() => {});
   }, []); // eslint-disable-line
-  // La App mantiene las páginas montadas (display:none); re-leer al volver a entrar.
-  useEffect(() => { if (active) load(); }, [active]); // eslint-disable-line
+  // Re-leer al volver a entrar solo si hubo escrituras desde la última vez (epoch).
+  useActiveReload(active, load);
 
   const inic = (n: string) => (n || "?").split(" ").map((x) => x[0]).slice(0, 2).join("").toUpperCase();
   const cols: Column<Responsable>[] = [

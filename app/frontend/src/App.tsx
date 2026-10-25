@@ -1,19 +1,34 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, clearToken, getToken } from "./api";
 import { Responsable } from "./types";
 import { ConfirmProvider, Icon, ToastProvider } from "./ui";
 import { Splash } from "./components/Splash";
 import { Login } from "./pages/Login";
-import { Clientes } from "./pages/Clientes";
-import { Responsables } from "./pages/Responsables";
-import { Catalogos } from "./pages/Catalogos";
-import { Facturacion } from "./pages/Facturacion";
-import { CuentasCobro } from "./pages/CuentasCobro";
-import { Claves } from "./pages/Claves";
-import { Consultas } from "./pages/Consultas";
-import { ConsultasPublicas } from "./pages/ConsultasPublicas";
-import { Config } from "./pages/Config";
+import { Clientes as ClientesRaw } from "./pages/Clientes";
+import { Responsables as ResponsablesRaw } from "./pages/Responsables";
+import { Catalogos as CatalogosRaw } from "./pages/Catalogos";
+import { Facturacion as FacturacionRaw } from "./pages/Facturacion";
+import { CuentasCobro as CuentasCobroRaw } from "./pages/CuentasCobro";
+import { Claves as ClavesRaw } from "./pages/Claves";
+import { Consultas as ConsultasRaw } from "./pages/Consultas";
+import { ConsultasPublicas as ConsultasPublicasRaw } from "./pages/ConsultasPublicas";
+import { Config as ConfigRaw } from "./pages/Config";
 import { ServidorConfig } from "./components/ServidorConfig";
+
+// Páginas MEMOIZADAS: se mantienen montadas (keep-alive) y se ocultan con `display`.
+// Sin memo, cada render del Shell (abrir el menú de usuario, llegar la info del
+// servidor…) re-renderiza TODAS las páginas montadas. Con props estables (puede
+// memoizado, flags, goFacturacion con useCallback) `memo` las salta salvo cuando
+// cambia algo suyo (p. ej. su `active`).
+const Clientes = memo(ClientesRaw);
+const Responsables = memo(ResponsablesRaw);
+const Catalogos = memo(CatalogosRaw);
+const Facturacion = memo(FacturacionRaw);
+const CuentasCobro = memo(CuentasCobroRaw);
+const Claves = memo(ClavesRaw);
+const Consultas = memo(ConsultasRaw);
+const ConsultasPublicas = memo(ConsultasPublicasRaw);
+const Config = memo(ConfigRaw);
 
 type Page = "clientes" | "responsables" | "claves" | "catalogos" | "facturacion" | "cobros" | "consultas" | "generar" | "config";
 const TITLES: Record<Page, [string, string]> = {
@@ -128,6 +143,8 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
   }, [page]); // eslint-disable-line
 
   const salir = () => { clearToken(); onUser(null); };
+  // Estable: evita invalidar el memo de <Facturacion> en cada render del Shell.
+  const goFacturacion = useCallback(() => setPage("facturacion"), []);
 
   const srvOk = srv ? srv.conectado !== false : undefined;
 
@@ -220,7 +237,7 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
           {vistas.has("responsables") && puede("responsables.ver") && <div style={{ display: page === "responsables" ? "contents" : "none" }}><Responsables esSuper={user.rol === "superadmin"} puede={puede} active={page === "responsables"} /></div>}
           {vistas.has("claves") && puede("claves.ver") && <div style={{ display: page === "claves" ? "contents" : "none" }}><Claves esSuper={user.rol === "superadmin"} puede={puede} active={page === "claves"} /></div>}
           {vistas.has("catalogos") && puede("catalogos.editar") && <div style={{ display: page === "catalogos" ? "contents" : "none" }}><Catalogos esSuper={user.rol === "superadmin"} /></div>}
-          {vistas.has("facturacion") && puede("facturacion.ver") && <div style={{ display: page === "facturacion" ? "contents" : "none" }}><Facturacion usuario={user.usuario || user.nombre} puede={puede} active={page === "facturacion"} goFacturacion={() => setPage("facturacion")} /></div>}
+          {vistas.has("facturacion") && puede("facturacion.ver") && <div style={{ display: page === "facturacion" ? "contents" : "none" }}><Facturacion usuario={user.usuario || user.nombre} puede={puede} active={page === "facturacion"} goFacturacion={goFacturacion} /></div>}
           {vistas.has("cobros") && puede("facturacion.ver") && <div style={{ display: page === "cobros" ? "contents" : "none" }}><CuentasCobro puede={puede} active={page === "cobros"} /></div>}
           {vistas.has("consultas") && puede("consultas.ver") && <div style={{ display: page === "consultas" ? "contents" : "none" }}><ConsultasPublicas /></div>}
           {vistas.has("generar") && puede("consultas.generar") && <div style={{ display: page === "generar" ? "contents" : "none" }}><Consultas active={page === "generar"} /></div>}

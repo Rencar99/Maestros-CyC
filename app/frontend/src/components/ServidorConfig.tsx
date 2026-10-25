@@ -35,7 +35,7 @@ export function ServidorConfig({ variant, onListo, onClose }: {
   const probar = async () => {
     if (!ip.trim() || !puertoValido) return;
     setProbando(true); setPrueba(null);
-    try { const r: any = await api.post("/servidor/probar", { ip: ip.trim(), puerto: Number(puerto) }); setPrueba({ ok: r.ok, msg: r.mensaje }); }
+    try { const r: any = await api.query("/servidor/probar", { ip: ip.trim(), puerto: Number(puerto) }); setPrueba({ ok: r.ok, msg: r.mensaje }); }
     catch (e: any) { setPrueba({ ok: false, msg: e.message }); }
     finally { setProbando(false); }
   };

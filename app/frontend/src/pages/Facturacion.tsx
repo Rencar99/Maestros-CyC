@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api";
+import { useActiveReload } from "../useActiveReload";
 import { Icon, numInt, pesos, useConfirm, useToast } from "../ui";
 import { Explorador } from "../components/Explorador";
 import { Column, DataGrid } from "../components/DataGrid";
@@ -31,6 +32,9 @@ const fmtFechaHora = (iso: string) => {
 const num = numInt;
 const fmt = (v: string | number) => numInt(v).toLocaleString("es-CO");
 const money$ = pesos;
+// Evita que el clic en un input de celda inicie la selección de la grilla. A nivel
+// de módulo (estable) para no romper el memo de `detCols`.
+const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
 export function Facturacion({ usuario, puede, active = true, goFacturacion }: { usuario: string; puede: (c: string) => boolean; active?: boolean; goFacturacion?: () => void }) {
   const toast = useToast();
@@ -65,9 +69,9 @@ export function Facturacion({ usuario, puede, active = true, goFacturacion }: { 
   useEffect(() => {
     api.get("/clientes").then((cs: any[]) => setClientes(cs.map((c) => ({ id: c.id, num_id: c.num_id, nombre: c.nombre })))).catch(() => {});
   }, []); // eslint-disable-line
-  // La lista la carga el efecto de `active`: cubre el montaje (active ya es true) y
-  // el regreso a la pestaña (la App mantiene las páginas montadas). Un solo fetch.
-  useEffect(() => { if (active) cargarLista(); }, [active]); // eslint-disable-line
+  // Carga al montar y al volver, solo si hubo escrituras desde la última vez
+  // (keep-alive + epoch): no re-consulta en navegación sin cambios.
+  useActiveReload(active, cargarLista);
 
   const generar = async () => {
     try {
@@ -82,29 +86,32 @@ export function Facturacion({ usuario, puede, active = true, goFacturacion }: { 
       setAnio(r.anio); setMes(r.mes); setEtiqueta(r.etiqueta); setFilas(r.items.map(conRete)); setGuardadoId(r.id); setMin(false); setVista("editor");
     } catch (e: any) { toast(e.message, true); }
   };
-  const setF = (i: number, patch: Partial<Fila>) => setFilas((f) => f.map((x, j) => j === i ? { ...x, ...patch } : x));
-  const delF = (i: number) => setFilas((f) => f.filter((_, j) => j !== i));
-  const reteCalc = (forma: string, on: boolean, iva: string, pct: number) =>
-    (forma === "Fa" && on) ? String(Math.round(num(iva) * pct / 100)) : "0";
-  const setIva = (i: number, v: string) => setFilas((f) => f.map((x, j) => j === i
-    ? { ...x, iva: v, reteiva: reteCalc(x.forma, x.rete, v, pctRete) } : x));
+  // Handlers del editor por `_uid` (llave estable de fila), NO por índice: así las
+  // columnas no dependen de `filas` y, con `useCallback`, su identidad no cambia al
+  // teclear → `detCols` memoizado se mantiene estable → la fila memoizada del grid
+  // aísla la tecla a la celda editada (no re-renderiza toda la tabla). `pctRete` se
+  // lee por ref para no entrar en las dependencias.
+  const reteCalc = useCallback((forma: string, on: boolean, iva: string, pct: number) =>
+    (forma === "Fa" && on) ? String(Math.round(num(iva) * pct / 100)) : "0", []);
+  const pctRef = useRef(pctRete);
+  pctRef.current = pctRete;
+  const setF = useCallback((uid: number, patch: Partial<Fila>) =>
+    setFilas((f) => f.map((x) => x._uid === uid ? { ...x, ...patch } : x)), []);
+  const delF = useCallback((uid: number) =>
+    setFilas((f) => f.filter((x) => x._uid !== uid)), []);
   // Al editar el Valor: se toman SOLO los dígitos (el separador de miles "." no debe
   // interpretarse como decimal). IVA = 19% si es Factura (0 si CC) y se recalcula ReteIVA.
-  const setValor = (i: number, v: string) => setFilas((f) => f.map((x, j) => {
-    if (j !== i) return x;
+  const setValor = useCallback((uid: number, v: string) => setFilas((f) => f.map((x) => {
+    if (x._uid !== uid) return x;
     const valor = (v || "").replace(/\D/g, "") || "0";
     const iva = x.forma === "Fa" ? String(Math.round(Number(valor) * 0.19)) : "0";
-    return { ...x, valor, iva, reteiva: reteCalc(x.forma, x.rete, iva, pctRete) };
-  }));
-  const setForma = (i: number, v: string) => setFilas((f) => f.map((x, j) => j === i
-    ? { ...x, forma: v, rete: v === "Fa" ? x.rete : false, reteiva: reteCalc(v, v === "Fa" ? x.rete : false, x.iva, pctRete) } : x));
-  const toggleRete = (i: number, on: boolean) => setFilas((f) => f.map((x, j) => j === i
-    ? { ...x, rete: on, reteiva: reteCalc(x.forma, on, x.iva, pctRete) } : x));
+    return { ...x, valor, iva, reteiva: reteCalc(x.forma, x.rete, iva, pctRef.current) };
+  })), [reteCalc]);
   const cambiarPct = (p: number) => { setPctRete(p); setFilas((f) => f.map((x) => ({ ...x, reteiva: reteCalc(x.forma, x.rete, x.iva, p) }))); };
-  const pickCliente = (i: number, cid: number) => {
+  const pickCliente = useCallback((uid: number, cid: number) => {
     const c = clientes.find((x) => x.id === cid);
-    if (c) setF(i, { cliente_id: c.id, num_id: c.num_id, nombre: c.nombre });
-  };
+    if (c) setF(uid, { cliente_id: c.id, num_id: c.num_id, nombre: c.nombre });
+  }, [clientes, setF]);
 
   const guardar = async () => {
     if (!filas.length) { toast("No hay filas para guardar.", true); return; }
@@ -167,27 +174,29 @@ export function Facturacion({ usuario, puede, active = true, goFacturacion }: { 
   }, [filas]);
 
   // -------- Columnas DataGrid (Grilla CyC) --------
-  const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
   // Estable entre renders: el RespCombo de las filas sin cliente memoiza sus opciones.
   const clientesOpt = useMemo(() => clientes.map((c) => ({ id: c.id, nombre: `${c.num_id} · ${c.nombre}` })), [clientes]);
-  const detCols: Column<Fila>[] = [
+  // Columnas MEMOIZADAS: su identidad no cambia al teclear (los handlers son estables
+  // y keyean por `_uid`, no por índice, así que no dependen de `filas`). Junto con la
+  // fila memoizada del grid, cada tecla re-renderiza SOLO la celda editada.
+  const detCols: Column<Fila>[] = useMemo(() => [
     {
       key: "id", label: "Id", type: "code", sortable: true, value: (f) => f.num_id || "",
       render: (f) => f.cliente_id === null
         ? <RespCombo value={null} options={clientesOpt} placeholder="Buscar cliente…"
-            onChange={(id) => { if (id != null) pickCliente(filas.indexOf(f), id); }} />
+            onChange={(id) => { if (id != null) pickCliente(f._uid, id); }} />
         : <span className="pill">{f.num_id}</span>,
     },
     { key: "nombre", label: "Nombre Cliente", sortable: true, filterable: true, width: "26ch", value: (f) => f.nombre || "", tip: (f) => f.nombre },
     {
       key: "concepto", label: "Concepto", sortable: true, filterable: true, minWidth: "180px", value: (f) => f.concepto || "",
       render: (f) => <input className="cell-input" value={f.concepto} onMouseDown={stop}
-        onChange={(e) => setF(filas.indexOf(f), { concepto: e.target.value })} />,
+        onChange={(e) => setF(f._uid, { concepto: e.target.value })} />,
     },
     {
       key: "valor", label: "Valor", type: "money", sortable: true, filterable: true, total: true, value: (f) => num(f.valor), formatter: money$,
       render: (f) => <input className="cell-input" style={{ textAlign: "right" }} value={fmt(f.valor)} onMouseDown={stop}
-        onChange={(e) => setValor(filas.indexOf(f), e.target.value)} />,
+        onChange={(e) => setValor(f._uid, e.target.value)} />,
     },
     {
       key: "forma", label: "Tipo Cobro", type: "status", filterable: true, value: (f) => f.forma,
@@ -204,9 +213,12 @@ export function Facturacion({ usuario, puede, active = true, goFacturacion }: { 
     {
       key: "obs", label: "Observaciones", minWidth: "190px", value: (f) => f.observaciones || "",
       render: (f) => <input className="cell-input" value={f.observaciones} onMouseDown={stop}
-        onChange={(e) => setF(filas.indexOf(f), { observaciones: e.target.value })} />,
+        onChange={(e) => setF(f._uid, { observaciones: e.target.value })} />,
     },
-  ];
+  ], [clientesOpt, pickCliente, setF, setValor]);
+  // Estable para no invalidar la fila memoizada del grid en cada render.
+  const detActions = useCallback((f: Fila) =>
+    <button className="act-btn del" title="Quitar" onClick={() => delF(f._uid)}><Icon name="trash" size={14} /></button>, [delF]);
   const resCols: Column<typeof resumen[number]>[] = [
     { key: "num_id", label: "Id", type: "code", sortable: true, width: "12ch", value: (g) => g.num_id || "", render: (g) => <span className="pill">{g.num_id || "—"}</span> },
     { key: "nombre", label: "Cliente", sortable: true, filterable: true, value: (g) => g.nombre || "" },
@@ -334,7 +346,7 @@ export function Facturacion({ usuario, puede, active = true, goFacturacion }: { 
               searchable exportable toolbar={factTabs}
               defaultTotals={["valor", "iva", "reteiva"]}
               emptyLabel="Elige el mes y pulsa «Generar», o agrega filas manuales."
-              actions={(f) => <button className="act-btn del" title="Quitar" onClick={() => delF(filas.indexOf(f))}><Icon name="trash" size={14} /></button>} />
+              actions={detActions} />
           )}
         </div>
         <div className="gframe-foot">

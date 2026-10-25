@@ -4,7 +4,7 @@ import { CatItem } from "../types";
 import { Icon, SecTitle, SiNo, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal } from "../components/Modal";
-import { CRITERIOS, CRIT_TXT, DISPARADORES, DISP_TXT, FAMILIAS } from "../catalogos-labels";
+import { CRITERIOS, CRIT_TXT, DISPARADORES, DISP_TXT, FAMILIAS, PERIODICIDADES } from "../catalogos-labels";
 import { CatSelect } from "../components/CatSelect";
 
 /** Encabezado de subsección: reusa SecTitle (ícono ámbar), con tooltip opcional. */
@@ -243,6 +243,9 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
             <select value={f.criterio} onChange={(e) => set({ criterio: e.target.value })}>
               {f.criterio && !CRITERIOS.includes(f.criterio) && <option value={f.criterio}>{CRIT_TXT[f.criterio] || f.criterio}</option>}
               {CRITERIOS.map((o) => <option key={o} value={o}>{CRIT_TXT[o] || o}</option>)}</select></label>
+          <label className="cq-fld" style={{ width: 160 }}><span>Periodicidad</span>
+            <select value={f.periodicidad} onChange={(e) => set({ periodicidad: e.target.value })}>
+              {PERIODICIDADES.map((o) => <option key={o} value={o}>{o || "—"}</option>)}</select></label>
           <label className="cq-fld" style={{ width: 245 }}><span>Disparador (DIAN)</span>
             <select value={f.disparador} disabled={editando}
               title={editando ? "No se puede cambiar en una obligación existente" : ""}

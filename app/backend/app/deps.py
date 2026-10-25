@@ -17,15 +17,24 @@ from .security import leer_token
 ADMIN_PERMISOS = {"config.roles", "responsables.editar", "catalogos.editar"}
 
 
+def es_super(session: Session, user: Usuario) -> bool:
+    """¿Super usuario? Por el `rol` de texto de compatibilidad ('superadmin') o por
+    tener un rol de sistema (`rol.sistema`). NO expande el catálogo de permisos:
+    es un chequeo barato para cortar temprano donde solo importa "¿es super?"."""
+    if user.rol == "superadmin":
+        return True
+    if user.rol_id:
+        rol = session.get(Rol, user.rol_id)
+        return bool(rol and rol.sistema)
+    return False
+
+
 def permisos_de(session: Session, user: Usuario) -> set[str]:
     """Conjunto de claves de permiso del usuario. Super (por rol de sistema o por
     el `rol` de texto de compatibilidad) = todos los permisos del catálogo."""
-    if user.rol == "superadmin":
+    if es_super(session, user):
         return set(session.exec(select(Permiso.clave)).all())
     if user.rol_id:
-        rol = session.get(Rol, user.rol_id)
-        if rol and rol.sistema:
-            return set(session.exec(select(Permiso.clave)).all())
         return set(session.exec(
             select(RolPermiso.permiso_clave).where(RolPermiso.rol_id == user.rol_id)).all())
     return set()
@@ -35,7 +44,7 @@ def require_perm(clave: str):
     """Factory de dependencia: exige que el usuario tenga el permiso `clave`."""
     def _dep(user: Usuario = Depends(get_current_user),
              session: Session = Depends(get_session)) -> Usuario:
-        if user.rol == "superadmin":
+        if es_super(session, user):
             return user
         if clave not in permisos_de(session, user):
             raise HTTPException(403, f"Requiere el permiso «{clave}»")

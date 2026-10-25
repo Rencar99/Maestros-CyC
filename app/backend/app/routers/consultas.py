@@ -672,12 +672,10 @@ def _preparar_publicada(session: Session, user: Usuario, gid: int):
     if not _puede_ver(session, user, g):
         raise HTTPException(403, "No tienes acceso a esta consulta")
     c = ConsultaIn(**(g.definicion or {}))
-    from ..scope import ids_asignados as _ids_asignados, confid_ocultos as _confid_ocultos
-    restr = None
-    if (g.alcance or "asignados") == "asignados":
-        restr = _ids_asignados(session, user)     # None = Admin/Super = todas
-    sql, params, cols = _armar(c, restringir_ids=restr,
-                               confid_ocultos=_confid_ocultos(session, user))
+    from ..scope import alcance_de as _alcance_de
+    permitidos, ocultos = _alcance_de(session, user)   # asignación + confidenciales, una pasada
+    restr = permitidos if (g.alcance or "asignados") == "asignados" else None  # None = todas
+    sql, params, cols = _armar(c, restringir_ids=restr, confid_ocultos=ocultos)
     return g, c, sql, params, cols
 
 

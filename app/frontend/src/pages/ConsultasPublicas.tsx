@@ -48,7 +48,7 @@ export function ConsultasPublicas() {
     setSelId(id);
     if (!id) { setRes(null); return; }
     setCorriendo(true);
-    api.post(`/consultas/publicadas/${id}/ejecutar`)
+    api.query(`/consultas/publicadas/${id}/ejecutar`)
       .then((r: ResPub) => setRes({ ...r, filas: r.filas.map((f, i) => ({ ...f, __i: i })) }))
       .catch((e: any) => { toast(e.message, true); setRes(null); })
       .finally(() => setCorriendo(false));

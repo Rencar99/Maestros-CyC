@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
+import { useActiveReload } from "../useActiveReload";
 import { Icon, norm, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal } from "../components/Modal";
@@ -92,9 +93,8 @@ export function Consultas({ active = true }: { active?: boolean }) {
     api.get("/roles").then((r: RolItem[]) => setRolesDisp(r)).catch(() => {});
     cargarGuardadas();
   }, []); // eslint-disable-line
-  // La App mantiene las páginas montadas (display:none); al volver a entrar,
-  // recargar la lista de guardadas para ver las creadas desde otra sesión.
-  useEffect(() => { if (active) cargarGuardadas(); }, [active]); // eslint-disable-line
+  // Al volver a entrar, recargar las guardadas solo si hubo escrituras (epoch).
+  useActiveReload(active, () => cargarGuardadas());
 
   const cargarGuardadas = () =>
     api.get("/consultas/guardadas").then((g: GuardadaInfo[]) => setGuardadas(g)).catch(() => {});
@@ -277,7 +277,7 @@ export function Consultas({ active = true }: { active?: boolean }) {
   const ejecutar = () => {
     if (!tabla) { toast("Elige una tabla primero", true); return; }
     setCorriendo(true);
-    api.post("/consultas/ejecutar", cuerpo())
+    api.query("/consultas/ejecutar", cuerpo())
       .then((r: Resultado) => {
         // __i: llave estable de fila para la grilla (el resultado no tiene id fijo).
         setRes({ ...r, filas: r.filas.map((f, i) => ({ ...f, __i: i })) });

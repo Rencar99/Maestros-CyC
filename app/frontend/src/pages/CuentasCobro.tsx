@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { useActiveReload } from "../useActiveReload";
 import { fmtMiles as fmt, Icon, pesos, SecTitle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal } from "../components/Modal";
@@ -36,7 +37,8 @@ export function CuentasCobro({ puede, active }: { puede: (c: string) => boolean;
       .catch((e) => toast(e.message, true))
       .finally(() => setCargando(false));
   };
-  useEffect(() => { if (active) cargar(); }, [active, periodo]); // eslint-disable-line
+  // Recarga al volver si hubo escrituras (epoch) o si cambió el período.
+  useActiveReload(active, cargar, [periodo]);
 
   const generarUno = async (r: Row) => {
     if (!fid) return;

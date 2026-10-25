@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 // Las tres dependencias de la aplicación entran por un solo archivo, que cada
 // una escribe una vez y el kit nunca sobrescribe: en Descargas DIAN el icono
 // vive en «./Icon» y en Maestros en «../ui». Sin esta indirección, la misma
@@ -351,6 +351,90 @@ function DateFilterPop(props: {
 }
 
 
+/** Resalta la coincidencia del buscador global en un texto plano (celdas sin
+ *  render propio). A nivel de módulo (no depende de estado) para que la fila
+ *  memoizada solo dependa del término, una primitiva estable. */
+function resaltarTerm(txt: string, term: string): ReactNode {
+  if (!term) return txt;
+  const i = txt.toLowerCase().indexOf(term.toLowerCase());
+  if (i < 0) return txt;
+  return <>{txt.slice(0, i)}<mark className="grid-mark">{txt.slice(i, i + term.length)}</mark>{txt.slice(i + term.length)}</>;
+}
+
+/** Fila de la grilla, MEMOIZADA. El cuerpo (celdas, render, formato, resaltado) solo
+ *  se recalcula si cambia algo PROPIO de la fila. El estado volátil del grid que no
+ *  afecta a esta fila —tip de hover en otra celda, cursor en otra fila, menú de
+ *  totales, copiado…— llega como las mismas props ⇒ `memo` la salta. Todo lo que
+ *  depende de cursor/selección entra como PRIMITIVAS (rowCur/curC/selC0/selC1), no
+ *  como objetos nuevos por render, para que la comparación de `memo` sirva. */
+interface GridRowProps<T> {
+  row: T;
+  rowKey: string | number;
+  r: number;
+  ocols: Column<T>[];
+  colW: Record<string, number>;
+  frozenLeft: number[];
+  rowCur: boolean;        // el cursor está en esta fila
+  curC: number;           // columna del cursor si rowCur, si no -1 (celda "cell-cur")
+  selC0: number;          // rango de columnas seleccionado en esta fila, -1 si ninguna
+  selC1: number;
+  activo: boolean;        // fila "activa" (ámbar) que sigue un proceso
+  rowExtra: string;       // clase extra de la pantalla (rowClass)
+  term: string;           // término del buscador global para resaltar
+  actions?: (row: T) => ReactNode;
+  actionsWidth?: string;
+  onRowClick?: (row: T) => void;
+  onCellDown: (r: number, c: number, shift: boolean) => void;
+  onCellEnter: (r: number, c: number, col: Column<T>, row: T, e: React.MouseEvent<HTMLTableCellElement>) => void;
+  onCellLeave: () => void;
+}
+
+function GridRowInner<T>(p: GridRowProps<T>): JSX.Element {
+  const { row, ocols, colW, frozenLeft, r } = p;
+  const fz = (i: number) => i < frozenLeft.length
+    ? { cls: "col-frozen" + (i === frozenLeft.length - 1 ? " col-frozen-last" : ""), left: frozenLeft[i] }
+    : null;
+  const trClass = [
+    p.rowCur ? "row-cur" : "",
+    p.activo ? "row-activo" : "",
+    p.rowExtra,
+    p.onRowClick ? "row-click" : "",
+  ].filter(Boolean).join(" ") || undefined;
+  return (
+    <tr data-k={p.rowKey}
+        onClick={p.onRowClick ? (e) => { if (!(e.target as HTMLElement).closest("button, a")) p.onRowClick!(row); } : undefined}
+        className={trClass}>
+      {ocols.map((col, c) => {
+        const a = alignOf(col);
+        const raw = col.value ? col.value(row) : (row as Record<string, unknown>)[col.key] as string | number;
+        const neg = col.type === "money" &&
+          (typeof raw === "number" ? raw < 0 : Number(String(raw).replace(/[^\d.-]/g, "")) < 0);
+        const cur = p.rowCur && p.curC === c;
+        const sel = p.selC0 >= 0 && c >= p.selC0 && c <= p.selC1;
+        const tdW = colW[col.key] ? `${colW[col.key]}px` : col.width;
+        const f = fz(c);
+        const cls = [
+          col.className, f?.cls, tdW ? "ell" : "",
+          a === "center" ? "al-c" : a === "right" ? "al-r" : "",
+          col.type === "money" ? "money" : "", neg ? "neg" : "",
+          sel ? "cell-sel" : "", cur ? "cell-cur" : "",
+        ].filter(Boolean).join(" ") || undefined;
+        return (
+          <td key={col.key} className={cls} title=""
+              style={{ width: tdW, maxWidth: tdW, minWidth: col.minWidth, left: f?.left }}
+              onMouseDown={(e) => p.onCellDown(r, c, e.shiftKey)}
+              onMouseEnter={(e) => p.onCellEnter(r, c, col, row, e)}
+              onMouseLeave={p.onCellLeave}>
+            {col.render ? col.render(row) : resaltarTerm(formatCell(col, raw ?? "", row), p.term)}
+          </td>
+        );
+      })}
+      {p.actions && <td className="al-c" style={{ width: p.actionsWidth }}><div className="act-btns">{p.actions(row)}</div></td>}
+    </tr>
+  );
+}
+const GridRow = memo(GridRowInner) as typeof GridRowInner;
+
 export function DataGrid<T>({
   columns: todasCols, rows, getKey, actions, label, emptyLabel, scrollClass, onView,
   defaultTotals, actionsLabel, actionsWidth, storageKey, searchable = true, exportable = true,
@@ -636,8 +720,6 @@ export function DataGrid<T>({
     r0: Math.min(anchor.r, cursor.r), r1: Math.max(anchor.r, cursor.r),
     c0: Math.min(anchor.c, cursor.c), c1: Math.max(anchor.c, cursor.c),
   } : null;
-  const enRango = (r: number, c: number) =>
-    !!rect && r >= rect.r0 && r <= rect.r1 && c >= rect.c0 && c <= rect.c1;
 
   useEffect(() => {
     if (cursor && (cursor.r > maxR || cursor.c > maxC || maxR < 0)) {
@@ -645,20 +727,35 @@ export function DataGrid<T>({
     }
   }, [maxR, maxC]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const seleccionar = (r: number, c: number, extender: boolean) => {
+  // Handlers de celda ESTABLES (useCallback sin deps): usan solo setters de estado
+  // y refs, todos estables. Así las props que recibe cada fila memoizada no cambian
+  // de identidad entre renders y el `memo` puede saltarse las filas no afectadas.
+  const seleccionar = useCallback((r: number, c: number, extender: boolean) => {
     setCursor({ r, c });
     if (!extender) setAnchor({ r, c });
     wrapRef.current?.focus();
-  };
-
-  // Tooltip azul: solo si el texto de la celda está truncado (Estándar §7).
-  const cellTip = (e: React.MouseEvent<HTMLTableCellElement>) => {
-    const el = e.currentTarget;
-    if (el.scrollWidth > el.clientWidth + 1) {
-      const b = el.getBoundingClientRect();
-      setTip({ t: el.innerText, x: Math.min(b.left, window.innerWidth - 340), y: b.bottom + 5 });
-    } else if (tip) setTip(null);
-  };
+  }, []);
+  const onCellDown = useCallback((r: number, c: number, shift: boolean) => {
+    draggingRef.current = true; seleccionar(r, c, shift);
+  }, [seleccionar]);
+  const onCellLeave = useCallback(() => setTip(null), []);
+  // Tooltip azul: col.tip explícito, o solo si el texto de la celda está truncado
+  // (Estándar §7). En arrastre, extiende la selección (igual que antes).
+  const onCellEnter = useCallback((r: number, c: number, col: Column<T>, row: T, e: React.MouseEvent<HTMLTableCellElement>) => {
+    if (draggingRef.current) { setCursor({ r, c }); return; }
+    if (col.tip) {
+      const t = col.tip(row);
+      if (t) { const b = e.currentTarget.getBoundingClientRect(); setTip({ t, x: Math.min(b.left, window.innerWidth - 340), y: b.bottom + 5 }); }
+      return;
+    }
+    if (!col.render) {
+      const el = e.currentTarget;
+      if (el.scrollWidth > el.clientWidth + 1) {
+        const b = el.getBoundingClientRect();
+        setTip({ t: el.innerText, x: Math.min(b.left, window.innerWidth - 340), y: b.bottom + 5 });
+      } else setTip((old) => (old ? null : old));
+    }
+  }, []);
 
   const copiar = async () => {
     if (!rect) return;
@@ -780,15 +877,6 @@ export function DataGrid<T>({
     if (fn === "maximo") return { valor: Math.max(...ns), entero: false };
     if (fn === "minimo") return { valor: Math.min(...ns), entero: false };
     return { valor: ns.reduce((a, n) => a + n, 0) / ns.length, entero: false };
-  };
-
-  // Resalta la coincidencia del buscador global en celdas de texto (sin render propio).
-  const resaltar = (txt: string): ReactNode => {
-    const term = searchable ? q.trim() : "";
-    if (!term) return txt;
-    const i = txt.toLowerCase().indexOf(term.toLowerCase());
-    if (i < 0) return txt;
-    return <>{txt.slice(0, i)}<mark className="grid-mark">{txt.slice(i, i + term.length)}</mark>{txt.slice(i + term.length)}</>;
   };
 
   const hayToolbar = !!(toolbar || searchable || exportable);
@@ -926,49 +1014,24 @@ export function DataGrid<T>({
             </tr>
           </thead>
           <tbody>
-            {view.map((row, r) => (
-              <tr key={getKey(row)} data-k={getKey(row)}
-                  onClick={onRowClick ? (e) => { if (!(e.target as HTMLElement).closest("button, a")) onRowClick(row); } : undefined}
-                  className={[cursor?.r === r ? "row-cur" : "", (activeKey != null && getKey(row) === activeKey) ? "row-activo" : "", rowClass?.(row) || "", onRowClick ? "row-click" : ""].filter(Boolean).join(" ") || undefined}>
-                {ocols.map((col, c) => {
-                  const a = alignOf(col);
-                  const raw = col.value ? col.value(row) : (row as Record<string, unknown>)[col.key] as string | number;
-                  const neg = col.type === "money" &&
-                    (typeof raw === "number" ? raw < 0 : Number(String(raw).replace(/[^\d.-]/g, "")) < 0);
-                  const cur = cursor?.r === r && cursor?.c === c;
-                  const tdW = colW[col.key] ? `${colW[col.key]}px` : col.width;
-                  const f = fz(c);
-                  const cls = [
-                    col.className,
-                    f?.cls,
-                    tdW ? "ell" : "",
-                    a === "center" ? "al-c" : a === "right" ? "al-r" : "",
-                    col.type === "money" ? "money" : "",
-                    neg ? "neg" : "",
-                    enRango(r, c) ? "cell-sel" : "",
-                    cur ? "cell-cur" : "",
-                  ].filter(Boolean).join(" ") || undefined;
-                  return (
-                    <td key={col.key} className={cls} title=""
-                        style={{ width: tdW, maxWidth: tdW, minWidth: col.minWidth, left: f?.left }}
-                        onMouseDown={(e) => { draggingRef.current = true; seleccionar(r, c, e.shiftKey); }}
-                        onMouseEnter={(e) => {
-                          if (draggingRef.current) { setCursor({ r, c }); return; }
-                          if (col.tip) {
-                            const t = col.tip(row);
-                            if (t) { const b = e.currentTarget.getBoundingClientRect(); setTip({ t, x: Math.min(b.left, window.innerWidth - 340), y: b.bottom + 5 }); }
-                            return;
-                          }
-                          if (!col.render) cellTip(e);
-                        }}
-                        onMouseLeave={() => setTip(null)}>
-                      {col.render ? col.render(row) : resaltar(formatCell(col, raw ?? "", row))}
-                    </td>
-                  );
-                })}
-                {actions && <td className="al-c" style={{ width: actionsWidth }}><div className="act-btns">{actions(row)}</div></td>}
-              </tr>
-            ))}
+            {view.map((row, r) => {
+              const rk = getKey(row);
+              const rowCur = cursor?.r === r;
+              const inSel = !!rect && r >= rect.r0 && r <= rect.r1;
+              return (
+                <GridRow<T>
+                  key={rk} row={row} rowKey={rk} r={r}
+                  ocols={ocols} colW={colW} frozenLeft={frozenLeft}
+                  rowCur={rowCur} curC={rowCur ? cursor!.c : -1}
+                  selC0={inSel ? rect!.c0 : -1} selC1={inSel ? rect!.c1 : -1}
+                  activo={activeKey != null && rk === activeKey}
+                  rowExtra={rowClass?.(row) || ""}
+                  term={qn}
+                  actions={actions} actionsWidth={actionsWidth} onRowClick={onRowClick}
+                  onCellDown={onCellDown} onCellEnter={onCellEnter} onCellLeave={onCellLeave}
+                />
+              );
+            })}
             {view.length === 0 && (
               <tr>
                 <td colSpan={colCount} className="grid-empty">

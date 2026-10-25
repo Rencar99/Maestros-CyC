@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
+import { useActiveReload } from "../useActiveReload";
 import { ClaveCell, copiar, Icon, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { useReveladas } from "../useReveladas";
@@ -30,9 +31,9 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
       .catch((e: any) => toast(e.message, true))
       .finally(() => setCargando(false));
   };
-  // La App mantiene las páginas montadas (display:none); el efecto de `active`
-  // cubre el montaje (active ya es true) y el regreso a la pestaña: un solo fetch.
-  useEffect(() => { if (active) load(); }, [active]); // eslint-disable-line
+  // Carga al montar y al volver, solo si hubo escrituras desde la última vez
+  // (keep-alive + epoch): no re-consulta en navegación sin cambios.
+  useActiveReload(active, load);
 
   const verTodas = async () => {
     if (todas) { ocultar(); setTodas(false); return; }  // ocultar todas

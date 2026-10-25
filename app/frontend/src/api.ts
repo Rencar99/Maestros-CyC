@@ -1,6 +1,15 @@
 // Cliente HTTP mínimo hacia la API (/api), con token JWT en localStorage.
 const TOKEN_KEY = "maestros_token";
 
+// "Epoch" de datos: sube con cada ESCRITURA (PUT/DELETE y POST que mutan). Las
+// páginas se mantienen montadas (keep-alive) y, al volver a su pestaña, recargan
+// SOLO si el epoch cambió desde su última carga: así no se re-consulta en cada
+// navegación sin cambios, pero cualquier edición (aquí o en otra pestaña) invalida
+// y fuerza el refresco. Nunca queda stale; a lo sumo una recarga de más.
+let _dataEpoch = 0;
+export const dataEpoch = (): number => _dataEpoch;
+export const bumpData = (): void => { _dataEpoch++; };
+
 export function getToken(): string {
   return localStorage.getItem(TOKEN_KEY) || "";
 }
@@ -11,7 +20,7 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-async function req(method: string, path: string, body?: unknown): Promise<any> {
+async function req(method: string, path: string, body?: unknown, muta = true): Promise<any> {
   const headers: Record<string, string> = {};
   const tok = getToken();
   if (tok) headers["Authorization"] = `Bearer ${tok}`;
@@ -39,6 +48,8 @@ async function req(method: string, path: string, body?: unknown): Promise<any> {
     }
     throw new Error(msg);
   }
+  // Escritura exitosa → invalida los datos cacheados de las demás pestañas.
+  if (muta && method !== "GET") bumpData();
   if (r.status === 204) return null;
   return r.json();
 }
@@ -56,6 +67,7 @@ async function upload(path: string, file: File): Promise<any> {
     try { const j = await r.json(); if (j?.detail) msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail); } catch { /* */ }
     throw new Error(msg);
   }
+  bumpData();
   return r.json();
 }
 
@@ -72,6 +84,7 @@ async function uploadMulti(path: string, files: File[]): Promise<any> {
     try { const j = await r.json(); if (j?.detail) msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail); } catch { /* */ }
     throw new Error(msg);
   }
+  bumpData();
   return r.json();
 }
 
@@ -126,6 +139,9 @@ async function openPdf(path: string): Promise<void> {
 export const api = {
   get: (p: string) => req("GET", p),
   post: (p: string, b?: unknown) => req("POST", p, b ?? {}),
+  // POST de SOLO LECTURA (ejecutar consulta, vistas previas, armar filas…): no sube
+  // el epoch de datos, para no invalidar cachés de otras pestañas sin haber escrito.
+  query: (p: string, b?: unknown) => req("POST", p, b ?? {}, false),
   put: (p: string, b?: unknown) => req("PUT", p, b ?? {}),
   del: (p: string) => req("DELETE", p),
   upload,
