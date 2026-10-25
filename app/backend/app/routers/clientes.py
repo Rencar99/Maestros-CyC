@@ -21,8 +21,8 @@ from ..deps import get_current_user, permisos_de, require_perm
 from ..models import (Cliente, ClienteClave, ClienteMunicipioIca, ClienteObligacion,
                       ClienteServicio, ObligacionCumplimiento, ObligacionTipo, Portal,
                       RolServicio, Software, Usuario)
-from ..obligaciones_dian import (agregar_faltantes, desincronizado, diff as diff_dian,
-                                 ids_aplicables, quitar_sobrantes)
+from ..obligaciones_dian import (agregar_faltantes, codigos_resp as _codigos_resp,
+                                 desincronizado, diff as diff_dian, ids_aplicables, quitar_sobrantes)
 from ..rut_parser import parse_rut
 from ..schemas import (ClienteCreate, ClienteListItem, ClienteRead, ServicioOut,
                        MunicipioIcaOut, ObligacionOut)
@@ -45,13 +45,6 @@ def _aplicar_nombre(c: Cliente) -> None:
         c.nombre = armado or (c.nombre or "").strip()
 
 
-def _codigos_resp(c: Cliente) -> set[str]:
-    out: set[str] = set()
-    for r in (c.responsabilidades or []):
-        cod = r.get("codigo") if isinstance(r, dict) else r
-        if cod:
-            out.add(str(cod))
-    return out
 
 
 def _derivar_agente_retenedor(c: Cliente) -> None:
@@ -294,16 +287,21 @@ def entradas_calendario(cid: int, otid: int, session: Session = Depends(get_sess
 
 
 @router.get("/{cid}/password")
+def _descifrar(enc: str) -> str:
+    """Descifra una clave guardada; responde 422 (no 500) si la llave Fernet no coincide."""
+    try:
+        return decrypt(enc)
+    except Exception:  # noqa: BLE001  (InvalidToken u otros: no reventar con 500)
+        raise HTTPException(422, "No se pudo descifrar la clave (llave de cifrado no coincide).")
+
+
 def ver_password(cid: int, session: Session = Depends(get_session), _admin=Depends(require_perm("claves.revelar"))):
     c = session.get(Cliente, cid)
     if not c:
         raise HTTPException(404, "Cliente no encontrado")
     if not c.password_enc:
         return {"password": ""}
-    try:
-        return {"password": decrypt(c.password_enc)}
-    except Exception:  # noqa: BLE001  (InvalidToken u otros: no reventar con 500)
-        raise HTTPException(422, "No se pudo descifrar la clave (llave de cifrado no coincide).")
+    return {"password": _descifrar(c.password_enc)}
 
 
 # ============================================================ Claves de portales
@@ -325,37 +323,9 @@ def _clave_dict(k: ClienteClave, portales: dict) -> dict:
             "actualizado_at": k.actualizado_at.isoformat() if k.actualizado_at else None}
 
 
-def _ve_confidencial(session: Session, user: Usuario) -> bool:
-    """¿Es "supervisor"? (permiso clientes.ver_confidencial; Super siempre)."""
-    return "clientes.ver_confidencial" in permisos_de(session, user)
-
-
-def _asignados_de(session: Session, user: Usuario) -> set[int]:
-    """Ids de clientes asignados al usuario (responsable/coordinador de impuestos o
-    financiero, o responsable del registro). Para CUALQUIER usuario, incl. Admin/Super."""
-    return set(session.exec(select(Cliente.id).where(
-        (Cliente.responsable_impuestos_id == user.id) |
-        (Cliente.coordinador_impuestos_id == user.id) |
-        (Cliente.responsable_financiero_id == user.id) |
-        (Cliente.coordinador_financiero_id == user.id) |
-        (Cliente.responsable_registro_id == user.id))).all())
-
-
-def _confid_ocultos(session: Session, user: Usuario) -> set[int]:
-    """Confidenciales que ESTE usuario NO puede ver. Regla: un confidencial se ve si
-    eres supervisor (ve_confidencial) O lo tienes asignado. Supervisor → vacío."""
-    if _ve_confidencial(session, user):
-        return set()
-    conf = set(session.exec(
-        select(Cliente.id).where(Cliente.confidencial == True)).all())  # noqa: E712
-    return conf - _asignados_de(session, user)
-
-
-def _ids_asignados(session: Session, user: Usuario) -> set[int] | None:
-    """Ids de clientes que el usuario puede ver por asignación. None = ve TODOS (Admin/Super)."""
-    if user.rol in ("admin", "superadmin"):
-        return None
-    return _asignados_de(session, user)
+# Reglas de alcance/confidencialidad: fuente única en ``scope`` (ver scope.py).
+from ..scope import (asignados_de as _asignados_de, confid_ocultos as _confid_ocultos,  # noqa: E402
+                     ids_asignados as _ids_asignados, ve_confidencial as _ve_confidencial)
 
 
 @router.get("/claves/todas")
@@ -404,10 +374,7 @@ def revelar_clave_global(kid: int, session: Session = Depends(get_session),
         raise HTTPException(403, "No tiene acceso a las claves de este cliente")
     if not k.clave_enc:
         return {"clave": ""}
-    try:
-        return {"clave": decrypt(k.clave_enc)}
-    except Exception:  # noqa: BLE001
-        raise HTTPException(422, "No se pudo descifrar la clave (llave de cifrado no coincide).")
+    return {"clave": _descifrar(k.clave_enc)}
 
 
 @router.get("/claves/reveladas")
@@ -437,9 +404,7 @@ def exportar_claves(session: Session = Depends(get_session),
                     user: Usuario = Depends(require_perm("claves.exportar"))):
     """Exporta a Excel las claves visibles para el usuario (con la clave en claro).
     Respeta el filtro por asignación (cada quien exporta solo lo suyo)."""
-    from io import BytesIO
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Font, PatternFill
+    from ..export_xlsx import tabla_simple
 
     permitidos = _ids_asignados(session, user)
     ocultos = _confid_ocultos(session, user)
@@ -463,28 +428,8 @@ def exportar_claves(session: Session = Depends(get_session),
                       k.actualizado_at.strftime("%Y-%m-%d") if k.actualizado_at else ""))
     filas.sort(key=lambda f: ((f[1] or "").lower(), (f[2] or "").lower(), (f[3] or "").lower()))
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Claves"
     encab = ["NIT", "Cliente", "Portal", "URL", "Usuario", "Comentario", "Clave", "Actualizado"]
-    ws.append(encab)
-    for cell in ws[1]:
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor="3E6086")
-        cell.alignment = Alignment(horizontal="center")
-    for f in filas:
-        ws.append(list(f))
-    for i, w in enumerate([14, 40, 22, 30, 24, 28, 22, 13], start=1):
-        ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
-    ws.freeze_panes = "A2"
-
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return Response(
-        content=buf.read(),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": 'attachment; filename="Claves_clientes.xlsx"'})
+    return tabla_simple("Claves_clientes.xlsx", "Claves", encab, filas, [14, 40, 22, 30, 24, 28, 22, 13])
 
 
 @router.delete("/claves/{kid}", status_code=204)
@@ -566,10 +511,7 @@ def revelar_clave(cid: int, kid: int, session: Session = Depends(get_session),
         raise HTTPException(404, "Clave no encontrada")
     if not k.clave_enc:
         return {"clave": ""}
-    try:
-        return {"clave": decrypt(k.clave_enc)}
-    except Exception:  # noqa: BLE001
-        raise HTTPException(422, "No se pudo descifrar la clave (llave de cifrado no coincide).")
+    return {"clave": _descifrar(k.clave_enc)}
 
 
 @router.post("", response_model=ClienteRead, status_code=201)

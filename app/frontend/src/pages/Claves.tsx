@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { Icon, useConfirm, useToast } from "../ui";
+import { ClaveCell, copiar, Icon, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
+import { useReveladas } from "../useReveladas";
 
 /** Listado GLOBAL de claves de clientes en portales (Grilla CyC).
  *  Cada usuario ve las de sus clientes asignados; Admin/Super las ven todas.
@@ -16,15 +17,14 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
   const toast = useToast();
   const confirmar = useConfirm();
   const [rows, setRows] = useState<ClaveRow[]>([]);
-  const [reveladas, setReveladas] = useState<Record<number, string>>({});
+  const { reveladas, toggle: revelar, ocultar, setReveladas } = useReveladas((id) => `/clientes/claves/${id}/revelar`, toast);
   const [todas, setTodas] = useState(false);      // ¿toda la columna revelada?
   const [cargando, setCargando] = useState(false);
-  const [tip, setTip] = useState<{ t: string; x: number; y: number } | null>(null);
   const [quick, setQuick] = useState("");         // filtro rápido: act/ina/jur/nat
   const [actualizado, setActualizado] = useState("");
 
   const load = () => {
-    setCargando(true); setReveladas({}); setTodas(false);
+    setCargando(true); ocultar(); setTodas(false);
     api.get("/clientes/claves/todas")
       .then((r: ClaveRow[]) => { setRows(r); setActualizado(new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })); })
       .catch((e: any) => toast(e.message, true))
@@ -34,19 +34,8 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
   // La App mantiene las páginas montadas (display:none); re-leer al volver a entrar.
   useEffect(() => { if (active) load(); }, [active]); // eslint-disable-line
 
-  const revelar = async (r: ClaveRow) => {
-    if (reveladas[r.id] !== undefined) {   // ya visible → ocultar
-      setReveladas((x) => { const n = { ...x }; delete n[r.id]; return n; });
-      return;
-    }
-    try {
-      const res: any = await api.get(`/clientes/claves/${r.id}/revelar`);
-      setReveladas((x) => ({ ...x, [r.id]: res.clave || "" }));
-    } catch (e: any) { toast(e.message, true); }
-  };
-
   const verTodas = async () => {
-    if (todas) { setReveladas({}); setTodas(false); return; }  // ocultar todas
+    if (todas) { ocultar(); setTodas(false); return; }  // ocultar todas
     try {
       const res: any[] = await api.get("/clientes/claves/reveladas");
       const m: Record<number, string> = {};
@@ -58,7 +47,6 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
   const exportar = () =>
     api.download("/clientes/claves/exportar", "Claves_clientes.xlsx").catch((e: any) => toast(e.message, true));
 
-  const copiar = (txt: string) => { navigator.clipboard?.writeText(txt); toast("Copiado ✓"); };
 
   const borrar = async (r: ClaveRow) => {
     const ok = await confirmar({
@@ -72,15 +60,6 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
       setRows((rs) => rs.filter((x) => x.id !== r.id));
       toast("Clave eliminada ✓");
     } catch (e: any) { toast(e.message, true); }
-  };
-
-  // Tooltip (azul) para usuarios que no caben en la columna.
-  const onUserEnter = (e: { currentTarget: HTMLElement }, txt: string) => {
-    const el = e.currentTarget;
-    if (el.scrollWidth > el.clientWidth + 1) {
-      const b = el.getBoundingClientRect();
-      setTip({ t: txt, x: b.left, y: b.bottom + 5 });
-    }
   };
 
   // Esta pantalla muestra SOLO las claves de clientes ACTIVOS; las inactivas no se listan.
@@ -105,34 +84,24 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
   const cols: Column<ClaveRow>[] = [
     { key: "num_id", label: "Id", type: "code", sortable: true, width: "12ch", value: (r) => r.num_id || "", render: (r) => <span className="mono">{r.num_id || "—"}</span> },
     { key: "cliente", label: "Cliente", sortable: true, filterable: true, className: "cli-full", value: (r) => r.cliente || "" },
-    { key: "rl", label: "RL", sortable: true, filterable: true, width: "22ch", value: (r) => r.rl || "", render: (r) => r.rl ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.rl}>{r.rl}</span> : <span style={{ color: "var(--ink-3)" }}>—</span> },
-    { key: "tipo", label: "Tipo", type: "status", filterable: true, width: "7ch", value: (r) => r.tipo || "—", render: (r) => r.tipo ? <span className={"tag " + (r.tipo === "Jur" ? "jur" : "nat")}>{r.tipo}</span> : <span style={{ color: "var(--ink-3)" }}>—</span> },
-    { key: "portal", label: "Portal", align: "left", sortable: true, filterable: true, width: "20ch", value: (r) => r.portal || "—", render: (r) => r.portal ? <span className="tag int">{r.portal}</span> : <span className="tag ina">—</span> },
-    { key: "url", label: "URL", align: "left", sortable: true, filterable: true, width: "24ch", value: (r) => r.url || "", render: (r) => r.url
-        ? <a href={/^https?:\/\//i.test(r.url) ? r.url : "https://" + r.url} target="_blank" rel="noreferrer" onMouseDown={(e) => e.stopPropagation()} style={{ color: "var(--primary)", textDecoration: "none", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.url}>{r.url}</a>
-        : <span style={{ color: "var(--ink-3)" }}>—</span> },
+    { key: "rl", label: "RL", sortable: true, filterable: true, width: "20ch", value: (r) => r.rl || "", tip: (r) => r.rl, render: (r) => r.rl || <span className="cell-dash">—</span> },
+    { key: "tipo", label: "Tipo", type: "status", filterable: true, width: "7ch", value: (r) => r.tipo || "—", render: (r) => r.tipo ? <span className={"tag " + (r.tipo === "Jur" ? "jur" : "nat")}>{r.tipo}</span> : <span className="cell-dash">—</span> },
+    { key: "portal", label: "Portal", align: "left", sortable: true, filterable: true, width: "18ch", value: (r) => r.portal || "—", render: (r) => r.portal ? <span className="tag int">{r.portal}</span> : <span className="tag ina">—</span> },
+    { key: "url", label: "URL", align: "left", sortable: true, filterable: true, width: "20ch", value: (r) => r.url || "", tip: (r) => r.url, render: (r) => r.url
+        ? <a href={/^https?:\/\//i.test(r.url) ? r.url : "https://" + r.url} target="_blank" rel="noreferrer" onMouseDown={(e) => e.stopPropagation()} style={{ color: "var(--primary)", textDecoration: "none" }}>{r.url}</a>
+        : <span className="cell-dash">—</span> },
     {
-      key: "usuario", label: "Usuario", sortable: true, filterable: true, width: "20ch", value: (r) => r.usuario || "",
+      key: "usuario", label: "Usuario", sortable: true, filterable: true, width: "18ch", value: (r) => r.usuario || "", tip: (r) => r.usuario,
       render: (r) => r.usuario
-        ? <span className="mono" style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }}
-            onMouseEnter={(e) => onUserEnter(e, r.usuario)} onMouseLeave={() => setTip(null)}
-            onMouseDown={(e) => e.stopPropagation()} onClick={() => copiar(r.usuario)}>{r.usuario}</span>
-        : <span style={{ color: "var(--ink-3)" }}>—</span>,
+        ? <span className="mono" style={{ cursor: "pointer" }}
+            onMouseDown={(e) => e.stopPropagation()} onClick={() => copiar(r.usuario, toast)}>{r.usuario}</span>
+        : <span className="cell-dash">—</span>,
     },
-    { key: "comentario", label: "Comentario", filterable: true, width: "30ch", value: (r) => r.comentario || "" },
+    { key: "comentario", label: "Comentario", filterable: true, width: "24ch", value: (r) => r.comentario || "", tip: (r) => r.comentario },
     {
       key: "clave", label: "Clave", align: "left", width: "26ch", value: (r) => (r.tiene_clave ? "1" : "0"),
-      render: (r) => r.tiene_clave ? (
-        <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-          <span className="mono" style={{ overflow: "hidden", textOverflow: "ellipsis", letterSpacing: reveladas[r.id] !== undefined ? 0 : 2 }}>
-            {reveladas[r.id] !== undefined ? (reveladas[r.id] || "(vacía)") : "••••••••"}
-          </span>
-          <span style={{ display: "inline-flex", gap: 4, flexShrink: 0 }}>
-            {puede("claves.revelar") && <button type="button" className="act-btn" title={reveladas[r.id] !== undefined ? "Ocultar" : "Ver"} onMouseDown={(e) => e.stopPropagation()} onClick={() => revelar(r)}><Icon name="eye" size={14} /></button>}
-            {reveladas[r.id] ? <button type="button" className="act-btn" title="Copiar clave" onMouseDown={(e) => e.stopPropagation()} onClick={() => copiar(reveladas[r.id])}><Icon name="copy" size={14} /></button> : null}
-          </span>
-        </span>
-      ) : <span className="tag ina">sin clave</span>,
+      render: (r) => <ClaveCell revealed={reveladas[r.id]} tiene_clave={r.tiene_clave} puede={puede("claves.revelar")}
+        onToggle={() => revelar(r.id)} onCopy={(t) => copiar(t, toast)} />,
     },
   ];
 
@@ -169,7 +138,6 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
         {(quick || "") && <><span className="gf-dot">·</span> {filtered.length} en vista</>}
         {actualizado && <><span className="gf-dot">·</span> Actualizado: {actualizado}</>}
       </div>
-      {tip && <div className="utip-pop" style={{ left: tip.x, top: tip.y }}>{tip.t}</div>}
     </div>
   );
 }

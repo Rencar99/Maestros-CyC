@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
-import { Icon, norm, useConfirm, useToast } from "../ui";
+import { Icon, norm, SecTitle, useConfirm, useToast } from "../ui";
 
 interface Rol { id: number; nombre: string; sistema: boolean; activo: boolean; n_permisos: number; n_usuarios: number; }
 interface Perm { clave: string; seccion: string; accion: string; etiqueta: string; }
@@ -267,8 +267,7 @@ export function RolesPermisos({ active = true }: { active?: boolean }) {
     <div className="rp">
       <div className="rp-top">
         <div>
-          <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ color: "#f7931e", display: "inline-flex" }}><Icon name="shield-check" size={20} /></span>Roles y permisos</h2>
-          <div className="rp-sub">{vista === "roles" ? "Qué puede ver y hacer cada rol en cada sección." : "Quién puede presentar borradores de cada formulario en la DIAN."}</div>
+          <SecTitle icon="shield-check" level={2}>Roles y permisos</SecTitle>
           <div className="segtabs" style={{ marginTop: 10 }}>
             <button className={vista === "roles" ? "on" : ""} onClick={() => setVista("roles")}>Permisos por rol</button>
             <button className={vista === "borradores" ? "on" : ""} onClick={() => setVista("borradores")}>Presentar borradores</button>

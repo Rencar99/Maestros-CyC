@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { CatItem, Cliente, ClienteClave, ClienteListItem, MunicipioIca, Obligacion, Responsable, Servicio } from "../types";
-import { Icon, money, Toggle, useConfirm, useToast } from "../ui";
+import { ClaveCell, copiar, fmtMiles, fmtTel, Icon, money, pesos, soloDig, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { CiiuCombo } from "../components/CiiuCombo";
 import { MunicipioCombo } from "../components/MunicipioCombo";
+import { RespCombo } from "../components/RespCombo";
+import { useReveladas } from "../useReveladas";
 import { Explorador } from "../components/Explorador";
 import { CatSelect } from "../components/CatSelect";
 import { CodeSelect } from "../components/CodeSelect";
 import { Modal } from "../components/Modal";
 
 interface ObligTipo { id: number; codigo: string; descripcion: string; ente: string; criterio: string; periodicidad: string; origen: string; disparador: string; activo: boolean; tam_intervalo: number; paso_dias_habiles: number; }
-const OBL_CRIT_TXT: Record<string, string> = { nit1: "Último dígito", nit2: "2 últimos dígitos", fijo: "Fecha única", grupo: "Por grupo", municipio: "Por municipio" };
-const OBL_DISP_TXT: Record<string, string> = { "": "— (manual)", renta_jur: "Renta P. Jurídica", renta_nat: "Renta P. Natural", renta_gc: "Renta Grandes Contrib.", retencion: "Retención (07)", reteiva: "ReteIVA (07)", inc: "INC (33)", iva_bim: "IVA Bimestral (48)", iva_cuat: "IVA Cuatrimestral (48)", iva_anual: "IVA Anual RST (47+48)", rst_anual: "RST Declaración (47)", rst_anticipo: "RST Anticipo (47)", exogena_jn: "Exógena Jur/Nat (14)", exogena_gc: "Exógena Grandes Contrib. (14)", beneficiarios: "Beneficiarios Finales (RUB)" };
+import { CRIT_TXT as OBL_CRIT_TXT, DISP_TXT as OBL_DISP_TXT } from "../catalogos-labels";
 
 /** Período "AAAA-MM" del mes actual (para nuevas filas de servicio). */
 const periodoHoy = (): string => {
@@ -189,25 +190,15 @@ function ClaveModal({ portales, setPortales, clave, getClave, onOk, onClose }: {
 function ClavesClienteModal({ cliente, onClose }: { cliente: ClienteListItem; onClose: () => void }) {
   const toast = useToast();
   const [claves, setClaves] = useState<ClienteClave[]>([]);
-  const [reveladas, setReveladas] = useState<Record<number, string>>({});
+  const { reveladas, toggle: revelar } = useReveladas((id) => `/clientes/${cliente.id}/claves/${id}/revelar`, toast);
   useEffect(() => { api.get(`/clientes/${cliente.id}/claves`).then(setClaves).catch((e: any) => toast(e.message, true)); }, []); // eslint-disable-line
-  const revelar = async (k: ClienteClave) => {
-    if (reveladas[k.id] !== undefined) { setReveladas((r) => { const n = { ...r }; delete n[k.id]; return n; }); return; }
-    try { const res: any = await api.get(`/clientes/${cliente.id}/claves/${k.id}/revelar`); setReveladas((r) => ({ ...r, [k.id]: res.clave || "" })); }
-    catch (e: any) { toast(e.message, true); }
-  };
   const cols: Column<ClienteClave>[] = [
     { key: "portal", label: "Portal", sortable: true, filterable: true, minWidth: "150px", value: (k) => k.portal || "" },
     { key: "usuario", label: "Usuario", sortable: true, minWidth: "150px", value: (k) => k.usuario || "" },
     {
       key: "clave", label: "Clave", minWidth: "210px", value: () => "",
-      render: (k) => k.tiene_clave ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontFamily: "monospace", letterSpacing: reveladas[k.id] !== undefined ? 0 : 2 }}>{reveladas[k.id] !== undefined ? (reveladas[k.id] || "(vacía)") : "••••••••"}</span>
-          <button type="button" className="act-btn" title={reveladas[k.id] !== undefined ? "Ocultar" : "Ver"} onClick={() => revelar(k)}><Icon name="eye" size={14} /></button>
-          {reveladas[k.id] ? <button type="button" className="act-btn" title="Copiar" onClick={() => { navigator.clipboard?.writeText(reveladas[k.id]); toast("Copiada ✓"); }}><Icon name="copy" size={14} /></button> : null}
-        </div>
-      ) : <span className="hint">— sin clave —</span>,
+      render: (k) => <ClaveCell revealed={reveladas[k.id]} tiene_clave={k.tiene_clave}
+        onToggle={() => revelar(k.id)} onCopy={(t) => copiar(t, toast)} />,
     },
     { key: "comentario", label: "Comentario", sortable: true, filterable: true, minWidth: "170px", value: (k) => k.comentario || "" },
   ];
@@ -259,16 +250,8 @@ function matchResponsable(nombreRut: string, resp: Responsable[]): number | null
   }
   return best;
 }
-const soloDig = (v: string) => String(v || "").replace(/\D/g, "").slice(0, 10);
-const fmtTel = (v: string) => { const d = soloDig(v); return d.length <= 3 ? d : d.slice(0, 3) + "-" + d.slice(3); };
 const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const fmtFecha = (s: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || ""); return m ? `${m[3]}/${m[2]}/${m[1]}` : ""; };
-const fmtMiles = (v: string | number | null | undefined) => {
-  if (v === null || v === undefined || v === "") return "";
-  // v puede venir como "1500000.00" (backend) o "1500000" (tecleado); redondea a peso.
-  const n = Math.round(Number(String(v).replace(/[^\d.-]/g, "")));
-  return isNaN(n) ? "" : n.toLocaleString("es-CO");
-};
 const TAB_ICON: Record<string, string> = { ident: "user", rep: "lock", trib: "file", comercial: "cat", ica: "info", obligaciones: "clipboard-check", claves: "lock", gestion: "resp" };
 function vacio(): Cliente {
   return {
@@ -477,16 +460,11 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   const [gruposCat, setGruposCat] = useState<CatItem[]>([]);   // catálogo de grupos económicos
   const [portalesCat, setPortalesCat] = useState<CatItem[]>([]);          // catálogo de portales
   const [claves, setClaves] = useState<ClienteClave[]>([]);              // claves del cliente
-  const [reveladas, setReveladas] = useState<Record<number, string>>({}); // claves reveladas en pantalla
+  const { reveladas, toggle: revelarClave, ocultar: ocultarClaves } = useReveladas((id) => `/clientes/${cliente.id}/claves/${id}/revelar`, toast);
   const [claveEdit, setClaveEdit] = useState<ClienteClave | "new" | null>(null);
   // Claves de portales: se cargan al abrir la pestaña; la clave en claro se pide aparte.
   const cargarClaves = () => { if (cliente.id) api.get(`/clientes/${cliente.id}/claves`).then(setClaves).catch(() => {}); };
-  useEffect(() => { setReveladas({}); if (tab === "claves") cargarClaves(); }, [tab]); // eslint-disable-line
-  const revelarClave = async (k: ClienteClave) => {
-    if (reveladas[k.id] !== undefined) { setReveladas((r) => { const n = { ...r }; delete n[k.id]; return n; }); return; }
-    try { const res: any = await api.get(`/clientes/${cliente.id}/claves/${k.id}/revelar`); setReveladas((r) => ({ ...r, [k.id]: res.clave || "" })); }
-    catch (e: any) { toast(e.message, true); }
-  };
+  useEffect(() => { ocultarClaves(); if (tab === "claves") cargarClaves(); }, [tab]); // eslint-disable-line
   const borrarClave = async (k: ClienteClave) => {
     if ((await confirmar({ titulo: "Eliminar clave", mensaje: `Se eliminará la credencial de "${k.portal || "portal"}" (${k.usuario || "sin usuario"}).`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
     try { await api.del(`/clientes/${cliente.id}/claves/${k.id}`); cargarClaves(); toast("Eliminada"); }
@@ -501,13 +479,9 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     { key: "odbc_ip", label: "IP", sortable: true, filterable: true, minWidth: "120px", value: (k) => k.odbc_ip || "", render: (k) => k.odbc_ip || <span className="hint">—</span> },
     { key: "odbc_dbf", label: "DBF", sortable: true, filterable: true, minWidth: "150px", value: (k) => k.odbc_dbf || "", render: (k) => k.odbc_dbf || <span className="hint">—</span> },
     { key: "usuario", label: "Usuario", sortable: true, filterable: true, minWidth: "160px", value: (k) => k.usuario || "", render: (k) => k.usuario || "—" },
-    { key: "clave", label: "Clave", minWidth: "210px", value: () => "", render: (k) => k.tiene_clave ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontFamily: "monospace", letterSpacing: reveladas[k.id] !== undefined ? 0 : 2 }}>{reveladas[k.id] !== undefined ? (reveladas[k.id] || "(vacía)") : "••••••••"}</span>
-          <button type="button" className="act-btn" title={reveladas[k.id] !== undefined ? "Ocultar" : "Ver"} onClick={() => revelarClave(k)}><Icon name="eye" size={14} /></button>
-          {reveladas[k.id] ? <button type="button" className="act-btn" title="Copiar" onClick={() => { navigator.clipboard?.writeText(reveladas[k.id]); toast("Copiada ✓"); }}><Icon name="copy" size={14} /></button> : null}
-        </div>
-      ) : <span className="hint">— sin clave —</span> },
+    { key: "clave", label: "Clave", minWidth: "210px", value: () => "",
+      render: (k) => <ClaveCell revealed={reveladas[k.id]} tiene_clave={k.tiene_clave}
+        onToggle={() => revelarClave(k.id)} onCopy={(t) => copiar(t, toast)} /> },
     { key: "comentario", label: "Comentario", sortable: true, filterable: true, minWidth: "180px", value: (k) => k.comentario || "", render: (k) => k.comentario || "—" },
   ];
   // Al navegar a otro registro el modal NO se remonta (evita el "salto"): refrescamos el estado aquí.
@@ -552,7 +526,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     { key: "rol", label: "Rol del servicio", sortable: true, filterable: true, minWidth: "210px", value: (r) => rolName(r.s.rol_servicio_id) },
     { key: "factura", label: "Factura", type: "status", sortable: true, filterable: true, width: "84px", align: "center", value: (r) => r.s.forma_facturacion || "" },
     { key: "periodo", label: "Periodo", sortable: true, filterable: true, align: "center", width: "100px", value: (r) => r.s.periodo || "" },
-    { key: "valor", label: "Valor", type: "money", sortable: true, total: true, value: (r) => Number(r.s.valor_servicio) || 0, formatter: (v) => "$ " + Math.round(Number(v) || 0).toLocaleString("es-CO"), render: (r) => <span>{fmtMiles(r.s.valor_servicio) || "—"}</span> },
+    { key: "valor", label: "Valor", type: "money", sortable: true, total: true, value: (r) => Number(r.s.valor_servicio) || 0, formatter: (v) => pesos(v as number), render: (r) => <span>{fmtMiles(r.s.valor_servicio) || "—"}</span> },
     { key: "vendedor", label: "Vendedor", sortable: true, filterable: true, minWidth: "150px", value: (r) => r.s.vendedor || "" },
     { key: "pct", label: "% Com.", align: "right", width: "80px", sortable: true, value: (r) => Number(r.s.pct_comision) || 0, render: (r) => <span>{r.s.pct_comision ?? "—"}</span> },
     {
@@ -858,6 +832,15 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     // obligaciones" (pestaña Obligaciones). Nada cambia en silencio.
     toast("Cambios aplicados. Revisa las obligaciones y pulsa «Guardar cambios».");
   };
+  const colsRut: Column<RutDiff>[] = [
+    { key: "check", label: "", width: "40px", align: "center", value: (it) => (it.check ? "1" : "0"),
+      render: (it) => it.info
+        ? <span title="No se puede aplicar; solo aviso" style={{ color: "#E8A020" }}><Icon name="info" size={15} /></span>
+        : <input type="checkbox" checked={it.check} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => setRutItems((arr) => (arr || []).map((x) => x === it ? { ...x, check: e.target.checked } : x))} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} /> },
+    { key: "label", label: "Campo", width: "170px", value: (it) => it.label, render: (it) => <b>{it.label}</b> },
+    { key: "actual", label: "En la ficha", value: (it) => it.actual || "", render: (it) => <span className="cell-dash">{it.actual || "—"}</span> },
+    { key: "propuesto", label: "En el RUT", value: (it) => it.propuesto || "", render: (it) => <span style={{ color: it.info ? "#E8A020" : "var(--primary)" }}>{it.propuesto}</span> },
+  ];
   const [explorar, setExplorar] = useState<{ modo: "carpeta" | "archivo"; key: keyof Cliente; inicio?: string } | null>(null);
 
   const guardarRaw = async (): Promise<boolean> => {
@@ -900,10 +883,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   // Select de responsables (reutilizable para impuestos/financiero/firmas).
   const RSel = (label: string, value: number | null, key: keyof Cliente, disabled?: boolean) => (
     <div className="f"><label>{label}</label>
-      <select value={value ?? ""} disabled={disabled} onChange={(e) => set(key, e.target.value ? Number(e.target.value) : null)}>
-        <option value="">—</option>
-        {resp.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
-      </select>
+      <RespCombo value={value} options={resp} disabled={disabled} onChange={(id) => set(key, id)} />
     </div>
   );
 
@@ -1314,23 +1294,8 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
             <div style={{ padding: 20, textAlign: "center", color: "var(--ink-2)" }}>No hay diferencias entre el RUT y la ficha. ✓</div>
           ) : (
             <>
-              <div className="tbl-wrap" style={{ maxHeight: "50vh", overflow: "auto" }}>
-                <table className="child">
-                  <thead><tr><th style={{ width: 34 }}></th><th style={{ minWidth: 140 }}>Campo</th><th>En la ficha</th><th>En el RUT</th></tr></thead>
-                  <tbody>
-                    {rutItems.map((it, i) => (
-                      <tr key={i}>
-                        <td className="al-c">{it.info
-                          ? <span title="No se puede aplicar; solo aviso" style={{ color: "#E8A020" }}><Icon name="info" size={15} /></span>
-                          : <input type="checkbox" checked={it.check} onChange={(e) => setRutItems((arr) => (arr || []).map((x, j) => j === i ? { ...x, check: e.target.checked } : x))} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} />}</td>
-                        <td><b>{it.label}</b></td>
-                        <td style={{ color: "var(--ink-3)" }}>{it.actual || "—"}</td>
-                        <td style={{ color: it.info ? "#E8A020" : "var(--primary)" }}>{it.propuesto}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataGrid columns={colsRut} rows={rutItems} getKey={(it) => it.label} label="Conciliación"
+                storageKey="cli-rut-conc" scrollClass="modal-grid" searchable={false} exportable={false} />
             </>
           )}
         </Modal>

@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { Icon } from "../ui";
+import { Icon, SecTitle } from "../ui";
 
 /* ---- Helpers de cuerpo (mismos estilos que el Manual de Descargas DIAN) ---- */
 const H = ({ e, children }: { e?: string; children: ReactNode }) => (
@@ -445,8 +445,7 @@ export function ManualUsuario() {
   return (
     <div className="card man">
       <div className="card-h">
-        <Icon name="file" size={18} />
-        <div><h3>Manual de usuario</h3><div className="hint">Cómo usar la App · Cardona &amp; co.</div></div>
+        <SecTitle icon="file">Manual de usuario</SecTitle>
       </div>
       <div className="man-body">
         <aside className="man-idx">

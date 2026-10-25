@@ -86,7 +86,7 @@ def generar(data: GenerarIn, session: Session = Depends(get_session),
     NO guarda. IVA por defecto 19% si Fa (0 si CC); ReteIVA 0."""
     etiqueta = _etiqueta(data.mes, data.anio)
     periodo = f"{data.anio:04d}-{data.mes:02d}"
-    from .clientes import _confid_ocultos         # import local: evita ciclos
+    from ..scope import confid_ocultos as _confid_ocultos
     ocultos = _confid_ocultos(session, user)      # confidenciales no visibles para este usuario
     roles = {r.id: r.descripcion for r in session.exec(select(RolServicio)).all()}
     clientes = {c.id: c for c in session.exec(select(Cliente)).all()}
@@ -369,7 +369,7 @@ def obtener(fid: int, session: Session = Depends(get_session),
         raise HTTPException(404, "Facturación no encontrada")
     items = session.exec(select(FacturacionItem).where(FacturacionItem.facturacion_id == fid)
                          .order_by(FacturacionItem.orden)).all()
-    from .clientes import _confid_ocultos         # import local: evita ciclos
+    from ..scope import confid_ocultos as _confid_ocultos
     ocultos = _confid_ocultos(session, user)      # oculta ítems de confidenciales no visibles
     if ocultos:
         items = [i for i in items if i.cliente_id not in ocultos]
@@ -400,7 +400,8 @@ def _excel_response(etiqueta: str, filas: list) -> Response:
     """filas: lista de objetos/dicts con num_id, nombre, concepto, valor, forma,
     iva, reteiva, periodicidad, observaciones. Devuelve el xlsx como Response."""
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.styles import Font
+    from ..export_xlsx import estilar_encabezado, xlsx_response
 
     def g(f, k):
         return getattr(f, k) if not isinstance(f, dict) else f.get(k)
@@ -413,11 +414,7 @@ def _excel_response(etiqueta: str, filas: list) -> Response:
     ws.append([f"Facturación {etiqueta}"])
     ws.append([])
     ws.append(encab)
-    hdr_fill = PatternFill("solid", fgColor="1F5FA8")
-    for cell in ws[3]:
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = hdr_fill
-        cell.alignment = Alignment(horizontal="center")
+    estilar_encabezado(ws, 3)
     for f in filas:
         ws.append([g(f, "num_id"), g(f, "nombre"), g(f, "concepto"),
                    float(_dec(g(f, "valor"))), g(f, "forma"),
@@ -438,14 +435,8 @@ def _excel_response(etiqueta: str, filas: list) -> Response:
         for r in range(4, 4 + n):
             ws[f"{col}{r}"].number_format = "#,##0"
 
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
     nombre = f"Facturacion {etiqueta}.xlsx".replace(" ", "_")
-    return Response(
-        content=buf.read(),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+    return xlsx_response(wb, nombre)
 
 
 @router.post("/exportar")
@@ -462,7 +453,7 @@ def exportar(fid: int, session: Session = Depends(get_session),
         raise HTTPException(404, "Facturación no encontrada")
     items = session.exec(select(FacturacionItem).where(FacturacionItem.facturacion_id == fid)
                          .order_by(FacturacionItem.orden)).all()
-    from .clientes import _confid_ocultos         # import local: evita ciclos
+    from ..scope import confid_ocultos as _confid_ocultos
     ocultos = _confid_ocultos(session, user)
     if ocultos:
         items = [i for i in items if i.cliente_id not in ocultos]
@@ -484,13 +475,12 @@ _EST_LBL = {"ok": "Coincide", "dif": "Diferencia",
 def validar_excel(data: ValidarExcelIn, _u: Usuario = Depends(require_perm("facturacion.validar"))):
     """Exporta a Excel el reporte de validación (facturas + cuentas de cobro)."""
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill
+    from openpyxl.styles import Font
+    from ..export_xlsx import estilar_encabezado, xlsx_response
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Validación"
-    azul = PatternFill("solid", fgColor="1F5FA8")
-    gris = PatternFill("solid", fgColor="E8EDF3")
 
     ws["A1"] = f"Validación facturación {data.etiqueta} — aprobada vs emitidas"
     ws["A1"].font = Font(bold=True, size=13)
@@ -511,9 +501,8 @@ def validar_excel(data: ValidarExcelIn, _u: Usuario = Depends(require_perm("fact
             "IVA aprob.", "IVA emit.", "Dif IVA", "Estado", "Fact/CC"]
     fila = 4
     for j, c in enumerate(cols, 1):
-        cell = ws.cell(row=fila, column=j, value=c)
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = azul
+        ws.cell(row=fila, column=j, value=c)
+    estilar_encabezado(ws, fila)
     fila += 1
     for f in todas:
         docs = f"{f.get('tipo')} " + ", ".join(f.get("numeros") or [])
@@ -533,16 +522,9 @@ def validar_excel(data: ValidarExcelIn, _u: Usuario = Depends(require_perm("fact
         ws.column_dimensions[c].width = 14
     ws.column_dimensions["I"].width = 13
     ws.column_dimensions["J"].width = 26
-    _ = gris  # (reservado)
 
-    buf = io.BytesIO()
-    wb.save(buf)
-    buf.seek(0)
     nombre = f"Validacion {data.etiqueta}.xlsx".replace(" ", "_")
-    return Response(
-        content=buf.read(),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+    return xlsx_response(wb, nombre)
 
 
 # ===================================================== Cuentas de cobro (CC)
@@ -761,7 +743,8 @@ def cuenta_cobro_pdf(fid: int, item_id: int, session: Session = Depends(get_sess
     consecutivo del emisor (sin consumirlo)."""
     from datetime import date
     from .parametros import _cobro
-    from ..cuenta_cobro import construir_html, html_a_pdf
+    from ..cuenta_cobro import html_a_pdf
+    from ..models import CuentaCobro
 
     fac = session.get(Facturacion, fid)
     it0 = session.get(FacturacionItem, item_id)
@@ -770,17 +753,20 @@ def cuenta_cobro_pdf(fid: int, item_id: int, session: Session = Depends(get_sess
         html = _cc_html(session, cc)
         numero, nombre_cli = cc.numero, cc.deudor
     else:
+        # VISTA PREVIA: arma una CuentaCobro TRANSITORIA (no se persiste) y reusa
+        # _cc_html → construir_html vive en un solo lugar (firme y preview iguales).
         it, cli, em, deudor_doc = _cc_validar(session, fid, item_id)
         numero = f"{em.prefijo}-{em.consecutivo + 1}" if em.prefijo else str(em.consecutivo + 1)
         pago = _cobro(session)
-        html = construir_html(
-            numero=numero, fecha=date.today(),
-            deudor=it.nombre or cli.nombre, deudor_doc=deudor_doc,
-            emisor_nombre=em.nombre, emisor_cedula=em.cedula, emisor_direccion=em.direccion,
-            emisor_celular=em.celular, nota_383=em.nota_383, nota_383_texto=pago["nota_383"],
-            firma=em.firma, concepto=it.concepto,
-            valor=it.valor or 0, pago_banco=pago["banco"], pago_tipo=pago["tipo_cuenta"],
+        draft = CuentaCobro(
+            numero=numero, fecha=date.today(), deudor=it.nombre or cli.nombre, deudor_doc=deudor_doc,
+            emisor_id=em.id, emisor_nombre=em.nombre, emisor_cedula=em.cedula,
+            emisor_direccion=em.direccion, emisor_celular=em.celular,
+            nota_383=em.nota_383, nota_383_texto=pago["nota_383"], emisor_firma=em.firma,
+            concepto=it.concepto, valor=it.valor or 0,
+            pago_banco=pago["banco"], pago_tipo=pago["tipo_cuenta"],
             pago_numero=pago["numero_cuenta"], pago_titular=pago["titular"])
+        html = _cc_html(session, draft)
         nombre_cli = cli.nombre
     try:
         pdf = html_a_pdf(html)

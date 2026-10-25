@@ -25,7 +25,7 @@ function DatosCobroCard() {
   };
   return (
     <div className="card">
-      <div className="card-h"><div><SecTitle icon="coins">Datos de cobro</SecTitle><div className="hint">Datos de pago que aparecen en las cuentas de cobro.</div></div></div>
+      <div className="card-h"><SecTitle icon="coins">Datos de cobro</SecTitle></div>
       <div style={{ padding: "14px 16px 18px", maxWidth: 580 }}>
         {cargando ? <div className="hint">Cargando…</div> : (
           <>
@@ -75,8 +75,7 @@ function CorreoEnvioCard() {
   };
   return (
     <div className="card">
-      <div className="card-h"><div><SecTitle icon="mail">Plantilla del correo</SecTitle>
-        <div className="hint">Asunto y cuerpo del correo con que se envían las cuentas de cobro. Cada responsable las envía desde su propio correo (pestaña "Mi correo").</div></div></div>
+      <div className="card-h"><SecTitle icon="mail">Plantilla del correo</SecTitle></div>
       <div style={{ padding: "14px 16px 18px", maxWidth: 620 }}>
         {cargando ? <div className="hint">Cargando…</div> : (
           <>
@@ -138,7 +137,7 @@ function MiCorreoCard() {
 
   return (
     <div className="card">
-      <div className="card-h"><div><SecTitle icon="mail">Mi correo</SecTitle><div className="hint">Conecta tu correo de Microsoft 365 para enviar los documentos a tu nombre.</div></div></div>
+      <div className="card-h"><SecTitle icon="mail">Mi correo</SecTitle></div>
       <div style={{ padding: "14px 16px 18px", maxWidth: 560 }}>
         {cargando ? <div className="hint">Cargando…</div> : errCarga ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

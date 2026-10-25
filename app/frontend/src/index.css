@@ -88,6 +88,33 @@ button{font-family:inherit}
 .ctx-cell.ctx-firma{flex:1.4;padding-left:28px}
 .ctx-end{display:flex;align-items:center;padding:0 14px 0 18px}
 .ctx-pill{background:#E8F4EC;color:#2e7d32;border-radius:10px;padding:2px 11px;font-size:11px;font-weight:700;white-space:nowrap}
+.ctx-pill.off{background:var(--err-bg);color:var(--err)}
+.cell-dash{color:var(--ink-3)}
+.clave-cell{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.clave-cell .clave-acts{display:inline-flex;gap:4px;flex-shrink:0}
+/* Servidor de datos (pantalla pre-login / modal / panel) */
+.pill.ok{background:var(--ok-bg);color:var(--ok);border:none}
+.pill.off{background:var(--err-bg);color:var(--err);border:none}
+.srv-actual{display:flex;align-items:center;gap:10px;margin-bottom:14px;font-size:12.5px;flex-wrap:wrap}
+.srv-actual b{font-variant-numeric:tabular-nums}
+.srv-form{display:grid;grid-template-columns:1fr 120px;gap:6px 14px}
+.srv-msg{margin-top:12px;font-size:12.5px;display:flex;align-items:center;gap:8px}
+.srv-msg.ok{color:var(--ok)}
+.srv-msg.err{color:var(--err)}
+.srv-btns{display:flex;gap:8px;margin-top:18px}
+.srv-screen{min-height:100vh;display:grid;place-items:center;background:var(--page);padding:24px}
+.srv-screen .srv-card{width:540px;max-width:94vw}
+.srv-screen-head{padding:26px 28px 4px;text-align:center}
+.srv-screen-head img{height:34px;margin:0 auto 16px;display:block}
+.srv-screen-ic{width:44px;height:44px;border-radius:12px;background:var(--warn-bg);color:var(--warn);display:grid;place-items:center;margin:0 auto 12px}
+.srv-screen-head h2{font-size:18px;font-weight:700;color:var(--ink);margin:0}
+.srv-screen-head p{font-size:13px;color:var(--ink-3);margin:8px auto 0;max-width:410px}
+.srv-screen-body{padding:16px 28px 22px}
+.srv-screen-foot{padding:14px 28px;border-top:1px solid var(--line);text-align:center}
+/* DataGrid embebido en un modal: acota el alto para que scrollee la grilla. */
+.modal-grid{max-height:52vh}
+.row-dim{opacity:.5}
+.row-err td{background:rgba(220,60,60,.05)}
 .topbar-row{height:64px;display:flex;align-items:center;gap:16px;padding:0 26px}
 .tb-eyebrow{font-size:10px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--gold);margin-bottom:2px}
 .topbar.marco h2{font-size:18px;font-weight:700;line-height:1.15}

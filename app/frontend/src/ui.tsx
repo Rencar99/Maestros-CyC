@@ -107,12 +107,49 @@ export function Icon({ name, size = 18 }: { name: string; size?: number }) {
   );
 }
 
-/* Encabezado de sección con el ícono del menú en ámbar (#f7931e) — estándar C&C. */
-export function SecTitle({ icon, children }: { icon: string; children: ReactNode }) {
+/* Encabezado de sección con el ícono del menú en ámbar (#f7931e) — estándar C&C.
+   level 3 (h3, por defecto) o 2 (h2, para encabezados de página). */
+export function SecTitle({ icon, title, level = 3, children }: { icon: string; title?: string; level?: 2 | 3; children: ReactNode }) {
+  const Tag = (level === 2 ? "h2" : "h3") as "h2" | "h3";
   return (
-    <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ color: "#f7931e", display: "inline-flex" }}><Icon name={icon} size={19} /></span>{children}
-    </h3>
+    <Tag title={title} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span style={{ color: "#f7931e", display: "inline-flex" }}><Icon name={icon} size={level === 2 ? 20 : 19} /></span>{children}
+    </Tag>
+  );
+}
+
+/* Celda Sí/No estándar: verde = sí, atenuado = no. */
+export function SiNo({ v }: { v: boolean }) {
+  return <span style={{ color: v ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{v ? "Sí" : "No"}</span>;
+}
+
+/* Teléfono: solo dígitos (máx 10) y formato "NNN-NNNNNNN". */
+export const soloDig = (v: string) => String(v || "").replace(/\D/g, "").slice(0, 10);
+export const fmtTel = (v: string) => { const d = soloDig(v); return d.length <= 3 ? d : d.slice(0, 3) + "-" + d.slice(3); };
+
+/* Copiar al portapapeles + aviso estándar. */
+export function copiar(txt: string, toast: (m: string, e?: boolean) => void) {
+  navigator.clipboard?.writeText(txt);
+  toast("Copiado ✓");
+}
+
+/* Celda de clave: •••• oculta (con ojo para revelar/ocultar) o el valor revelado
+   (con botón copiar). El revelado/estado lo maneja el padre (distinto endpoint por
+   pantalla); aquí solo la presentación. */
+export function ClaveCell({ revealed, tiene_clave = true, puede = true, onToggle, onCopy }: {
+  revealed: string | undefined; tiene_clave?: boolean; puede?: boolean;
+  onToggle: () => void; onCopy: (txt: string) => void;
+}) {
+  if (!tiene_clave) return <span className="tag ina">sin clave</span>;
+  const shown = revealed !== undefined;
+  return (
+    <span className="clave-cell">
+      <span className="mono" style={{ letterSpacing: shown ? 0 : 2 }}>{shown ? (revealed || "(vacía)") : "••••••••"}</span>
+      <span className="clave-acts">
+        {puede && <button type="button" className="act-btn" title={shown ? "Ocultar" : "Ver"} onMouseDown={(e) => e.stopPropagation()} onClick={onToggle}><Icon name="eye" size={14} /></button>}
+        {shown && revealed ? <button type="button" className="act-btn" title="Copiar clave" onMouseDown={(e) => e.stopPropagation()} onClick={() => onCopy(revealed)}><Icon name="copy" size={14} /></button> : null}
+      </span>
+    </span>
   );
 }
 
@@ -205,6 +242,14 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 }
 
 /* ---------------- Formatos es-CO ------------------------------------------ */
+/* Pesos a 0 decimales (estándar de la firma): numInt parsea, fmtMiles formatea
+   sin símbolo ("" si vacío), pesos agrega "$ ". */
+export const numInt = (v: string | number | null | undefined) =>
+  Math.round(Number(String(v ?? "").replace(/[^\d.-]/g, "")) || 0);
+export const fmtMiles = (v: string | number | null | undefined) =>
+  (v === null || v === undefined || v === "" ? "" : numInt(v).toLocaleString("es-CO"));
+export const pesos = (v: string | number | null | undefined) => "$ " + (fmtMiles(v) || "0");
+
 export function money(v: string | number | null | undefined): string {
   if (v === null || v === undefined || v === "") return "—";
   const n = typeof v === "string" ? parseFloat(v) : v;

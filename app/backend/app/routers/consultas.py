@@ -491,7 +491,7 @@ def listar_operadores(_u=Depends(require_perm("consultas.generar"))):
 def ejecutar(c: ConsultaIn, session: Session = Depends(get_session),
              user: Usuario = Depends(require_perm("consultas.generar"))):
     """Arma la consulta, la corre en solo lectura y devuelve filas + SQL."""
-    from .clientes import _confid_ocultos         # import local: evita ciclos
+    from ..scope import confid_ocultos as _confid_ocultos
     sql, params, cols = _armar(c, confid_ocultos=_confid_ocultos(session, user))
     filas = _correr(sql, params)
     limite = max(1, min(int(c.limite or LIMITE_DEF), LIMITE_MAX))
@@ -500,41 +500,21 @@ def ejecutar(c: ConsultaIn, session: Session = Depends(get_session),
 
 
 def _excel(tabla: str, cols: list[dict], filas: list[dict], titulo: str = "") -> Response:
-    """Arma el Excel (con el estilo de la firma) y lo devuelve como descarga."""
-    from io import BytesIO
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Font, PatternFill
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = (titulo or ETIQUETAS_TABLA.get(tabla, tabla))[:31]
-    ws.append([x["etiqueta"] for x in cols])
-    for cell in ws[1]:
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill("solid", fgColor="3E6086")
-        cell.alignment = Alignment(horizontal="center")
-    for f in filas:
-        ws.append([f.get(x["nombre"]) for x in cols])
-    for i, x in enumerate(cols, start=1):
-        ancho = max(12, min(42, len(x["etiqueta"]) + 6))
-        ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = ancho
-    ws.freeze_panes = "A2"
-
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
+    """Arma el Excel (estilo único de la firma) y lo devuelve como descarga."""
+    from ..export_xlsx import tabla_simple
+    hoja = (titulo or ETIQUETAS_TABLA.get(tabla, tabla))[:31]
+    encab = [x["etiqueta"] for x in cols]
+    rows = [[f.get(x["nombre"]) for x in cols] for f in filas]
+    anchos = [max(12, min(42, len(x["etiqueta"]) + 6)) for x in cols]
     nombre = f"Consulta_{(titulo or tabla)}.xlsx".replace(" ", "_")
-    return Response(
-        content=buf.read(),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+    return tabla_simple(nombre, hoja, encab, rows, anchos)
 
 
 @router.post("/exportar")
 def exportar(c: ConsultaIn, session: Session = Depends(get_session),
              user: Usuario = Depends(require_perm("consultas.generar"))):
     """La misma consulta, en Excel (con el estilo de la firma)."""
-    from .clientes import _confid_ocultos         # import local: evita ciclos
+    from ..scope import confid_ocultos as _confid_ocultos
     sql, params, cols = _armar(c, confid_ocultos=_confid_ocultos(session, user))
     return _excel(c.tabla, cols, _correr(sql, params))
 
@@ -683,7 +663,7 @@ def _preparar_publicada(session: Session, user: Usuario, gid: int):
     if not _puede_ver(session, user, g):
         raise HTTPException(403, "No tienes acceso a esta consulta")
     c = ConsultaIn(**(g.definicion or {}))
-    from .clientes import _ids_asignados, _confid_ocultos    # import local: evita ciclos
+    from ..scope import ids_asignados as _ids_asignados, confid_ocultos as _confid_ocultos
     restr = None
     if (g.alcance or "asignados") == "asignados":
         restr = _ids_asignados(session, user)     # None = Admin/Super = todas

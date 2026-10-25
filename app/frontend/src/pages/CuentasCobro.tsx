@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import { Icon, SecTitle, useConfirm, useToast } from "../ui";
+import { fmtMiles as fmt, Icon, pesos, SecTitle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal } from "../components/Modal";
+import { MESES, PeriodoPicker } from "../components/PeriodoPicker";
 
 interface Row {
   item_id: number; cliente: string; concepto: string; valor: number | null;
@@ -11,9 +12,6 @@ interface Row {
   estado: string; enviado_at: string | null;
 }
 
-const MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio",
-  "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-const fmt = (v: number | null) => (v == null ? "" : Math.round(v).toLocaleString("es-CO"));
 
 /** Sección "Cuentas de cobro": grilla por período (lee la facturación del mes).
  *  Acciones por fila: generar en firme · revisar (PDF) · enviar por correo. */
@@ -112,7 +110,7 @@ export function CuentasCobro({ active }: { active: boolean }) {
       render: (r) => r.tiene_emisor ? <span>{r.emisor}</span>
         : <span className="cc-nocorreo"><Icon name="alert" size={13} />sin emisor</span>,
     },
-    { key: "valor", label: "Valor", type: "money", sortable: true, total: true, value: (r) => r.valor || 0, formatter: (v) => "$ " + fmt(Number(v) || 0), render: (r) => <span>$ {fmt(r.valor)}</span> },
+    { key: "valor", label: "Valor", type: "money", sortable: true, total: true, value: (r) => r.valor || 0, formatter: (v) => pesos(v as number), render: (r) => <span>{pesos(r.valor)}</span> },
     {
       key: "numero", label: "N°", width: "100px", align: "center", value: (r) => r.numero || "",
       render: (r) => r.numero ? <span className="pill cc-num">{r.numero}</span> : <span style={{ color: "var(--ink-3)" }}>—</span>,
@@ -130,13 +128,7 @@ export function CuentasCobro({ active }: { active: boolean }) {
       <div className="card-h" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <SecTitle icon="file">Cuentas de cobro</SecTitle>
         <div className="r" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span className="fact-period" title="Período">
-            <Icon name="calendar" size={16} />
-            <select value={mes} onChange={(e) => setMes(Number(e.target.value))}>
-              {MESES.slice(1).map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-            </select>
-            <input className="fp-year" value={anio} onChange={(e) => setAnio(Number(e.target.value) || anio)} />
-          </span>
+          <PeriodoPicker mes={mes} anio={anio} onMes={setMes} onAnio={setAnio} />
           <button className="btn sm" onClick={cargar} title="Actualizar"><Icon name="refresh" size={15} /></button>
           {fid && <>
             <button className="btn primary sm" onClick={generarTodas}><Icon name="clipboard-check" size={15} />Generar todas</button>

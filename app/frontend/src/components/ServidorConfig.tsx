@@ -53,19 +53,17 @@ export function ServidorConfig({ variant, onListo, onClose }: {
     finally { setGuardando(false); }
   };
 
-  const cuerpo = (
+  const campos = (
     <>
       {info && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, fontSize: 12.5, flexWrap: "wrap" }}>
+        <div className="srv-actual">
           <span style={{ color: "var(--ink-3)" }}>Servidor actual:</span>
-          <b style={{ fontVariantNumeric: "tabular-nums" }}>{info.host || "—"}:{info.puerto || "—"}</b>
-          <span className="pill" style={{ background: info.conectado ? "var(--ok-bg)" : "var(--err-bg)", color: info.conectado ? "var(--ok)" : "var(--err)", border: "none" }}>
-            {info.conectado ? "Conectado" : "Sin conexión"}
-          </span>
+          <b>{info.host || "—"}:{info.puerto || "—"}</b>
+          <span className={"pill " + (info.conectado ? "ok" : "off")}>{info.conectado ? "Conectado" : "Sin conexión"}</span>
           {info.personalizado && <span className="tag jur">personalizado</span>}
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "6px 14px" }}>
+      <div className="srv-form">
         <div className="fld"><label>Dirección del servidor (IP o nombre) <span className="req">*</span></label>
           <input className="inp" value={ip} placeholder="DESKTOP-N8VFD87" onChange={(e) => { setIp(e.target.value); setPrueba(null); }} />
         </div>
@@ -73,33 +71,32 @@ export function ServidorConfig({ variant, onListo, onClose }: {
           <input className="inp" type="number" min={1} max={65535} value={puerto} onChange={(e) => { setPuerto(Number(e.target.value)); setPrueba(null); }} />
         </div>
       </div>
-
       {prueba && (
-        <div style={{ marginTop: 12, fontSize: 12.5, display: "flex", alignItems: "center", gap: 8, color: prueba.ok ? "var(--ok)" : "var(--err)" }}>
+        <div className={"srv-msg " + (prueba.ok ? "ok" : "err")}>
           <Icon name={prueba.ok ? "check-circle" : "alert"} size={15} /> {prueba.msg}
         </div>
       )}
-
-      <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-        <button className="btn" onClick={probar} disabled={!ip.trim() || !puertoValido || probando || guardando}>
-          <Icon name="refresh" size={15} /> {probando ? "Probando…" : "Probar conexión"}
-        </button>
-        <button className="btn primary" onClick={guardar} disabled={!puedeGuardar}>
-          <Icon name="save" size={16} /> {guardando ? "Guardando…" : "Guardar y reconectar"}
-        </button>
-      </div>
-      <small className="hint" style={{ display: "block", marginTop: 12 }}>
-        Solo cambia <b>a qué servidor</b> se conecta este equipo (IP/host y puerto). Las credenciales de la
-        base no se muestran ni se modifican. Úsalo si el servidor cambió de dirección.
-      </small>
     </>
   );
+  const botones = (
+    <div className="srv-btns">
+      <button className="btn" onClick={probar} disabled={!ip.trim() || !puertoValido || probando || guardando}>
+        <Icon name="refresh" size={15} /> {probando ? "Probando…" : "Probar conexión"}
+      </button>
+      <button className="btn primary" onClick={guardar} disabled={!puedeGuardar}>
+        <Icon name="save" size={16} /> {guardando ? "Guardando…" : "Guardar y reconectar"}
+      </button>
+    </div>
+  );
 
+  // Modal estándar: Guardar = acción primaria (onSave), Probar = acción secundaria.
   if (variant === "modal") {
     return (
       <Modal title="Servidor de datos" sub="IP/host y puerto de la Postgres de la firma" icon="gear" size="md"
-        onClose={onClose || (() => {})}>
-        {cuerpo}
+        onClose={onClose || (() => {})} onSave={guardar} canSave={puedeGuardar} saving={guardando}
+        saveLabel="Guardar y reconectar" saveIcon="save"
+        extraActions={<button className="mh-act" onClick={probar} disabled={!ip.trim() || !puertoValido || probando || guardando} aria-label="Probar conexión"><Icon name="refresh" size={18} /><span className="mh-tip">{probando ? "Probando…" : "Probar conexión"}</span></button>}>
+        {campos}
       </Modal>
     );
   }
@@ -108,33 +105,24 @@ export function ServidorConfig({ variant, onListo, onClose }: {
   if (variant === "panel") {
     return (
       <div className="card">
-        <div className="card-h">
-          <div>
-            <SecTitle icon="gear">Servidor de datos</SecTitle>
-            <div className="hint">IP/host y puerto de la Postgres de la firma</div>
-          </div>
-        </div>
-        <div style={{ padding: "14px 16px 18px" }}>{cuerpo}</div>
+        <div className="card-h"><SecTitle icon="gear">Servidor de datos</SecTitle></div>
+        <div style={{ padding: "14px 16px 18px" }}>{campos}{botones}</div>
       </div>
     );
   }
 
+  // Pantalla completa pre-login (la base no responde).
   return (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--page)", padding: 24 }}>
-      <div className="card" style={{ width: 540, maxWidth: "94vw" }}>
-        <div style={{ padding: "26px 28px 4px", textAlign: "center" }}>
-          <img src="/assets/logo-full-t.png" alt="Cardona & co." style={{ height: 34, margin: "0 auto 16px", display: "block" }} />
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--warn-bg)", color: "var(--warn)", display: "grid", placeItems: "center", margin: "0 auto 12px" }}>
-            <Icon name="alert" size={22} />
-          </div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", margin: 0 }}>Sin conexión con el servidor</h2>
-          <p style={{ fontSize: 13, color: "var(--ink-3)", margin: "8px auto 0", maxWidth: 410 }}>
-            La aplicación no pudo conectarse al servidor de datos. Si el servidor cambió de dirección,
-            corrige la IP/host y el puerto aquí.
-          </p>
+    <div className="srv-screen">
+      <div className="card srv-card">
+        <div className="srv-screen-head">
+          <img src="/assets/logo-full-t.png" alt="Cardona & co." />
+          <div className="srv-screen-ic"><Icon name="alert" size={22} /></div>
+          <h2>Sin conexión con el servidor</h2>
+          <p>La aplicación no pudo conectarse al servidor de datos. Si el servidor cambió de dirección, corrige la IP/host y el puerto aquí.</p>
         </div>
-        <div style={{ padding: "16px 28px 22px" }}>{cuerpo}</div>
-        <div style={{ padding: "14px 28px", borderTop: "1px solid var(--line)", textAlign: "center" }}>
+        <div className="srv-screen-body">{campos}{botones}</div>
+        <div className="srv-screen-foot">
           <button className="btn" onClick={onListo}>Continuar al inicio de sesión</button>
         </div>
       </div>

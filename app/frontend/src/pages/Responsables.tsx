@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { Responsable } from "../types";
-import { Icon, Toggle, useConfirm, useToast } from "../ui";
+import { fmtTel, Icon, soloDig, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal } from "../components/Modal";
 import { Cat, CatSelect } from "../components/CatSelect";
 
 const FORM: Record<number, string> = { 1: "Profesional", 2: "Postgrado", 3: "Maestría", 4: "Doctorado", 5: "Otros" };
-const soloDig = (v: string) => String(v || "").replace(/\D/g, "").slice(0, 10);
-const fmtTel = (v: string) => { const d = soloDig(v); return d.length <= 3 ? d : d.slice(0, 3) + "-" + d.slice(3); };
 /** Sugerencia de apodo (nombre en formato "Apellido1 Apellido2 Nombre1 …"):
  *  inicial del primer nombre + iniciales de los dos apellidos → ej. "Amaya Rumie Luis Jose" = "LAR". */
 const sugApodo = (nombre: string): string => {

@@ -179,7 +179,10 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
             <div className="ctx-cell">Equipo: {srv?.hostname || "—"}{srv?.ip_equipo ? ` · ${srv.ip_equipo}` : ""}</div>
             <div className="ctx-cell">Servidor de datos: {srv ? (srv.host ? `${srv.host}:${srv.puerto}` : "local") : "—"}</div>
             <div className="ctx-end">
-              <span className="ctx-pill" title="Sistema en línea">En línea</span>
+              <span className={"ctx-pill" + (srvOk === false ? " off" : "")}
+                title={srvOk === false ? "Sin conexión con el servidor de datos" : "Sistema en línea"}>
+                {srvOk === false ? "Sin conexión" : "En línea"}
+              </span>
             </div>
           </div>
           <div className="topbar-row">

@@ -1,17 +1,14 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { CatItem } from "../types";
-import { Icon, Toggle, useConfirm, useToast } from "../ui";
+import { Icon, SecTitle, SiNo, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal } from "../components/Modal";
+import { CRITERIOS, CRIT_TXT, DISPARADORES, DISP_TXT, FAMILIAS } from "../catalogos-labels";
 
-/** Encabezado de subsección con su ícono del menú en ámbar corporativo. */
+/** Encabezado de subsección: reusa SecTitle (ícono ámbar), con tooltip opcional. */
 function CatH3({ icon, titulo, hint }: { icon: string; titulo: string; hint?: string }) {
-  return (
-    <h3 title={hint} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ color: "#f7931e", display: "inline-flex" }}><Icon name={icon} size={19} /></span>{titulo}
-    </h3>
-  );
+  return <SecTitle icon={icon} title={hint}>{titulo}</SecTitle>;
 }
 
 /** Marco del catálogo (estándar): cabecera (ícono ámbar + título + acciones) +
@@ -144,13 +141,6 @@ function CiiuRef() {
 
 /** Catálogo de Obligaciones (rico): alimenta el calendario y las Otras Obligaciones del cliente. */
 interface Oblig { id: number; codigo: string; descripcion: string; ente: string; criterio: string; periodicidad: string; origen: string; disparador: string; activo: boolean; tam_intervalo: number; paso_dias_habiles: number; familia: string; genera_pago: boolean; formulario_pago: string; plazo_pago_fatal_num: number; plazo_pago_fatal_unidad: string; consecuencia_impago: string; }
-const CRITERIOS = ["nit1", "nit2", "fijo"];
-// Familia: agrupación visual en el Calendario (se guarda el key, se muestra la etiqueta).
-const FAMILIAS: [string, string][] = [["dian", "Impuestos DIAN"], ["super", "Superintendencias"], ["municipal", "Impuestos municipales"], ["nomina", "Obligaciones de nómina"], ["otras", "Otras obligaciones"]];
-const CRIT_TXT: Record<string, string> = { nit1: "Último dígito", nit2: "2 últimos dígitos", fijo: "Fecha única", grupo: "Por grupo", municipio: "Por municipio" };
-const PERIODICIDADES = ["", "Mensual", "Bimestral", "Cuatrimestral", "Semestral", "Anual"];
-const DISPARADORES = ["", "renta_jur", "renta_nat", "renta_gc", "retencion", "inc", "iva_bim", "iva_cuat", "iva_anual", "rst_anual", "rst_anticipo", "exogena_jn", "exogena_gc", "beneficiarios"];
-const DISP_TXT: Record<string, string> = { "": "— (manual)", renta_jur: "Renta P. Jurídica", renta_nat: "Renta P. Natural", renta_gc: "Renta Grandes Contrib.", retencion: "Retención (07)", reteiva: "ReteIVA (07)", inc: "INC (33)", iva_bim: "IVA Bimestral (48)", iva_cuat: "IVA Cuatrimestral (48)", iva_anual: "IVA Anual RST (47+48)", rst_anual: "RST Declaración (47)", rst_anticipo: "RST Anticipo (47)", exogena_jn: "Exógena Jur/Nat (14)", exogena_gc: "Exógena Grandes Contrib. (14)", beneficiarios: "Beneficiarios Finales (RUB)" };
 
 interface EntidadItem { id: number; nombre: string; sigla: string; activo: boolean; }
 
@@ -188,7 +178,7 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
     { key: "nombre", label: "Etapa", value: (r) => r.nombre, render: (r) => <div>{r.nombre}{r.nota && <div className="cc-sub">{r.nota}</div>}</div> },
     { key: "codigo", label: "Código", align: "center", width: "90px", value: (r) => r.codigo, render: (r) => r.codigo ? <span className="pill">{r.codigo}</span> : <span style={{ color: "var(--ink-3)" }}>—</span> },
     { key: "dias_antes", label: "Días háb.", align: "center", width: "90px", value: (r) => String(r.dias_antes) },
-    { key: "activa", label: "Activa", align: "center", width: "80px", value: (r) => (r.activa ? "Sí" : "No"), render: (r) => <span style={{ color: r.activa ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{r.activa ? "Sí" : "No"}</span> },
+    { key: "activa", label: "Activa", align: "center", width: "80px", value: (r) => (r.activa ? "Sí" : "No"), render: (r) => <SiNo v={r.activa} /> },
   ];
   // Crear entidad al vuelo (patrón "+") desde el campo Ente.
   const [entCreando, setEntCreando] = useState(false);
@@ -457,7 +447,7 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
     { key: "pago", label: "Pago", sortable: true, filterable: true, width: "110px", align: "center",
       value: (r) => r.genera_pago ? (r.formulario_pago || "Sí") : "",
       render: (r) => r.genera_pago ? <span className="pill">{r.formulario_pago || "Sí"}</span> : <span style={{ color: "var(--ink-3)" }}>—</span> },
-    { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <span style={{ color: r.activo ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{r.activo ? "Sí" : "No"}</span> },
+    { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <SiNo v={r.activo} /> },
   ];
   return (
     <>
@@ -550,7 +540,7 @@ function EntidadesCard() {
   const cols: Column<EntidadItem>[] = [
     { key: "nombre", label: "Nombre", sortable: true, filterable: true, value: (r) => r.nombre },
     { key: "sigla", label: "Sigla", sortable: true, filterable: true, width: "180px", value: (r) => r.sigla },
-    { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <span style={{ color: r.activo ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{r.activo ? "Sí" : "No"}</span> },
+    { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <SiNo v={r.activo} /> },
   ];
   return (
     <>
@@ -631,7 +621,7 @@ function FormulariosCard() {
     { key: "nombre", label: "Nombre", sortable: true, filterable: true, value: (r) => r.nombre },
     { key: "numero", label: "Número", sortable: true, filterable: true, width: "110px", align: "center", value: (r) => r.numero, render: (r) => r.numero ? <span className="pill">{r.numero}</span> : <span className="muted">—</span> },
     { key: "codigo_calendario", label: "Código Calendario", sortable: true, filterable: true, width: "220px", value: (r) => r.codigo_calendario, render: (r) => r.codigo_calendario ? <span className="pill">{r.codigo_calendario}</span> : <span className="muted">—</span> },
-    { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <span style={{ color: r.activo ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{r.activo ? "Sí" : "No"}</span> },
+    { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <SiNo v={r.activo} /> },
   ];
   return (
     <>
@@ -738,14 +728,13 @@ function EmisoresCard() {
     try { await api.del(`/catalogos/emisor/${r.id}`); load(); toast("Eliminado"); } catch (e: any) { toast(e.message, true); }
   };
   const vacio = (): EmisorItem => ({ id: 0, nombre: "", cedula: "", direccion: "", celular: "", prefijo: "", consecutivo: 0, nota_383: false, firma: "", activo: true });
-  const siSi = (b: boolean) => <span style={{ color: b ? "var(--ok)" : "var(--ink-3)", fontWeight: 700 }}>{b ? "Sí" : "No"}</span>;
   const cols: Column<EmisorItem>[] = [
     { key: "nombre", label: "Nombre", sortable: true, filterable: true, value: (r) => r.nombre },
     { key: "cedula", label: "Cédula", type: "code", sortable: true, width: "140px", value: (r) => r.cedula },
     { key: "prefijo", label: "Prefijo", align: "center", sortable: true, width: "90px", value: (r) => r.prefijo, render: (r) => r.prefijo ? <span className="pill">{r.prefijo}</span> : <span className="muted">—</span> },
     { key: "consecutivo", label: "Último N°", align: "center", sortable: true, width: "100px", value: (r) => String(r.consecutivo), render: (r) => <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.prefijo ? `${r.prefijo}-${r.consecutivo}` : r.consecutivo}</span> },
-    { key: "nota_383", label: "Nota 383", align: "center", sortable: true, filterable: true, width: "100px", value: (r) => (r.nota_383 ? "Sí" : "No"), render: (r) => siSi(r.nota_383) },
-    { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => siSi(r.activo) },
+    { key: "nota_383", label: "Nota 383", align: "center", sortable: true, filterable: true, width: "100px", value: (r) => (r.nota_383 ? "Sí" : "No"), render: (r) => <SiNo v={r.nota_383} /> },
+    { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <SiNo v={r.activo} /> },
   ];
   return (
     <>

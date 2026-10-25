@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api";
-import { Icon, useConfirm, useToast } from "../ui";
+import { Icon, numInt, pesos, useConfirm, useToast } from "../ui";
 import { Explorador } from "../components/Explorador";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal, minDock } from "../components/Modal";
+import { RespCombo } from "../components/RespCombo";
+import { MESES, PeriodoPicker } from "../components/PeriodoPicker";
 
 interface Fila {
-  id?: number; cliente_id: number | null; num_id: string; nombre: string; rol_servicio: string;
+  _uid: number; id?: number; cliente_id: number | null; num_id: string; nombre: string; rol_servicio: string;
   concepto: string; valor: string; forma: string; iva: string; reteiva: string;
   periodicidad: string; observaciones: string; rete: boolean;
 }
+// Llave estable por fila del editor (las filas libres no tienen id de BD).
+let _fuid = 0;
+const nuevoUid = () => ++_fuid;
 interface Cab {
   id: number; anio: number; mes: number; etiqueta: string;
   creado_at: string; creado_por: string; n_items: number; total_valor: string;
@@ -18,24 +23,20 @@ interface Cab {
 }
 interface CliMin { id: number; num_id: string; nombre: string; }
 
-const MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio",
-  "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 const fmtFechaHora = (iso: string) => {
   const d = new Date(iso);
   return isNaN(d.getTime()) ? "" : `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 };
-const fmt = (v: string | number) => {
-  const n = Math.round(Number(String(v).replace(/[^\d.-]/g, "")) || 0);
-  return n.toLocaleString("es-CO");
-};
-const num = (v: string) => Math.round(Number(String(v).replace(/[^\d.-]/g, "")) || 0);
-// Formato de dinero de las grillas (celda y total) a 0 decimales, estilo Maestros.
-const money$ = (v: string | number) => "$ " + fmt(v);
+// Dinero a 0 decimales (estándar firma): lógica única en ui.tsx.
+const num = numInt;
+const fmt = (v: string | number) => numInt(v).toLocaleString("es-CO");
+const money$ = pesos;
 
 export function Facturacion({ usuario, active = true, goFacturacion }: { usuario: string; active?: boolean; goFacturacion?: () => void }) {
   const toast = useToast();
   const confirmar = useConfirm();
-  const hoy = { anio: 2026, mes: 8 };            // valor inicial editable
+  const _h = new Date();
+  const hoy = { anio: _h.getFullYear(), mes: _h.getMonth() + 1 };   // período inicial = hoy (editable)
   const [vista, setVista] = useState<"lista" | "editor">("lista");
   const [min, setMin] = useState(false);                    // editor minimizado a píldora
   const [cabs, setCabs] = useState<Cab[]>([]);
@@ -57,7 +58,7 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
   const [validando, setValidando] = useState(false);
   const [importar, setImportar] = useState(false);          // modal importar cobros desde Excel
   const valPicked = useRef(false);                          // ¿se eligió carpeta? (evita cancelar al cerrar el picker)
-  const conRete = (it: any) => ({ ...it, rete: num(it.reteiva) > 0 });
+  const conRete = (it: any): Fila => ({ ...it, rete: num(it.reteiva) > 0, _uid: nuevoUid() });
 
   const cargarLista = () => api.get("/facturacion").then(setCabs).catch((e) => toast(e.message, true));
   useEffect(() => {
@@ -166,20 +167,18 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
 
   // -------- Columnas DataGrid (Grilla CyC) --------
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  const clientesOpt = clientes.map((c) => ({ id: c.id, nombre: `${c.num_id} · ${c.nombre}` }));
   const detCols: Column<Fila>[] = [
     {
       key: "id", label: "Id", type: "code", sortable: true, value: (f) => f.num_id || "",
       render: (f) => f.cliente_id === null
-        ? <select className="cell-input" value={f.cliente_id ?? ""} onMouseDown={stop}
-            onChange={(e) => pickCliente(filas.indexOf(f), Number(e.target.value))} style={{ width: "100%" }}>
-            <option value="">— cliente —</option>
-            {clientes.map((c) => <option key={c.id} value={c.id}>{c.num_id} · {c.nombre}</option>)}
-          </select>
+        ? <RespCombo value={null} options={clientesOpt} placeholder="Buscar cliente…"
+            onChange={(id) => { if (id != null) pickCliente(filas.indexOf(f), id); }} />
         : <span className="pill">{f.num_id}</span>,
     },
-    { key: "nombre", label: "Nombre Cliente", sortable: true, filterable: true, width: "46ch", value: (f) => f.nombre || "" },
+    { key: "nombre", label: "Nombre Cliente", sortable: true, filterable: true, width: "26ch", value: (f) => f.nombre || "", tip: (f) => f.nombre },
     {
-      key: "concepto", label: "Concepto", sortable: true, filterable: true, minWidth: "220px", value: (f) => f.concepto || "",
+      key: "concepto", label: "Concepto", sortable: true, filterable: true, minWidth: "180px", value: (f) => f.concepto || "",
       render: (f) => <input className="cell-input" value={f.concepto} onMouseDown={stop}
         onChange={(e) => setF(filas.indexOf(f), { concepto: e.target.value })} />,
     },
@@ -201,7 +200,7 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
         : <span style={{ color: "var(--ink-3)" }}>—</span>,
     },
     {
-      key: "obs", label: "Observaciones", minWidth: "260px", value: (f) => f.observaciones || "",
+      key: "obs", label: "Observaciones", minWidth: "190px", value: (f) => f.observaciones || "",
       render: (f) => <input className="cell-input" value={f.observaciones} onMouseDown={stop}
         onChange={(e) => setF(filas.indexOf(f), { observaciones: e.target.value })} />,
     },
@@ -285,13 +284,7 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
           <div className="fact-head-l">
             <button className="btn sm" onClick={() => setVista("lista")}><Icon name="logout" size={14} />Volver</button>
             <button className="btn sm" onClick={() => setMin(true)} title="Minimizar (consultar otra pantalla y volver)"><Icon name="minus" size={14} />Minimizar</button>
-            <span className="fact-period" title="Mes de proceso">
-              <Icon name="calendar" size={16} />
-              <select value={mes} onChange={(e) => setMes(Number(e.target.value))}>
-                {MESES.slice(1).map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-              </select>
-              <input className="fp-year" value={anio} onChange={(e) => setAnio(Number(e.target.value) || anio)} />
-            </span>
+            <PeriodoPicker mes={mes} anio={anio} onMes={setMes} onAnio={setAnio} title="Mes de proceso" />
             <button className="btn primary sm" onClick={generar}><Icon name="gear" size={15} />Generar</button>
           </div>
           <div className="r" style={{ alignItems: "center", gap: 8 }}>
@@ -310,9 +303,9 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
         </div>
 
         {modalAdd && <AgregarServicios etiqueta={etqActual} yaEnGrilla={yaEnGrilla}
-          onAgregar={(nuevas) => setFilas((f) => [...f, ...nuevas])} onClose={() => setModalAdd(false)} />}
+          onAgregar={(nuevas) => setFilas((f) => [...f, ...nuevas.map((n: any) => ({ ...n, _uid: nuevoUid() }))])} onClose={() => setModalAdd(false)} />}
         {modalLibre && <FilaLibreModal etiqueta={etqActual} clientes={clientes} pctRete={pctRete}
-          onAgregar={(fila) => setFilas((f) => [...f, fila])} onClose={() => setModalLibre(false)} />}
+          onAgregar={(fila) => setFilas((f) => [...f, { ...fila, _uid: nuevoUid() }])} onClose={() => setModalLibre(false)} />}
 
         <div className="fact-kpis">
           <span className="ft ok"><em>Facturas</em>$ {fmt(tot.fa)}</span>
@@ -334,7 +327,7 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
           )}
 
           {sub === "detalle" && (
-            <DataGrid columns={detCols} rows={filas} getKey={(f) => filas.indexOf(f)}
+            <DataGrid columns={detCols} rows={filas} getKey={(f) => f._uid}
               label="Detalle de facturación" storageKey="fact-detalle" fitRows
               searchable exportable toolbar={factTabs}
               defaultTotals={["valor", "iva", "reteiva"]}
@@ -356,7 +349,6 @@ function AgregarServicios({ etiqueta, yaEnGrilla, onAgregar, onClose }: {
 }) {
   const toast = useToast();
   const [items, setItems] = useState<Serv[]>([]);
-  const [q, setQ] = useState("");
   useEffect(() => {
     api.get("/facturacion/no-mensuales")
       .then((list: any[]) => setItems(list.map((x) => ({ ...x, check: false, valorEd: x.valor }))))
@@ -364,9 +356,18 @@ function AgregarServicios({ etiqueta, yaEnGrilla, onAgregar, onClose }: {
   }, []); // eslint-disable-line
   const key = (s: Serv) => `${s.cliente_id}|${s.rol_servicio}`;
   const set = (i: number, patch: Partial<Serv>) => setItems((a) => a.map((x, j) => j === i ? { ...x, ...patch } : x));
-  const ql = q.toLowerCase();
-  const vis = q ? items.filter((s) => (s.nombre + " " + s.rol_servicio + " " + s.num_id).toLowerCase().includes(ql)) : items;
   const nSel = items.filter((s) => s.check).length;
+  const cols: Column<Serv>[] = [
+    { key: "check", label: "", width: "40px", align: "center", value: (s) => s.check ? "1" : "0",
+      render: (s) => yaEnGrilla.has(key(s))
+        ? <span title="Ya está en la grilla" style={{ color: "var(--ok)", fontWeight: 700 }}>✓</span>
+        : <input type="checkbox" checked={s.check} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => set(items.indexOf(s), { check: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} /> },
+    { key: "nombre", label: "Cliente", sortable: true, filterable: true, value: (s) => s.nombre, tip: (s) => `${s.num_id} · ${s.nombre}`, render: (s) => <span><span className="pill">{s.num_id}</span> {s.nombre}</span> },
+    { key: "rol_servicio", label: "Concepto", sortable: true, filterable: true, value: (s) => s.rol_servicio },
+    { key: "periodicidad", label: "Period.", width: "90px", value: (s) => s.periodicidad === "Anio" ? "Año" : "Eventual" },
+    { key: "valorEd", label: "Valor", type: "money", align: "right", width: "130px", value: (s) => num(s.valorEd),
+      render: (s) => <input className="cell-input" style={{ textAlign: "right" }} value={fmt(s.valorEd)} disabled={yaEnGrilla.has(key(s))} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => set(items.indexOf(s), { valorEd: String(num(e.target.value)) })} /> },
+  ];
   const agregar = () => {
     const nuevas = items.filter((s) => s.check).map((s) => ({
       cliente_id: s.cliente_id, num_id: s.num_id, nombre: s.nombre, rol_servicio: s.rol_servicio,
@@ -381,32 +382,10 @@ function AgregarServicios({ etiqueta, yaEnGrilla, onAgregar, onClose }: {
     <Modal title="Agregar servicios (Año / Eventual)" icon="plus" size="md" onClose={onClose}
            aviso="Los ✓ ya están en la grilla. Marca los que facturarás este mes y ajusta el valor."
            onSave={agregar} canSave={!!nSel} saveLabel={`Agregar ${nSel || ""}`.trim()} saveIcon="check">
-      <div className="search" style={{ maxWidth: 360, margin: "0 0 10px" }}><Icon name="search" size={15} />
-        <input placeholder="Buscar cliente o concepto…" value={q} onChange={(e) => setQ(e.target.value)} />
-      </div>
-      <div className="tbl-wrap grid-scroll" style={{ maxHeight: "52vh" }}>
-        <table>
-          <thead><tr><th style={{ width: 34 }}></th><th>Cliente</th><th>Concepto</th><th style={{ width: 90 }}>Period.</th><th style={{ width: 130, textAlign: "right" }}>Valor</th></tr></thead>
-          <tbody>
-            {vis.map((s) => {
-              const i = items.indexOf(s);
-              const ya = yaEnGrilla.has(key(s));
-              return (
-                <tr key={i} style={ya ? { opacity: 0.5 } : undefined}>
-                  <td className="al-c">{ya
-                    ? <span title="Ya está en la grilla" style={{ color: "var(--ok)", fontWeight: 700 }}>✓</span>
-                    : <input type="checkbox" checked={s.check} onChange={(e) => set(i, { check: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} />}</td>
-                  <td style={{ fontSize: 12 }}><span className="pill">{s.num_id}</span> {s.nombre}</td>
-                  <td style={{ fontSize: 12 }}>{s.rol_servicio}</td>
-                  <td style={{ fontSize: 12 }}>{s.periodicidad === "Anio" ? "Año" : "Eventual"}</td>
-                  <td><input className="cell-input" style={{ textAlign: "right" }} value={fmt(s.valorEd)} disabled={ya} onChange={(e) => set(i, { valorEd: String(num(e.target.value)) })} /></td>
-                </tr>
-              );
-            })}
-            {!vis.length && <tr><td colSpan={5} className="grid-empty">No hay servicios Año/Eventual de clientes activos.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <DataGrid columns={cols} rows={items} getKey={(s) => items.indexOf(s)} label="Servicios"
+        storageKey="fact-agregar-serv" scrollClass="modal-grid" searchable exportable={false}
+        rowClass={(s) => yaEnGrilla.has(key(s)) ? "row-dim" : ""}
+        emptyLabel="No hay servicios Año/Eventual de clientes activos." />
     </Modal>
   );
 }
@@ -416,7 +395,7 @@ function AgregarServicios({ etiqueta, yaEnGrilla, onAgregar, onClose }: {
  *  se derivan solos, igual que en la grilla. */
 function FilaLibreModal({ etiqueta, clientes, pctRete, onAgregar, onClose }: {
   etiqueta: string; clientes: CliMin[]; pctRete: number;
-  onAgregar: (fila: Fila) => void; onClose: () => void;
+  onAgregar: (fila: Omit<Fila, "_uid">) => void; onClose: () => void;
 }) {
   const toast = useToast();
   const [cli, setCli] = useState<CliMin | null>(null);
@@ -543,15 +522,30 @@ function ImportarCobros({ onClose, onListo }: { onClose: () => void; onListo: ()
   };
 
   const R = prev?.resumen;
+  // Una sola grilla: filas OK + filas con error (con su Motivo en columna propia).
+  const filasImp: any[] = prev ? [
+    ...prev.ok.map((r: any) => ({ ...r, _ok: true, motivo: "" })),
+    ...prev.errores.map((e: any) => ({ fila: e.fila, nit: e.nit, nombre: e.nombre, rol: e.rol, forma: "", periodo: "", periodo_fin: "", meses: 0, valor: 0, rol_nuevo: false, _ok: false, motivo: e.motivo })),
+  ] : [];
+  const colsImp: Column<any>[] = [
+    { key: "fila", label: "#", width: "44px", align: "center", value: (r) => r.fila, render: (r) => <span className="cell-dash">{r.fila}</span> },
+    { key: "_ok", label: "", width: "42px", align: "center", value: (r) => (r._ok ? "ok" : "error"), render: (r) => r._ok ? <Icon name="check" size={14} /> : <span style={{ color: "var(--err)" }}><Icon name="alert" size={14} /></span> },
+    { key: "nit", label: "NIT", width: "110px", value: (r) => r.nit || "", render: (r) => r.nit ? <span className="pill">{r.nit}</span> : <span className="cell-dash">—</span> },
+    { key: "nombre", label: "Cliente", sortable: true, filterable: true, value: (r) => r.nombre || "", tip: (r) => r.nombre },
+    { key: "rol", label: "Rol", filterable: true, value: (r) => r.rol || "", render: (r) => <span>{r.rol || "—"}{r.rol_nuevo && <span className="tipo-tag t-cc" title="Rol nuevo (se creará)"> nuevo</span>}</span> },
+    { key: "forma", label: "Forma", width: "64px", align: "center", value: (r) => r.forma || "" },
+    { key: "periodo", label: "Período", width: "140px", value: (r) => r.periodo || "", render: (r) => r._ok ? <span>{r.periodo}{r.meses > 1 ? ` → ${r.periodo_fin}` : ""}</span> : <span className="cell-dash">—</span> },
+    { key: "meses", label: "Meses", width: "60px", align: "center", value: (r) => (r._ok ? r.meses : ""), render: (r) => r._ok ? <span>{r.meses}</span> : <span className="cell-dash">—</span> },
+    { key: "valor", label: "Valor", type: "money", align: "right", width: "120px", value: (r) => (r._ok ? r.valor : 0), render: (r) => r._ok ? <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmt(r.valor)}</span> : <span className="cell-dash">—</span> },
+    { key: "motivo", label: "Motivo", filterable: true, value: (r) => r.motivo || "", tip: (r) => r.motivo, render: (r) => r.motivo ? <span style={{ color: "var(--err)" }}>{r.motivo}</span> : <span className="cell-dash">—</span> },
+  ];
   return (
     <Modal title="Importar cobros desde Excel" icon="upload" size="lg" onClose={onClose} saving={guardando}
            aviso={R ? (R.filas_error > 0 ? `Se importarán solo las ${R.filas_ok} filas válidas; las ${R.filas_error} con error se omiten.` : "Todas las filas son válidas.") : undefined}
            avisoTone={R && R.filas_error > 0 ? "warn" : "info"}
            onSave={confirmar} canSave={!!prev?.ok.length} saveLabel={`Crear ${R?.cobros_a_crear || ""} cobro(s)`} saveIcon="check">
       <div className="hint" style={{ marginBottom: 12 }}>
-        Se identifican los clientes por <b>NIT</b> y los servicios por <b>nombre del rol</b>. Columnas esperadas
-        (el encabezado puede variar): <b>nit</b>, nombre, <b>rol</b>, forma (Fa/CC), <b>periodo</b> (AAAA-MM),
-        <b> valor</b>, vendedor, comisión, meses. «Meses» repite el cobro en períodos consecutivos.
+        Columnas: <b>nit</b>, nombre, <b>rol</b>, forma (Fa/CC), <b>periodo</b> (AAAA-MM), <b>valor</b>, vendedor, comisión, meses.
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <button className="btn" onClick={() => inputRef.current?.click()}><Icon name="file" size={15} />Elegir Excel…</button>
@@ -574,39 +568,11 @@ function ImportarCobros({ onClose, onListo }: { onClose: () => void; onListo: ()
             </div>
           )}
 
-          <div className="tbl-wrap grid-scroll" style={{ margin: "10px 0 0", maxHeight: "56vh" }}>
-            <table>
-              <thead><tr>
-                <th style={{ width: 44 }}>#</th><th style={{ width: 110 }}>NIT</th><th>Cliente</th>
-                <th>Rol</th><th style={{ width: 60 }}>Forma</th><th style={{ width: 150 }}>Período</th>
-                <th style={{ width: 60, textAlign: "center" }}>Meses</th><th style={{ width: 120, textAlign: "right" }}>Valor</th>
-              </tr></thead>
-              <tbody>
-                {prev.ok.map((r) => (
-                  <tr key={"ok" + r.fila}>
-                    <td style={{ color: "var(--ink-3)" }}>{r.fila}</td>
-                    <td><span className="pill">{r.nit}</span></td>
-                    <td style={{ fontSize: 12 }}>{r.nombre}</td>
-                    <td style={{ fontSize: 12 }}>{r.rol || "—"} {r.rol_nuevo && <span className="tipo-tag t-cc" title="Rol nuevo (se creará)">nuevo</span>}</td>
-                    <td style={{ textAlign: "center" }}>{r.forma}</td>
-                    <td style={{ fontSize: 12 }}>{r.periodo}{r.meses > 1 ? ` → ${r.periodo_fin}` : ""}</td>
-                    <td style={{ textAlign: "center" }}>{r.meses}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt(r.valor)}</td>
-                  </tr>
-                ))}
-                {prev.errores.map((e) => (
-                  <tr key={"err" + e.fila} style={{ background: "rgba(220,60,60,.05)" }}>
-                    <td style={{ color: "var(--ink-3)" }}>{e.fila}</td>
-                    <td><span className="pill" style={{ opacity: .7 }}>{e.nit || "—"}</span></td>
-                    <td style={{ fontSize: 12 }}>{e.nombre}</td>
-                    <td style={{ fontSize: 12 }}>{e.rol}</td>
-                    <td colSpan={3} style={{ fontSize: 12, color: "var(--err)" }}><Icon name="alert" size={12} /> {e.motivo}</td>
-                    <td></td>
-                  </tr>
-                ))}
-                {!prev.ok.length && !prev.errores.length && <tr><td colSpan={8} className="grid-empty">El Excel no trajo filas.</td></tr>}
-              </tbody>
-            </table>
+          <div style={{ margin: "10px 0 0" }}>
+            <DataGrid columns={colsImp} rows={filasImp} getKey={(r) => (r._ok ? "ok" : "err") + r.fila} label="Vista previa"
+              storageKey="fact-importar-prev" scrollClass="modal-grid" searchable exportable={false}
+              rowClass={(r) => (r._ok ? "" : "row-err")}
+              emptyLabel="El Excel no trajo filas." />
           </div>
         </>
       )}
@@ -625,7 +591,7 @@ function ValidarModal({ cab, rep, validando, carpeta, onRepick, onClose }: {
   cab: Cab; rep: any; validando: boolean; carpeta: string;
   onRepick: () => void; onClose: () => void;
 }) {
-  const m = (n: number) => "$ " + Math.round(n || 0).toLocaleString("es-CO");
+  const m = money$;
   const R = rep?.resumen;
   const [filtro, setFiltro] = useState<string | null>(null);   // filtra la tabla por estado
   const chip = (est: string) => filtro === est ? " on" : "";
