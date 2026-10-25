@@ -20,8 +20,8 @@ from pydantic import BaseModel
 from ..db import get_session
 from ..deps import get_current_user, permisos_de, require_perm
 from ..models import (Cliente, ClienteClave, ClienteMunicipioIca, ClienteObligacion,
-                      ClienteServicio, ObligacionCumplimiento, ObligacionTipo, Portal,
-                      RolServicio, Software, Usuario)
+                      ClienteServicio, CuentaCobro, FacturacionItem, ObligacionCumplimiento,
+                      ObligacionTipo, Portal, RolServicio, Software, Usuario)
 from ..obligaciones_dian import (codigos_resp as _codigos_resp, desincronizado,
                                  diff_mem, dian_tipos, ids_aplicables,
                                  present_map as _present_map)
@@ -582,7 +582,9 @@ def actualizar(cid: int, data: ClienteCreate, session: Session = Depends(get_ses
     c.actualizado_at = datetime.utcnow()
     c.actualizado_por = user.usuario or user.nombre
     session.add(c)
-    session.commit()
+    # Validar+sincronizar las hijas ANTES de commitear: si `_sync_hijas` lanza 409
+    # (p.ej. quitar una obligación que ya tiene cumplimientos), no debe quedar un
+    # guardado PARCIAL de los campos escalares. Una sola transacción, un solo commit.
     _sync_hijas(session, c.id, data, sync_servicios=es_super)
     session.commit()
     # Las obligaciones DIAN NO se derivan al guardar: se revisan y aplican a mano.
@@ -706,10 +708,23 @@ def borrar(cid: int, session: Session = Depends(get_session), _admin=Depends(req
     c = session.get(Cliente, cid)
     if not c:
         raise HTTPException(404, "Cliente no encontrado")
-    for s in session.exec(select(ClienteServicio).where(ClienteServicio.cliente_id == cid)).all():
-        session.delete(s)
-    for m in session.exec(select(ClienteMunicipioIca).where(ClienteMunicipioIca.cliente_id == cid)).all():
-        session.delete(m)
+    # No se elimina un cliente con HISTORIA FINANCIERA: las cuentas de cobro y los
+    # ítems de facturación son registros inmutables (consecutivo quemado). Se bloquea
+    # con mensaje claro, como `responsables.borrar` cuando hay referencias.
+    n_cc = len(session.exec(select(CuentaCobro.id).where(CuentaCobro.cliente_id == cid)).all())
+    n_fi = len(session.exec(select(FacturacionItem.id).where(FacturacionItem.cliente_id == cid)).all())
+    if n_cc or n_fi:
+        partes = []
+        if n_cc: partes.append(f"{n_cc} cuenta(s) de cobro")
+        if n_fi: partes.append(f"{n_fi} ítem(s) de facturación")
+        raise HTTPException(409, "No se puede eliminar: el cliente tiene "
+                            + " y ".join(partes) + ". Desactívalo (estado Inactivo) en su lugar.")
+    # Hijas de configuración: se borran en la MISMA transacción (antes solo se
+    # borraban Servicios e ICA → las demás FK reventaban con 500 en Postgres).
+    for modelo in (ClienteServicio, ClienteMunicipioIca, ClienteObligacion,
+                   ClienteClave, ObligacionCumplimiento):
+        for row in session.exec(select(modelo).where(modelo.cliente_id == cid)).all():
+            session.delete(row)
     session.delete(c)
     session.commit()
 

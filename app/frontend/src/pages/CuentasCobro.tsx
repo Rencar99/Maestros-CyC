@@ -15,7 +15,8 @@ interface Row {
 
 /** Sección "Cuentas de cobro": grilla por período (lee la facturación del mes).
  *  Acciones por fila: generar en firme · revisar (PDF) · enviar por correo. */
-export function CuentasCobro({ active }: { active: boolean }) {
+export function CuentasCobro({ puede, active }: { puede: (c: string) => boolean; active: boolean }) {
+  const puedeEditar = puede("facturacion.editar");   // generar CC / enviar correos
   const toast = useToast();
   const confirmar = useConfirm();
   const hoy = new Date();
@@ -130,7 +131,7 @@ export function CuentasCobro({ active }: { active: boolean }) {
         <div className="r" style={{ alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <PeriodoPicker mes={mes} anio={anio} onMes={setMes} onAnio={setAnio} />
           <button className="btn sm" onClick={cargar} title="Actualizar"><Icon name="refresh" size={15} /></button>
-          {fid && <>
+          {fid && puedeEditar && <>
             <button className="btn primary sm" onClick={generarTodas}><Icon name="clipboard-check" size={15} />Generar todas</button>
             <button className="btn sm" onClick={enviarTodas}><Icon name="mail" size={15} />Enviar todas</button>
           </>}
@@ -144,12 +145,12 @@ export function CuentasCobro({ active }: { active: boolean }) {
               searchable exportable defaultTotals={["valor"]}
               emptyLabel={cargando ? "Cargando…" : "No hay cuentas de cobro (ítems CC) en la facturación de este mes."}
               actions={(r) => <span className="cc-cell">
-                <button className="act-btn" title={!r.tiene_emisor ? "El cliente no tiene emisor asignado (ficha → Comercial)" : r.numero ? "Ya generada" : "Generar en firme (quema el consecutivo)"}
-                  disabled={!!r.numero || !r.tiene_emisor} onClick={() => generarUno(r)}><Icon name="clipboard-check" size={15} /></button>
+                {puedeEditar && <button className="act-btn" title={!r.tiene_emisor ? "El cliente no tiene emisor asignado (ficha → Comercial)" : r.numero ? "Ya generada" : "Generar en firme (quema el consecutivo)"}
+                  disabled={!!r.numero || !r.tiene_emisor} onClick={() => generarUno(r)}><Icon name="clipboard-check" size={15} /></button>}
                 <button className="act-btn" title={r.numero ? "Revisar PDF" : "Vista previa (PDF)"}
                   disabled={!r.numero && !r.tiene_emisor} onClick={() => revisar(r)}><Icon name="eye" size={15} /></button>
-                <button className="act-btn" title={!r.numero ? "Genera primero" : r.estado === "enviada" ? "Reenviar por correo" : !r.correo ? "Enviar (escribe el destinatario)" : "Enviar por correo"}
-                  disabled={!r.numero} onClick={() => setComponer(r)}><Icon name="mail" size={15} /></button>
+                {puedeEditar && <button className="act-btn" title={!r.numero ? "Genera primero" : r.estado === "enviada" ? "Reenviar por correo" : !r.correo ? "Enviar (escribe el destinatario)" : "Enviar por correo"}
+                  disabled={!r.numero} onClick={() => setComponer(r)}><Icon name="mail" size={15} /></button>}
               </span>} />}
       </div>
       <div className="gframe-foot">

@@ -32,7 +32,7 @@ const num = numInt;
 const fmt = (v: string | number) => numInt(v).toLocaleString("es-CO");
 const money$ = pesos;
 
-export function Facturacion({ usuario, active = true, goFacturacion }: { usuario: string; active?: boolean; goFacturacion?: () => void }) {
+export function Facturacion({ usuario, puede, active = true, goFacturacion }: { usuario: string; puede: (c: string) => boolean; active?: boolean; goFacturacion?: () => void }) {
   const toast = useToast();
   const confirmar = useConfirm();
   const _h = new Date();
@@ -250,15 +250,15 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
               actionsWidth="196px"
               toolbar={<span className="gf-end">
                 <button className="icon-btn" onClick={cargarLista} title="Actualizar lista"><Icon name="refresh" size={16} /></button>
-                <button className="btn primary sm" onClick={() => { setFilas([]); setGuardadoId(null); setEtiqueta(""); setMin(false); setVista("editor"); }}>
+                {puede("facturacion.crear") && <button className="btn primary sm" onClick={() => { setFilas([]); setGuardadoId(null); setEtiqueta(""); setMin(false); setVista("editor"); }}>
                   <Icon name="plus" size={16} />Nueva facturación
-                </button>
+                </button>}
               </span>}
               actions={(c) => <>
-                <button className={"act-btn " + (c.aprobada_at ? "aprob-on" : "aprob")} title={c.aprobada_at ? "Quitar aprobación" : "Aprobar facturación del mes"} onClick={() => aprobar(c)}><Icon name={c.aprobada_at ? "check-circle" : "check"} size={15} /></button>
-                <button className="act-btn val" title="Validar contra facturas emitidas (XML)" onClick={() => { setValCab(c); setValRep(null); setValCarpeta(""); valPicked.current = false; setValPicker(true); }}><Icon name="clipboard-check" size={15} /></button>
+                {puede("facturacion.aprobar") && <button className={"act-btn " + (c.aprobada_at ? "aprob-on" : "aprob")} title={c.aprobada_at ? "Quitar aprobación" : "Aprobar facturación del mes"} onClick={() => aprobar(c)}><Icon name={c.aprobada_at ? "check-circle" : "check"} size={15} /></button>}
+                {puede("facturacion.validar") && <button className="act-btn val" title="Validar contra facturas emitidas (XML)" onClick={() => { setValCab(c); setValRep(null); setValCarpeta(""); valPicked.current = false; setValPicker(true); }}><Icon name="clipboard-check" size={15} /></button>}
                 <button className="act-btn edit" title="Abrir" onClick={() => abrir(c.id)}><Icon name="edit" size={15} /></button>
-                <button className="act-btn del" title="Eliminar" onClick={() => eliminar(c.id, c.etiqueta)}><Icon name="trash" size={15} /></button>
+                {puede("facturacion.eliminar") && <button className="act-btn del" title="Eliminar" onClick={() => eliminar(c.id, c.etiqueta)}><Icon name="trash" size={15} /></button>}
               </>} />
           </div>
           <div className="gframe-foot">{cabs.length} facturación{cabs.length === 1 ? "" : "es"} guardada{cabs.length === 1 ? "" : "s"}</div>
@@ -287,10 +287,10 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
             <button className="btn sm" onClick={() => setVista("lista")}><Icon name="logout" size={14} />Volver</button>
             <button className="btn sm" onClick={() => setMin(true)} title="Minimizar (consultar otra pantalla y volver)"><Icon name="minus" size={14} />Minimizar</button>
             <PeriodoPicker mes={mes} anio={anio} onMes={setMes} onAnio={setAnio} title="Mes de proceso" />
-            <button className="btn primary sm" onClick={generar}><Icon name="gear" size={15} />Generar</button>
+            {puede("facturacion.crear") && <button className="btn primary sm" onClick={generar}><Icon name="gear" size={15} />Generar</button>}
           </div>
           <div className="r" style={{ alignItems: "center", gap: 8 }}>
-            <div className="fact-addwrap">
+            {puede("facturacion.crear") && <div className="fact-addwrap">
               <button className="btn sm" onClick={() => setAddMenu((o) => !o)} aria-expanded={addMenu}><Icon name="plus" size={15} />Agregar<span className="cw">▾</span></button>
               {addMenu && <>
                 <div className="menu-backdrop" onMouseDown={() => setAddMenu(false)} />
@@ -299,8 +299,8 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
                   <button role="menuitem" onClick={() => { setModalLibre(true); setAddMenu(false); }} title="Cobro puntual (extra)"><Icon name="edit" size={14} />Fila libre</button>
                 </div>
               </>}
-            </div>
-            <button className="btn primary sm" onClick={guardar}><Icon name="save" size={15} />Guardar</button>
+            </div>}
+            {puede("facturacion.crear") && <button className="btn primary sm" onClick={guardar}><Icon name="save" size={15} />Guardar</button>}
           </div>
         </div>
 

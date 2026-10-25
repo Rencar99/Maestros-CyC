@@ -53,6 +53,11 @@ COLUMNAS_OCULTAS = {
 # por _catalogo). Ampliar aquí si en el futuro se habilitan más tablas.
 TABLAS_PERMITIDAS = {"cliente", "usuario", "clienteclave"}
 
+# Columna de la tabla base que la liga a un cliente, para el alcance por asignación
+# y confidencialidad. `cliente` se filtra por su `id`; las hijas por `cliente_id`.
+# Una tabla base sin entrada aquí (p.ej. `usuario`) no se acota por cliente.
+_COL_CLIENTE_BASE = {"cliente": "id", "clienteclave": "cliente_id"}
+
 # Nombre técnico de la tabla -> nombre que ve el usuario.
 ETIQUETAS_TABLA = {
     "cliente": "Clientes",
@@ -360,21 +365,25 @@ def _armar(c: ConsultaIn, restringir_ids: set[int] | None = None,
     if trozos:
         union = " OR " if (c.union or "y").lower() == "o" else " AND "
         where_parts.append("(" + union.join(trozos) + ")")
-    # Alcance por asignación: solo aplica a la tabla base Clientes.
-    if restringir_ids is not None and c.tabla == "cliente":
+    # Alcance por asignación y confidencialidad: aplican a CUALQUIER tabla base
+    # ligada a un cliente (no solo `cliente`). La columna que la enlaza al cliente
+    # es `id` en `cliente` y `cliente_id` en las hijas (p.ej. `clienteclave`). Si la
+    # tabla base no tiene esa columna (p.ej. `usuario`), no hay alcance por cliente.
+    col_cli = _COL_CLIENTE_BASE.get(c.tabla)
+    if restringir_ids is not None and col_cli:
         if restringir_ids:
             marcas = ", ".join(f":rid{k}" for k in range(len(restringir_ids)))
             for k, idv in enumerate(sorted(restringir_ids)):
                 params[f"rid{k}"] = int(idv)
-            where_parts.append(f'{_cita(BASE)}."id" IN ({marcas})')
+            where_parts.append(f'{_cita(BASE)}."{col_cli}" IN ({marcas})')
         else:
             where_parts.append("1 = 0")   # sin clientes asignados -> ninguna fila
     # Clientes confidenciales: ocultar los que este usuario no puede ver (ni supervisor ni asignado).
-    if confid_ocultos and c.tabla == "cliente":
+    if confid_ocultos and col_cli:
         marcas = ", ".join(f":cfo{k}" for k in range(len(confid_ocultos)))
         for k, idv in enumerate(sorted(confid_ocultos)):
             params[f"cfo{k}"] = int(idv)
-        where_parts.append(f'{_cita(BASE)}."id" NOT IN ({marcas})')
+        where_parts.append(f'{_cita(BASE)}."{col_cli}" NOT IN ({marcas})')
     if where_parts:
         sql += "\nWHERE " + " AND ".join(where_parts)
 

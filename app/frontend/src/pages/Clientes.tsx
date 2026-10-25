@@ -398,7 +398,7 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
           {actualizado && <><span className="gf-dot">·</span> Actualizado: {actualizado}</>}
         </div>
       </div>
-      {edit && <Ficha cliente={edit} autoRut={autoRut} software={software} setSoftware={setSoftware} roles={roles} setRoles={setRoles} obligTipos={obligTipos} setObligTipos={setObligTipos} resp={resp} tiposDoc={tiposDoc} setTiposDoc={setTiposDoc} respsCat={respsCat} setRespsCat={setRespsCat} emisores={emisores} esSuper={esSuper} esAdmin={esAdmin} veConf={esSuper || puede("clientes.ver_confidencial")}
+      {edit && <Ficha cliente={edit} autoRut={autoRut} software={software} setSoftware={setSoftware} roles={roles} setRoles={setRoles} obligTipos={obligTipos} setObligTipos={setObligTipos} resp={resp} tiposDoc={tiposDoc} setTiposDoc={setTiposDoc} respsCat={respsCat} setRespsCat={setRespsCat} emisores={emisores} esSuper={esSuper} esAdmin={esAdmin} veConf={esSuper || puede("clientes.ver_confidencial")} puedeEliminar={puede("clientes.eliminar")}
         prevId={vecino("prev") ?? null} nextId={vecino("next") ?? null} onGo={abrir} reload={load}
         onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />}
       {verClaves && <ClavesClienteModal cliente={verClaves} onClose={() => setVerClaves(null)} />}
@@ -428,7 +428,7 @@ const REP_CODES: [string, string][] = [
 // La regla de aplicabilidad DIAN vive SOLO en el backend (Maestros = fuente única):
 // el botón "Generar DIAN" consulta /clientes/derivar-preview para no duplicarla aquí.
 
-function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, obligTipos, setObligTipos, resp, tiposDoc, setTiposDoc, respsCat, setRespsCat, emisores, esSuper, esAdmin, veConf, prevId, nextId, onGo, reload, onClose, onSaved }: {
+function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, obligTipos, setObligTipos, resp, tiposDoc, setTiposDoc, respsCat, setRespsCat, emisores, esSuper, esAdmin, veConf, puedeEliminar, prevId, nextId, onGo, reload, onClose, onSaved }: {
   cliente: Cliente; autoRut?: boolean; software: CatItem[]; setSoftware: (fn: (p: CatItem[]) => CatItem[]) => void;
   roles: CatItem[]; setRoles: (fn: (p: CatItem[]) => CatItem[]) => void;
   obligTipos: ObligTipo[]; setObligTipos: (fn: (p: ObligTipo[]) => ObligTipo[]) => void; resp: Responsable[];
@@ -437,7 +437,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   respsCat: { codigo: string; descripcion: string }[];
   setRespsCat: (fn: (p: { codigo: string; descripcion: string }[]) => { codigo: string; descripcion: string }[]) => void;
   emisores: { id: number; nombre: string; prefijo: string }[];
-  esSuper: boolean; esAdmin: boolean; veConf: boolean;
+  esSuper: boolean; esAdmin: boolean; veConf: boolean; puedeEliminar: boolean;
   prevId?: number | null; nextId?: number | null; onGo?: (id: number) => void; reload?: () => void;
   onClose: () => void; onSaved: () => void;
 }) {
@@ -902,7 +902,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
       onNext={!nuevo && nextId != null ? () => navegar(nextId) : undefined}
       onSave={guardar} saveLabel={nuevo ? "Crear" : "Guardar cambios"} saveIcon={nuevo ? "check" : "save"}
       extraActions={<>
-        {!nuevo && <button className="mh-act danger" onClick={borrar} aria-label="Eliminar"><Icon name="trash" size={18} /><span className="mh-tip">Eliminar</span></button>}
+        {!nuevo && puedeEliminar && <button className="mh-act danger" onClick={borrar} aria-label="Eliminar"><Icon name="trash" size={18} /><span className="mh-tip">Eliminar</span></button>}
         <button className="mh-act" onClick={() => compararRut()} disabled={rutCargando} aria-label="Comparar con RUT"><Icon name="upload" size={18} /><span className="mh-tip">Comparar con RUT</span></button>
       </>}
       avisoTone={c.rut_actualizado ? "info" : "warn"}
