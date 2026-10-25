@@ -289,15 +289,17 @@ def entradas_calendario(cid: int, otid: int, session: Session = Depends(get_sess
     return {"tiene": n > 0, "n": n}
 
 
-@router.get("/{cid}/password")
 def _descifrar(enc: str) -> str:
-    """Descifra una clave guardada; responde 422 (no 500) si la llave Fernet no coincide."""
+    """Descifra una clave guardada; responde 422 (no 500) si la llave Fernet no coincide.
+    Helper PRIVADO (sin ruta): nunca debe exponerse como endpoint — sería un oráculo
+    de descifrado público. El endpoint autenticado es `ver_password`."""
     try:
         return decrypt(enc)
     except Exception:  # noqa: BLE001  (InvalidToken u otros: no reventar con 500)
         raise HTTPException(422, "No se pudo descifrar la clave (llave de cifrado no coincide).")
 
 
+@router.get("/{cid}/password")
 def ver_password(cid: int, session: Session = Depends(get_session), _admin=Depends(require_perm("claves.revelar"))):
     c = session.get(Cliente, cid)
     if not c:
