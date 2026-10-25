@@ -542,33 +542,39 @@ export function DataGrid<T>({
         : a.etiqueta.localeCompare(b.etiqueta, "es", { numeric: true }));
   }, [rows, columns]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  let view = [...rows];
-  for (const col of columns) {
-    const sel = filters[col.key];
-    if (sel && sel.length) {
-      const set = new Set(sel);
-      view = view.filter((r) => set.has(val(col, r)));
-    }
-  }
-  // Buscador global: la fila pasa si ALGUNA columna coincide (sin tildes, con
-  // comodines estilo Excel: 800*, *800, 80?), igual que el buscador de columna.
   const qn = searchable ? q.trim() : "";
-  if (qn) view = view.filter((r) => columns.some((c) => coincide(val(c, r), qn)));
-  if (sortKey) {
-    const col = columns.find((c) => c.key === sortKey);
-    if (col) {
-      view.sort((a, b) => {
-        const x = val(col, a), y = val(col, b);
-        const nx = Number(x.replace(/[.\s]/g, "")), ny = Number(y.replace(/[.\s]/g, ""));
-        let c: number;
-        if (!isNaN(nx) && !isNaN(ny) && x !== "" && y !== "") c = nx - ny;
-        else c = x.localeCompare(y, "es", { numeric: true });
-        return sortDir === "asc" ? c : -c;
-      });
+  // Filtrado + búsqueda + orden en un solo paso memoizado: solo se recalcula si
+  // cambian filas, columnas, filtros, el texto de búsqueda o el orden (no en cada
+  // render del Shell). El ordenamiento (localeCompare numérico) es lo más caro.
+  const view = useMemo(() => {
+    let v = [...rows];
+    for (const col of columns) {
+      const sel = filters[col.key];
+      if (sel && sel.length) {
+        const set = new Set(sel);
+        v = v.filter((r) => set.has(val(col, r)));
+      }
     }
-  }
+    // Buscador global: la fila pasa si ALGUNA columna coincide (sin tildes, con
+    // comodines estilo Excel: 800*, *800, 80?), igual que el buscador de columna.
+    if (qn) v = v.filter((r) => columns.some((c) => coincide(val(c, r), qn)));
+    if (sortKey) {
+      const col = columns.find((c) => c.key === sortKey);
+      if (col) {
+        v.sort((a, b) => {
+          const x = val(col, a), y = val(col, b);
+          const nx = Number(x.replace(/[.\s]/g, "")), ny = Number(y.replace(/[.\s]/g, ""));
+          let c: number;
+          if (!isNaN(nx) && !isNaN(ny) && x !== "" && y !== "") c = nx - ny;
+          else c = x.localeCompare(y, "es", { numeric: true });
+          return sortDir === "asc" ? c : -c;
+        });
+      }
+    }
+    return v;
+  }, [rows, columns, filters, qn, sortKey, sortDir]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const viewKey = view.map((r) => getKey(r)).join(",");
+  const viewKey = useMemo(() => view.map((r) => getKey(r)).join(","), [view]); // eslint-disable-line
   useEffect(() => { onView?.(view); }, [viewKey]); // eslint-disable-line
 
   useEffect(() => {

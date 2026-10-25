@@ -63,6 +63,35 @@ def ids_aplicables(session: Session, c: Cliente) -> list[int]:
 # faltantes con un clic; quitar las sobrantes SOLO con confirmación (por si una se
 # puso a propósito). Las manuales (origen != 'dian') nunca entran a estas listas.
 
+def dian_tipos(session: Session) -> list[ObligacionTipo]:
+    """Catálogo de obligaciones DIAN (origen 'dian'). Cárgalo UNA vez y reúsalo en
+    los recorridos de varios clientes (evita releerlo por cliente)."""
+    return session.exec(select(ObligacionTipo).where(ObligacionTipo.origen == "dian")).all()
+
+
+def present_map(session: Session) -> dict[int, set[int]]:
+    """{cliente_id → set(obligacion_tipo_id presentes)} para TODOS los clientes, en
+    una sola consulta (dos columnas). Para reconciliar en lote sin N+1."""
+    m: dict[int, set[int]] = {}
+    for cid, otid in session.exec(
+            select(ClienteObligacion.cliente_id, ClienteObligacion.obligacion_tipo_id)).all():
+        m.setdefault(cid, set()).add(otid)
+    return m
+
+
+def diff_mem(c: Cliente, resp: set[str], dian: list[ObligacionTipo],
+             present_ids: set[int]) -> tuple[list[int], list[int]]:
+    """(faltan, sobran) EN MEMORIA: núcleo del diff con catálogo DIAN y presentes
+    ya cargados (sin consultar). Base de ``diff`` (1 cliente) y del lote."""
+    if not resp:
+        return ([], [])
+    dian_ids = {t.id for t in dian}
+    aplic = {t.id for t in dian if t.activo and aplica_disparador(t.disparador, c, resp)}
+    faltan = sorted(aplic - present_ids)
+    sobran = sorted((present_ids & dian_ids) - aplic)
+    return (faltan, sobran)
+
+
 def diff(session: Session, c: Cliente) -> tuple[list[int], list[int]]:
     """(faltan, sobran) de obligaciones DIAN del cliente:
       · faltan = DIAN aplicables que el cliente NO tiene,
@@ -72,54 +101,14 @@ def diff(session: Session, c: Cliente) -> tuple[list[int], list[int]]:
     resp = codigos_resp(c)
     if not resp:
         return ([], [])
-    dian = session.exec(select(ObligacionTipo).where(ObligacionTipo.origen == "dian")).all()
-    dian_ids = {t.id for t in dian}
-    aplic = {t.id for t in dian if t.activo and aplica_disparador(t.disparador, c, resp)}
     present = {ob.obligacion_tipo_id for ob in session.exec(
-        select(ClienteObligacion).where(ClienteObligacion.cliente_id == c.id)).all()}
-    faltan = sorted(aplic - present)
-    sobran = sorted((present & dian_ids) - aplic)
-    return (faltan, sobran)
+        select(ClienteObligacion.obligacion_tipo_id).where(ClienteObligacion.cliente_id == c.id)).all()}
+    return diff_mem(c, resp, dian_tipos(session), present)
 
 
 def desincronizado(c: Cliente, resp: set[str], dian: list[ObligacionTipo],
                    present_ids: set[int]) -> bool:
     """¿El cliente tiene diferencias DIAN por revisar? Versión EN MEMORIA para la
     lista: recibe los tipos DIAN y el set de ids presentes ya cargados (sin N+1)."""
-    if not resp:
-        return False
-    dian_ids = {t.id for t in dian}
-    aplic = {t.id for t in dian if t.activo and aplica_disparador(t.disparador, c, resp)}
-    return bool((aplic - present_ids) or ((present_ids & dian_ids) - aplic))
-
-
-def agregar_faltantes(session: Session, c: Cliente) -> int:
-    """Agrega las DIAN faltantes del cliente (NUNCA quita). Devuelve cuántas agregó.
-    No hace commit — lo hace quien llama."""
-    faltan, _ = diff(session, c)
-    if not faltan:
-        return 0
-    by_id = {t.id: t for t in session.exec(
-        select(ObligacionTipo).where(ObligacionTipo.id.in_(faltan))).all()}
-    for tid in faltan:
-        t = by_id.get(tid)
-        session.add(ClienteObligacion(
-            cliente_id=c.id, obligacion_tipo_id=tid,
-            periodicidad=(t.periodicidad if t else "") or "Anual", desde="", observaciones=""))
-    return len(faltan)
-
-
-def quitar_sobrantes(session: Session, c: Cliente) -> int:
-    """Quita las DIAN sobrantes del cliente (NUNCA toca manuales). Devuelve cuántas
-    quitó. No hace commit — lo hace quien llama."""
-    _, sobran = diff(session, c)
-    if not sobran:
-        return 0
-    s = set(sobran)
-    n = 0
-    for ob in session.exec(
-            select(ClienteObligacion).where(ClienteObligacion.cliente_id == c.id)).all():
-        if ob.obligacion_tipo_id in s:
-            session.delete(ob)
-            n += 1
-    return n
+    faltan, sobran = diff_mem(c, resp, dian, present_ids)
+    return bool(faltan or sobran)

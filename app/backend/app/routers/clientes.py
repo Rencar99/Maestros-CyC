@@ -12,6 +12,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from pydantic import BaseModel
@@ -21,8 +22,9 @@ from ..deps import get_current_user, permisos_de, require_perm
 from ..models import (Cliente, ClienteClave, ClienteMunicipioIca, ClienteObligacion,
                       ClienteServicio, ObligacionCumplimiento, ObligacionTipo, Portal,
                       RolServicio, Software, Usuario)
-from ..obligaciones_dian import (agregar_faltantes, codigos_resp as _codigos_resp,
-                                 desincronizado, diff as diff_dian, ids_aplicables, quitar_sobrantes)
+from ..obligaciones_dian import (codigos_resp as _codigos_resp, desincronizado,
+                                 diff_mem, dian_tipos, ids_aplicables,
+                                 present_map as _present_map)
 from ..rut_parser import parse_rut
 from ..schemas import (ClienteCreate, ClienteListItem, ClienteRead, ServicioOut,
                        MunicipioIcaOut, ObligacionOut)
@@ -171,7 +173,8 @@ def listar(session: Session = Depends(get_session), user: Usuario = Depends(get_
     # Alcance por asignación: cada usuario ve SOLO sus clientes asignados
     # (responsable/coordinador de impuestos o financiero). Admin/Super ven todos.
     ids = _ids_asignados(session, user)
-    q = select(Cliente)
+    # Sin columnas pesadas (logo/objeto_social/notas): el listado no las usa.
+    q = select(Cliente).options(*cliente_liviano())
     if ids is not None:
         if not ids:
             return []
@@ -184,18 +187,18 @@ def listar(session: Session = Depends(get_session), user: Usuario = Depends(get_
     responsables = {u.id: u.nombre for u in _usuarios}
     apodos = {u.id: (u.apodo or "") for u in _usuarios}
     softwares = {s.id: s.descripcion for s in session.exec(select(Software)).all()}
-    n_srv: dict[int, int] = {}
-    for s in session.exec(select(ClienteServicio)).all():
-        n_srv[s.cliente_id] = n_srv.get(s.cliente_id, 0) + 1
-    n_ica: dict[int, int] = {}
-    for m in session.exec(select(ClienteMunicipioIca)).all():
-        n_ica[m.cliente_id] = n_ica.get(m.cliente_id, 0) + 1
+    # Conteos de hijas agregados en la BD (no se traen todas las filas).
+    n_srv: dict[int, int] = dict(session.exec(
+        select(ClienteServicio.cliente_id, func.count()).group_by(ClienteServicio.cliente_id)).all())
+    n_ica: dict[int, int] = dict(session.exec(
+        select(ClienteMunicipioIca.cliente_id, func.count()).group_by(ClienteMunicipioIca.cliente_id)).all())
     # Diferencias DIAN por revisar (chip "por revisar"): precargado en memoria
     # (tipos DIAN + obligaciones presentes por cliente) para no consultar por fila.
     dian = session.exec(select(ObligacionTipo).where(ObligacionTipo.origen == "dian")).all()
     present_map: dict[int, set[int]] = {}
-    for ob in session.exec(select(ClienteObligacion)).all():
-        present_map.setdefault(ob.cliente_id, set()).add(ob.obligacion_tipo_id)
+    for cid, otid in session.exec(
+            select(ClienteObligacion.cliente_id, ClienteObligacion.obligacion_tipo_id)).all():
+        present_map.setdefault(cid, set()).add(otid)
     items = []
     for c in clientes:
         items.append(ClienteListItem(
@@ -332,7 +335,7 @@ def _clave_dict(k: ClienteClave, portales: dict) -> dict:
 
 
 # Reglas de alcance/confidencialidad: fuente única en ``scope`` (ver scope.py).
-from ..scope import (asignados_de as _asignados_de, confid_ocultos as _confid_ocultos,  # noqa: E402
+from ..scope import (asignados_de as _asignados_de, cliente_liviano, confid_ocultos as _confid_ocultos,  # noqa: E402
                      ids_asignados as _ids_asignados, ve_confidencial as _ve_confidencial)
 
 
@@ -345,7 +348,7 @@ def listar_todas_claves(session: Session = Depends(get_session),
     permitidos = _ids_asignados(session, user)
     ocultos = _confid_ocultos(session, user)
     portales = {p.id: p.descripcion for p in session.exec(select(Portal)).all()}
-    clientes = {c.id: c for c in session.exec(select(Cliente)).all()}
+    clientes = {c.id: c for c in session.exec(select(Cliente).options(*cliente_liviano())).all()}
     filas = []
     for k in session.exec(select(ClienteClave)).all():
         if permitidos is not None and k.cliente_id not in permitidos:
@@ -414,7 +417,7 @@ def exportar_claves(session: Session = Depends(get_session),
     permitidos = _ids_asignados(session, user)
     ocultos = _confid_ocultos(session, user)
     portales = {p.id: p.descripcion for p in session.exec(select(Portal)).all()}
-    clientes = {c.id: c for c in session.exec(select(Cliente)).all()}
+    clientes = {c.id: c for c in session.exec(select(Cliente).options(*cliente_liviano())).all()}
     filas = []
     for k in session.exec(select(ClienteClave)).all():
         if permitidos is not None and k.cliente_id not in permitidos:
@@ -598,14 +601,18 @@ def derivar_preview(data: ClienteCreate, session: Session = Depends(get_session)
 
 # --- Reconciliación DIAN en lote (Catálogos → Obligaciones), REVISABLE ---------
 def _diff_lote(session: Session):
-    """Resumen del diff DIAN de TODOS los clientes (para el preview del lote)."""
-    clientes = session.exec(select(Cliente)).all()
+    """Resumen del diff DIAN de TODOS los clientes (para el preview del lote).
+    Precarga catálogo DIAN y presentes de todos una sola vez (sin N+1)."""
+    clientes = session.exec(select(Cliente).options(*cliente_liviano())).all()
+    dian = dian_tipos(session)
+    presentes = _present_map(session)
     con_faltan = faltan_total = con_sobran = sobran_total = sin_rut = 0
     for c in clientes:
-        if not _codigos_resp(c):
+        resp = _codigos_resp(c)
+        if not resp:
             sin_rut += 1
             continue
-        faltan, sobran = diff_dian(session, c)
+        faltan, sobran = diff_mem(c, resp, dian, presentes.get(c.id, set()))
         if faltan:
             con_faltan += 1
             faltan_total += len(faltan)
@@ -633,13 +640,25 @@ def dian_agregar_faltantes_todos(session: Session = Depends(get_session),
     quita). Conserva las manuales. Solo superusuario."""
     if user.rol != "superadmin":
         raise HTTPException(403, "Solo un superusuario puede aplicar a todos los clientes")
-    clientes = session.exec(select(Cliente)).all()
+    clientes = session.exec(select(Cliente).options(*cliente_liviano())).all()
+    dian = dian_tipos(session)
+    by_id = {t.id: t for t in dian}
+    presentes = _present_map(session)
     tocados = agregadas = 0
     for c in clientes:
-        n = agregar_faltantes(session, c)
-        if n:
-            tocados += 1
-            agregadas += n
+        resp = _codigos_resp(c)
+        if not resp:
+            continue
+        faltan, _ = diff_mem(c, resp, dian, presentes.get(c.id, set()))
+        if not faltan:
+            continue
+        for tid in faltan:
+            t = by_id.get(tid)
+            session.add(ClienteObligacion(
+                cliente_id=c.id, obligacion_tipo_id=tid,
+                periodicidad=(t.periodicidad if t else "") or "Anual", desde="", observaciones=""))
+        tocados += 1
+        agregadas += len(faltan)
     session.commit()
     return {"clientes_tocados": tocados, "agregadas": agregadas}
 
@@ -651,10 +670,28 @@ def dian_quitar_sobrantes_todos(session: Session = Depends(get_session),
     toca manuales). Acción explícita con confirmación. Solo superusuario."""
     if user.rol != "superadmin":
         raise HTTPException(403, "Solo un superusuario puede aplicar a todos los clientes")
-    clientes = session.exec(select(Cliente)).all()
+    clientes = session.exec(select(Cliente).options(*cliente_liviano())).all()
+    dian = dian_tipos(session)
+    # Filas presentes agrupadas por cliente, una sola consulta (sirve de present_map y para borrar).
+    obs_by_client: dict[int, list[ClienteObligacion]] = {}
+    for ob in session.exec(select(ClienteObligacion)).all():
+        obs_by_client.setdefault(ob.cliente_id, []).append(ob)
     tocados = quitadas = 0
     for c in clientes:
-        n = quitar_sobrantes(session, c)
+        resp = _codigos_resp(c)
+        if not resp:
+            continue
+        filas = obs_by_client.get(c.id, [])
+        present_ids = {ob.obligacion_tipo_id for ob in filas}
+        _, sobran = diff_mem(c, resp, dian, present_ids)
+        if not sobran:
+            continue
+        s = set(sobran)
+        n = 0
+        for ob in filas:
+            if ob.obligacion_tipo_id in s:
+                session.delete(ob)
+                n += 1
         if n:
             tocados += 1
             quitadas += n

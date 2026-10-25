@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from ..db import get_session
@@ -56,7 +57,7 @@ def _registrar_codigo_cat(path: str, modelo, etiqueta: str) -> None:
             raise HTTPException(400, "El código es obligatorio")
         if session.get(modelo, codigo):
             raise HTTPException(409, f"Ya existe {etiqueta} con ese código")
-        orden = max((t.orden for t in session.exec(select(modelo)).all()), default=-1) + 1
+        orden = (session.exec(select(func.max(modelo.orden)).select_from(modelo)).one() or -1) + 1
         t = modelo(codigo=codigo, descripcion=(data.descripcion or "").strip(), orden=orden)
         session.add(t)
         session.commit()

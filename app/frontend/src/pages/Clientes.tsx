@@ -287,8 +287,8 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
   const [emisores, setEmisores] = useState<{ id: number; nombre: string; prefijo: string }[]>([]);
 
   const load = () => api.get("/clientes").then((r: ClienteListItem[]) => { setRows(r); setActualizado(new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" })); }).catch((e) => toast(e.message, true));
+  // Catálogos de apoyo: una sola vez al montar (no cambian al navegar).
   useEffect(() => {
-    load();
     api.get("/catalogos/software").then(setSoftware).catch(() => {});
     api.get("/catalogos/rol-servicio").then(setRoles).catch(() => {});
     api.get("/catalogos/obligacion-tipo").then(setObligTipos).catch(() => {});
@@ -297,7 +297,8 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
     api.get("/catalogos/responsabilidad").then(setRespsCat).catch(() => {});
     api.get("/catalogos/emisor").then((es: any[]) => setEmisores(es.filter((e) => e.activo))).catch(() => {});
   }, []); // eslint-disable-line
-  // La App mantiene las páginas montadas (display:none); re-leer al volver a entrar.
+  // El dataset lo carga el efecto de `active`: cubre el montaje (active ya es true)
+  // y el regreso a la pestaña (la App mantiene las páginas montadas). Un solo fetch.
   useEffect(() => { if (active) load(); }, [active]); // eslint-disable-line
 
   const [autoRut, setAutoRut] = useState(false);
@@ -336,7 +337,7 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
     { k: "rev", lbl: "Por revisar", n: rows.filter((r) => r.obligaciones_por_revisar).length },
   ];
 
-  const cols: Column<ClienteListItem>[] = [
+  const cols: Column<ClienteListItem>[] = useMemo(() => [
     { key: "num_id", label: "ID", type: "code", align: "left", sortable: true, filterable: true, width: "15ch", value: (r) => r.num_id,
       render: (r) => <span className="idcell" title={r.rut_actualizado ? `RUT tomado: ${fmtFecha(r.rut_actualizado)}` : "Sin comparar con RUT"}><span className={"rut-dot" + (r.rut_actualizado ? " ok" : "")} />{r.num_id}{r.confidencial && <span title="Cliente confidencial (solo supervisores)" style={{ marginLeft: 4 }}>🔒</span>}{r.obligaciones_por_revisar && <span className="rev-dot" title="Obligaciones DIAN por revisar" />}</span> },
     { key: "nombre", label: "Nombre / Razón social", sortable: true, filterable: true, width: "55ch", value: (r) => r.nombre, tip: (r) => r.nombre || "" },
@@ -366,7 +367,7 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
       } },
     { key: "srv", label: "Servicios", align: "center", total: true, filterable: true, value: (r) => r.n_servicios, render: (r) => <span className="pill">{r.n_servicios}</span> },
     { key: "ica", label: "Mun. ICA", align: "center", total: true, filterable: true, value: (r) => r.n_municipios, render: (r) => <span className="pill">{r.n_municipios}</span> },
-  ];
+  ], []);
 
   return (
     <>

@@ -6,10 +6,19 @@ que importarlo "local anti-ciclo". Fuente única de estas reglas de negocio.
 """
 from __future__ import annotations
 
+from sqlalchemy.orm import defer
 from sqlmodel import Session, select
 
 from .deps import permisos_de
 from .models import Cliente, Usuario
+
+
+def cliente_liviano():
+    """Opciones de carga para traer clientes SIN las columnas pesadas (``logo``
+    data-URI base64, ``objeto_social`` y ``notas``, textos largos). Se usa en los
+    listados que no necesitan esos campos: `select(Cliente).options(*cliente_liviano())`.
+    No cambia el esquema; solo evita mover megas inútiles en cada listado."""
+    return (defer(Cliente.logo), defer(Cliente.objeto_social), defer(Cliente.notas))
 
 
 def ve_confidencial(session: Session, user: Usuario) -> bool:

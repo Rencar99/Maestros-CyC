@@ -15,6 +15,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from ..cuenta_cobro_docx import parse_cuenta_cobro_docx
@@ -23,6 +24,7 @@ from ..deps import require_perm
 from ..factura_xml import parse_factura_xml
 from ..models import (Cliente, ClienteServicio, CuentaCobro, Emisor, Facturacion,
                       FacturacionItem, RolServicio, Usuario)
+from ..scope import cliente_liviano
 
 router = APIRouter(prefix="/api/facturacion", tags=["facturacion"])
 
@@ -89,11 +91,16 @@ def generar(data: GenerarIn, session: Session = Depends(get_session),
     from ..scope import confid_ocultos as _confid_ocultos
     ocultos = _confid_ocultos(session, user)      # confidenciales no visibles para este usuario
     roles = {r.id: r.descripcion for r in session.exec(select(RolServicio)).all()}
-    clientes = {c.id: c for c in session.exec(select(Cliente)).all()}
+    servicios = session.exec(select(ClienteServicio).where(
+        ClienteServicio.periodo == periodo,
+        ClienteServicio.facturacion_id == None)).all()   # noqa: E711
+    # Solo los clientes que aparecen en el período (no toda la tabla cliente).
+    cli_ids = {sv.cliente_id for sv in servicios}
+    clientes = ({c.id: c for c in session.exec(
+                    select(Cliente).options(*cliente_liviano()).where(Cliente.id.in_(cli_ids)))}
+                if cli_ids else {})
     filas = []
-    for sv in session.exec(select(ClienteServicio).where(
-            ClienteServicio.periodo == periodo,
-            ClienteServicio.facturacion_id == None)).all():   # noqa: E711
+    for sv in servicios:
         c = clientes.get(sv.cliente_id)
         if not c or c.estado != "Act":
             continue
@@ -181,11 +188,13 @@ def listar(session: Session = Depends(get_session), _u: Usuario = Depends(requir
     cabs = session.exec(select(Facturacion).order_by(Facturacion.anio.desc(),
                                                      Facturacion.mes.desc(),
                                                      Facturacion.id.desc())).all()
-    conteo: dict[int, int] = {}
-    tot: dict[int, Decimal] = {}
-    for it in session.exec(select(FacturacionItem)).all():
-        conteo[it.facturacion_id] = conteo.get(it.facturacion_id, 0) + 1
-        tot[it.facturacion_id] = tot.get(it.facturacion_id, Decimal(0)) + (it.valor or 0)
+    # Conteo y total por cabecera agregados en la BD (no se traen todos los ítems).
+    agg = session.exec(
+        select(FacturacionItem.facturacion_id, func.count(),
+               func.coalesce(func.sum(FacturacionItem.valor), 0))
+        .group_by(FacturacionItem.facturacion_id)).all()
+    conteo: dict[int, int] = {fid: n for fid, n, _ in agg}
+    tot: dict[int, Decimal] = {fid: Decimal(str(s)) for fid, _, s in agg}
     return [{"id": c.id, "anio": c.anio, "mes": c.mes, "etiqueta": c.etiqueta,
              "creado_at": c.creado_at.isoformat(), "creado_por": c.creado_por,
              "aprobada_at": c.aprobada_at.isoformat() if c.aprobada_at else None,
@@ -592,13 +601,17 @@ def _ruta_cc(carpeta: str, numero: str, cliente: str, anio: int, mes: int) -> st
     return os.path.join(carpeta.strip(), str(anio), nombre)
 
 
-def _generar_cc(session: Session, fid: int, item_id: int, creado_por: str) -> "tuple[CuentaCobro, bool]":
+def _generar_cc(session: Session, fid: int, item_id: int, creado_por: str,
+                pago: dict | None = None) -> "tuple[CuentaCobro, bool]":
     """Genera la cuenta de cobro EN FIRME (consume el consecutivo del emisor y
     guarda la foto). Idempotente por la identidad de negocio (año, mes, cliente,
     concepto): si ya existe, la devuelve sin quemar otro número. Devuelve
-    (cuenta, nueva?)."""
+    (cuenta, nueva?). `pago` se puede pasar precalculado (generación en lote)
+    para no releer los parámetros de cobro por cada ítem."""
     from datetime import date
     from .parametros import _cobro
+    if pago is None:
+        pago = _cobro(session)
     fac = session.get(Facturacion, fid)
     if not fac:
         raise HTTPException(404, "Facturación no encontrada")
@@ -618,7 +631,6 @@ def _generar_cc(session: Session, fid: int, item_id: int, creado_por: str) -> "t
     nuevo = em.consecutivo + 1
     em.consecutivo = nuevo
     numero = f"{em.prefijo}-{nuevo}" if em.prefijo else str(nuevo)
-    pago = _cobro(session)
     cc = CuentaCobro(
         anio=fac.anio, mes=fac.mes, concepto=it.concepto,
         facturacion_id=fid, facturacion_item_id=item_id, emisor_id=em.id, cliente_id=cli.id,
@@ -661,16 +673,21 @@ def filas_cc(session: Session, fac: Facturacion) -> list[dict]:
     carpeta = _cobro(session).get("carpeta", "")
     items = session.exec(select(FacturacionItem).where(
         FacturacionItem.facturacion_id == fac.id)).all()
+    cc_items = [it for it in items if (it.forma or "").upper() == "CC"]
+    # Precarga en bloque (evita N+1): clientes por IN y emisores (catálogo chico) una vez.
+    cli_ids = {it.cliente_id for it in cc_items if it.cliente_id}
+    clientes = ({c.id: c for c in session.exec(
+                    select(Cliente).options(*cliente_liviano()).where(Cliente.id.in_(cli_ids)))}
+                if cli_ids else {})
+    emisores = {e.id: e for e in session.exec(select(Emisor))}
     # Cuentas de cobro del mes, indexadas por la identidad de negocio (cliente, concepto).
     ccs = {(c.cliente_id, c.concepto): c for c in session.exec(
         select(CuentaCobro).where(
             CuentaCobro.anio == fac.anio, CuentaCobro.mes == fac.mes)).all()}
     out = []
-    for it in items:
-        if (it.forma or "").upper() != "CC":
-            continue
-        cli = session.get(Cliente, it.cliente_id) if it.cliente_id else None
-        em = session.get(Emisor, cli.emisor_id) if (cli and cli.emisor_id) else None
+    for it in cc_items:
+        cli = clientes.get(it.cliente_id) if it.cliente_id else None
+        em = emisores.get(cli.emisor_id) if (cli and cli.emisor_id) else None
         cc = ccs.get((it.cliente_id, it.concepto))
         # N° definitivo (si ya se generó) o el próximo que se asignaría (vista previa).
         proximo = (cc.numero if cc else
@@ -718,6 +735,8 @@ def generar_cuentas_cobro_lote(fid: int, session: Session = Depends(get_session)
     fac = session.get(Facturacion, fid)
     if not fac:
         raise HTTPException(404, "Facturación no encontrada")
+    from .parametros import _cobro
+    pago = _cobro(session)  # una sola vez para todo el lote (no 6 gets de Parametro por CC)
     items = session.exec(select(FacturacionItem).where(
         FacturacionItem.facturacion_id == fid)).all()
     generadas, omitidas, no_generadas = 0, 0, []
@@ -725,7 +744,7 @@ def generar_cuentas_cobro_lote(fid: int, session: Session = Depends(get_session)
         if (it.forma or "").upper() != "CC":
             continue
         try:
-            _, nueva = _generar_cc(session, fid, it.id, u.nombre or u.usuario or "")
+            _, nueva = _generar_cc(session, fid, it.id, u.nombre or u.usuario or "", pago=pago)
             if nueva:
                 generadas += 1
             else:

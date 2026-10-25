@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, clearToken, getToken } from "./api";
 import { Responsable } from "./types";
 import { ConfirmProvider, Icon, ToastProvider } from "./ui";
@@ -111,9 +111,13 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
 
   const inicial = (user.nombre || "?").split(" ").map((x) => x[0]).slice(0, 2).join("").toUpperCase();
   const rolLbl = user.rol === "superadmin" ? "Super Usuario" : user.rol === "admin" ? "Administrador" : "Usuario";
-  // RBAC: qué secciones/acciones puede el usuario. Super ve todo.
-  const perms = new Set(user.permisos || []);
-  const puede = (clave: string) => user.rol === "superadmin" || perms.has(clave);
+  // RBAC: qué secciones/acciones puede el usuario. Super ve todo. Estable entre
+  // renders (solo cambia con el usuario) para no invalidar los memos de columnas
+  // de las páginas montadas en cada render del Shell.
+  const puede = useMemo(() => {
+    const perms = new Set(user.permisos || []);
+    return (clave: string) => user.rol === "superadmin" || perms.has(clave);
+  }, [user.rol, user.permisos]);
   // Si la página activa dejó de ser visible (por permisos), caer a la primera permitida.
   useEffect(() => {
     const orden: Page[] = ["clientes", "responsables", "claves", "facturacion", "cobros", "consultas", "catalogos", "generar", "config"];

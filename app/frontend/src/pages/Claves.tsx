@@ -30,8 +30,8 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
       .catch((e: any) => toast(e.message, true))
       .finally(() => setCargando(false));
   };
-  useEffect(() => { load(); }, []); // eslint-disable-line
-  // La App mantiene las páginas montadas (display:none); re-leer al volver a entrar.
+  // La App mantiene las páginas montadas (display:none); el efecto de `active`
+  // cubre el montaje (active ya es true) y el regreso a la pestaña: un solo fetch.
   useEffect(() => { if (active) load(); }, [active]); // eslint-disable-line
 
   const verTodas = async () => {
@@ -81,7 +81,7 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
     { k: "nat", lbl: "Naturales", n: activas.filter((r) => r.tipo === "Nat").length },
   ];
 
-  const cols: Column<ClaveRow>[] = [
+  const cols: Column<ClaveRow>[] = useMemo(() => [
     { key: "num_id", label: "Id", type: "code", sortable: true, width: "12ch", value: (r) => r.num_id || "", render: (r) => <span className="mono">{r.num_id || "—"}</span> },
     { key: "cliente", label: "Cliente", sortable: true, filterable: true, className: "cli-full", value: (r) => r.cliente || "" },
     { key: "rl", label: "RL", sortable: true, filterable: true, width: "20ch", value: (r) => r.rl || "", tip: (r) => r.rl, render: (r) => r.rl || <span className="cell-dash">—</span> },
@@ -103,7 +103,7 @@ export function Claves({ esSuper, puede, active = true }: { esSuper: boolean; pu
       render: (r) => <ClaveCell revealed={reveladas[r.id]} tiene_clave={r.tiene_clave} puede={puede("claves.revelar")}
         onToggle={() => revelar(r.id)} onCopy={(t) => copiar(t, toast)} />,
     },
-  ];
+  ], [reveladas, puede]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="card gframe gframe-sinh">

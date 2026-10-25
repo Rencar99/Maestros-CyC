@@ -61,11 +61,12 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
   const conRete = (it: any): Fila => ({ ...it, rete: num(it.reteiva) > 0, _uid: nuevoUid() });
 
   const cargarLista = () => api.get("/facturacion").then(setCabs).catch((e) => toast(e.message, true));
+  // Clientes (para el combo del editor): una sola vez al montar.
   useEffect(() => {
-    cargarLista();
     api.get("/clientes").then((cs: any[]) => setClientes(cs.map((c) => ({ id: c.id, num_id: c.num_id, nombre: c.nombre })))).catch(() => {});
   }, []); // eslint-disable-line
-  // La App mantiene las páginas montadas (display:none); re-leer la lista al volver a entrar.
+  // La lista la carga el efecto de `active`: cubre el montaje (active ya es true) y
+  // el regreso a la pestaña (la App mantiene las páginas montadas). Un solo fetch.
   useEffect(() => { if (active) cargarLista(); }, [active]); // eslint-disable-line
 
   const generar = async () => {
@@ -167,7 +168,8 @@ export function Facturacion({ usuario, active = true, goFacturacion }: { usuario
 
   // -------- Columnas DataGrid (Grilla CyC) --------
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
-  const clientesOpt = clientes.map((c) => ({ id: c.id, nombre: `${c.num_id} · ${c.nombre}` }));
+  // Estable entre renders: el RespCombo de las filas sin cliente memoiza sus opciones.
+  const clientesOpt = useMemo(() => clientes.map((c) => ({ id: c.id, nombre: `${c.num_id} · ${c.nombre}` })), [clientes]);
   const detCols: Column<Fila>[] = [
     {
       key: "id", label: "Id", type: "code", sortable: true, value: (f) => f.num_id || "",
@@ -382,7 +384,7 @@ function AgregarServicios({ etiqueta, yaEnGrilla, onAgregar, onClose }: {
     <Modal title="Agregar servicios (Año / Eventual)" icon="plus" size="md" onClose={onClose}
            aviso="Los ✓ ya están en la grilla. Marca los que facturarás este mes y ajusta el valor."
            onSave={agregar} canSave={!!nSel} saveLabel={`Agregar ${nSel || ""}`.trim()} saveIcon="check">
-      <DataGrid columns={cols} rows={items} getKey={(s) => items.indexOf(s)} label="Servicios"
+      <DataGrid columns={cols} rows={items} getKey={key} label="Servicios"
         storageKey="fact-agregar-serv" scrollClass="modal-grid" searchable exportable={false}
         rowClass={(s) => yaEnGrilla.has(key(s)) ? "row-dim" : ""}
         emptyLabel="No hay servicios Año/Eventual de clientes activos." />

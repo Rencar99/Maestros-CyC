@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlmodel import Session, SQLModel, select
 
 from ..db import get_session
@@ -23,9 +24,12 @@ class PermisosIn(SQLModel):
     claves: list[str] = []
 
 
-def _rol_dict(session: Session, r: Rol) -> dict:
-    n = len(session.exec(select(RolPermiso).where(RolPermiso.rol_id == r.id)).all())
-    usuarios = len(session.exec(select(Usuario).where(Usuario.rol_id == r.id)).all())
+def _rol_dict(session: Session, r: Rol, n_perm: int | None = None, n_usr: int | None = None) -> dict:
+    # En lote (listar) los conteos llegan precalculados; de a uno se cuentan aquí.
+    n = n_perm if n_perm is not None else session.exec(
+        select(func.count()).select_from(RolPermiso).where(RolPermiso.rol_id == r.id)).one()
+    usuarios = n_usr if n_usr is not None else session.exec(
+        select(func.count()).select_from(Usuario).where(Usuario.rol_id == r.id)).one()
     return {"id": r.id, "nombre": r.nombre, "sistema": r.sistema, "activo": r.activo,
             "n_permisos": n, "n_usuarios": usuarios}
 
@@ -35,7 +39,10 @@ def listar(session: Session = Depends(get_session), _=Depends(require_admin)):
     # Lista de roles (para la matriz y para asignar rol a un usuario). La edición
     # de la matriz (POST/PUT/DELETE, permisos) sí exige config.roles.
     roles = session.exec(select(Rol).order_by(Rol.orden, Rol.nombre)).all()
-    return [_rol_dict(session, r) for r in roles]
+    # Conteos agregados en la BD (no 2 queries por rol).
+    n_perm = dict(session.exec(select(RolPermiso.rol_id, func.count()).group_by(RolPermiso.rol_id)).all())
+    n_usr = dict(session.exec(select(Usuario.rol_id, func.count()).group_by(Usuario.rol_id)).all())
+    return [_rol_dict(session, r, n_perm.get(r.id, 0), n_usr.get(r.id, 0)) for r in roles]
 
 
 @router.get("/permisos")
@@ -79,8 +86,7 @@ def crear(data: RolIn, session: Session = Depends(get_session), _=_guard):
         raise HTTPException(422, "El nombre es obligatorio")
     if session.exec(select(Rol).where(Rol.nombre == nombre)).first():
         raise HTTPException(409, "Ya existe un rol con ese nombre")
-    orden = (session.exec(select(Rol)).all() and
-             max(r.orden for r in session.exec(select(Rol)).all()) + 1) or 0
+    orden = (session.exec(select(func.max(Rol.orden)).select_from(Rol)).one() or 0) + 1
     r = Rol(nombre=nombre, sistema=False, orden=orden, activo=data.activo)
     session.add(r); session.commit(); session.refresh(r)
     return _rol_dict(session, r)
