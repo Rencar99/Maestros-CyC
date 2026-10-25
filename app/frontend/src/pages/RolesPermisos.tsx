@@ -15,6 +15,9 @@ const SEC: Record<string, { lbl: string; icon: string }> = {
   config: { lbl: "Configuración", icon: "shield-check" },
 };
 const SENSIBLE = new Set(["eliminar", "revelar"]);   // acciones sensibles → color peligro
+// Permisos que además definen el "rol efectivo" que leen otras apps (Calendario,
+// Liquidador, Descargas DIAN): concederlos a un rol lo vuelve 'admin' allá.
+const CROSS_APP = new Set(["config.roles", "responsables.editar", "catalogos.editar"]);
 
 type Mapa = Record<number, Set<string>>;
 const clonar = (m: Mapa): Mapa => Object.fromEntries(Object.entries(m).map(([k, v]) => [Number(k), new Set(v)]));
@@ -344,6 +347,8 @@ export function RolesPermisos({ active = true }: { active?: boolean }) {
                       <td className="rp-pl">
                         {p.etiqueta}
                         {SENSIBLE.has(p.accion) && <span className="rp-sens">sensible</span>}
+                        {CROSS_APP.has(p.clave) && <span className="rp-xapp"
+                          title="Este permiso vuelve 'administrador' al rol en las otras apps (Calendario, Liquidador, Descargas DIAN): verá todos los clientes y podrá cambiar claves de portal. Concédelo solo a roles de gestión.">afecta otras apps</span>}
                       </td>
                       {roles.map((r) => (
                         <td key={r.id} className="rp-c">

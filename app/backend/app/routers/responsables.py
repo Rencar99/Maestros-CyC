@@ -13,6 +13,14 @@ from ..security import decrypt, encrypt, hash_password
 
 router = APIRouter(prefix="/api/responsables", tags=["responsables"])
 
+# Permisos que hacen a un rol "admin" (texto de compat 'admin'). Son los que SOLO
+# tienen los roles de gestión de la firma (Coordinador/Administrador), nunca un rol
+# operativo como Contador. Fuente ÚNICA de la regla: la usan `_sync_rol` y la prueba
+# de regresión. ⚠️ Contrato cross-app: el texto `usuario.rol` lo leen literal
+# Calendario / Liquidador / Descargas DIAN para autorizar — cambiar este conjunto
+# mueve autorizaciones en esas apps. Ver memoria rbac-roles-permisos.
+ADMIN_PERMISOS = {"config.roles", "responsables.editar", "catalogos.editar"}
+
 
 def _read(u: Usuario) -> ResponsableRead:
     return ResponsableRead.model_validate(u, from_attributes=True)
@@ -32,8 +40,16 @@ def _sync_rol(session: Session, u: Usuario) -> None:
         return
     claves = set(session.exec(
         select(RolPermiso.permiso_clave).where(RolPermiso.rol_id == rol.id)).all())
-    admin_like = "config.roles" in claves or any(
-        c.endswith((".crear", ".editar", ".eliminar")) for c in claves)
+    # Regla ESTRICTA (2026-10-25): "admin" = permisos que solo tienen los roles de
+    # GESTIÓN de la firma (Coordinador/Administrador), NO un rol operativo que
+    # casualmente cree/edite datos (p.ej. Contador crea declaraciones y NO es admin).
+    # La regla laxa anterior (cualquier .crear/.editar/.eliminar → admin) promovía
+    # al Contador a 'admin' en la siguiente edición → le daba acceso a TODOS los
+    # clientes y a las claves de portal DIAN en otras apps. Contrato cross-app: el
+    # texto ('superadmin'/'admin'/'usuario', minúsculas) lo leen LITERAL Calendario,
+    # Liquidador y Descargas DIAN para autorizar; esta misma regla debe quedar en la
+    # futura vista de permisos efectivos. Ver ADMIN_PERMISOS.
+    admin_like = bool(claves & ADMIN_PERMISOS)
     u.rol = "admin" if admin_like else "usuario"
 
 
