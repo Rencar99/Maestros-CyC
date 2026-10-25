@@ -82,7 +82,7 @@ def present_map(session: Session) -> dict[int, set[int]]:
 def diff_mem(c: Cliente, resp: set[str], dian: list[ObligacionTipo],
              present_ids: set[int]) -> tuple[list[int], list[int]]:
     """(faltan, sobran) EN MEMORIA: núcleo del diff con catálogo DIAN y presentes
-    ya cargados (sin consultar). Base de ``diff`` (1 cliente) y del lote."""
+    ya cargados (sin consultar). Lo usan la lista (`desincronizado`) y el lote."""
     if not resp:
         return ([], [])
     dian_ids = {t.id for t in dian}
@@ -90,20 +90,6 @@ def diff_mem(c: Cliente, resp: set[str], dian: list[ObligacionTipo],
     faltan = sorted(aplic - present_ids)
     sobran = sorted((present_ids & dian_ids) - aplic)
     return (faltan, sobran)
-
-
-def diff(session: Session, c: Cliente) -> tuple[list[int], list[int]]:
-    """(faltan, sobran) de obligaciones DIAN del cliente:
-      · faltan = DIAN aplicables que el cliente NO tiene,
-      · sobran = DIAN que el cliente tiene y ya NO aplican (incluye desactivadas).
-    Sin responsabilidades (RUT sin importar) → ([], []): no se puede derivar.
-    """
-    resp = codigos_resp(c)
-    if not resp:
-        return ([], [])
-    present = {ob.obligacion_tipo_id for ob in session.exec(
-        select(ClienteObligacion.obligacion_tipo_id).where(ClienteObligacion.cliente_id == c.id)).all()}
-    return diff_mem(c, resp, dian_tipos(session), present)
 
 
 def desincronizado(c: Cliente, resp: set[str], dian: list[ObligacionTipo],

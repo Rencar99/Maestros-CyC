@@ -18,7 +18,7 @@ from sqlmodel import Session, select
 from pydantic import BaseModel
 
 from ..db import get_session
-from ..deps import get_current_user, permisos_de, require_perm
+from ..deps import get_current_user, require_perm, require_superadmin
 from ..models import (Cliente, ClienteClave, ClienteMunicipioIca, ClienteObligacion,
                       ClienteServicio, CuentaCobro, FacturacionItem, ObligacionCumplimiento,
                       ObligacionTipo, Portal, RolServicio, Software, Usuario)
@@ -337,7 +337,7 @@ def _clave_dict(k: ClienteClave, portales: dict) -> dict:
 
 
 # Reglas de alcance/confidencialidad: fuente única en ``scope`` (ver scope.py).
-from ..scope import (asignados_de as _asignados_de, cliente_liviano, confid_ocultos as _confid_ocultos,  # noqa: E402
+from ..scope import (cliente_liviano, confid_ocultos as _confid_ocultos,  # noqa: E402
                      ids_asignados as _ids_asignados, ve_confidencial as _ve_confidencial)
 
 
@@ -630,20 +630,17 @@ def _diff_lote(session: Session):
 
 @router.get("/dian-diff-todos")
 def dian_diff_todos(session: Session = Depends(get_session),
-                    user: Usuario = Depends(require_perm("catalogos.editar"))):
-    """Preview del lote: cuántos clientes tienen faltantes y cuántos sobrantes."""
-    if user.rol != "superadmin":
-        raise HTTPException(403, "Solo un superusuario puede revisar las obligaciones de todos los clientes")
+                    _su: Usuario = Depends(require_superadmin)):
+    """Preview del lote: cuántos clientes tienen faltantes y cuántos sobrantes.
+    Solo Super Usuario (acción global sobre todos los clientes)."""
     return _diff_lote(session)
 
 
 @router.post("/dian-agregar-faltantes-todos")
 def dian_agregar_faltantes_todos(session: Session = Depends(get_session),
-                                 user: Usuario = Depends(require_perm("catalogos.editar"))):
+                                 _su: Usuario = Depends(require_superadmin)):
     """Agrega a TODOS los clientes con RUT las obligaciones DIAN faltantes (nunca
-    quita). Conserva las manuales. Solo superusuario."""
-    if user.rol != "superadmin":
-        raise HTTPException(403, "Solo un superusuario puede aplicar a todos los clientes")
+    quita). Conserva las manuales. Solo Super Usuario."""
     clientes = session.exec(select(Cliente).options(*cliente_liviano())).all()
     dian = dian_tipos(session)
     by_id = {t.id: t for t in dian}
@@ -669,11 +666,9 @@ def dian_agregar_faltantes_todos(session: Session = Depends(get_session),
 
 @router.post("/dian-quitar-sobrantes-todos")
 def dian_quitar_sobrantes_todos(session: Session = Depends(get_session),
-                                user: Usuario = Depends(require_perm("catalogos.editar"))):
+                                _su: Usuario = Depends(require_superadmin)):
     """Quita de TODOS los clientes las obligaciones DIAN que ya no aplican (nunca
-    toca manuales). Acción explícita con confirmación. Solo superusuario."""
-    if user.rol != "superadmin":
-        raise HTTPException(403, "Solo un superusuario puede aplicar a todos los clientes")
+    toca manuales). Acción explícita con confirmación. Solo Super Usuario."""
     clientes = session.exec(select(Cliente).options(*cliente_liviano())).all()
     dian = dian_tipos(session)
     # Filas presentes agrupadas por cliente, una sola consulta (sirve de present_map y para borrar).

@@ -593,6 +593,7 @@ function ValidarModal({ cab, rep, validando, carpeta, onRepick, onClose }: {
   cab: Cab; rep: any; validando: boolean; carpeta: string;
   onRepick: () => void; onClose: () => void;
 }) {
+  const toast = useToast();
   const m = money$;
   const R = rep?.resumen;
   const [filtro, setFiltro] = useState<string | null>(null);   // filtra la tabla por estado
@@ -617,7 +618,7 @@ function ValidarModal({ cab, rep, validando, carpeta, onRepick, onClose }: {
     { key: "iva_esp", label: "IVA aprob.", type: "money", sortable: true, value: (f) => f.iva_esp, formatter: money$ },
     { key: "iva_emi", label: "IVA emit.", type: "money", sortable: true, value: (f) => f.iva_emi, formatter: money$ },
     { key: "dif_iva", label: "Dif IVA", type: "money", sortable: true, value: (f) => f.dif_iva, formatter: money$, render: (f) => difCol(f.dif_iva) },
-    { key: "estado", label: "Estado", type: "status", filterable: true, value: (f) => EST[f.estado]?.lbl || f.estado, render: (f) => <span className={"val-estado " + EST[f.estado].cls}>{EST[f.estado].lbl}</span> },
+    { key: "estado", label: "Estado", type: "status", filterable: true, value: (f) => EST[f.estado]?.lbl || f.estado, render: (f) => <span className={"val-estado " + (EST[f.estado]?.cls || "")}>{EST[f.estado]?.lbl || f.estado}</span> },
     { key: "docs", label: "Fact/CC", width: "20ch", value: (f) => `${f.tipo} ${(f.numeros || []).join(", ")}`, render: (f) => <span style={{ fontSize: 11.5 }}><span className={"tipo-tag " + (f.tipo === "CC" ? "t-cc" : "t-fa")}>{f.tipo}</span> <span style={{ color: "var(--ink-3)" }}>{(f.numeros || []).join(", ")}</span></span> },
   ];
 
@@ -625,7 +626,7 @@ function ValidarModal({ cab, rep, validando, carpeta, onRepick, onClose }: {
     <>
       <button className="mh-act" onClick={onRepick} aria-label="Otra carpeta"><Icon name="folder" size={18} /><span className="mh-tip">Otra carpeta</span></button>
       <button className="mh-act" aria-label="Exportar Excel"
-        onClick={() => api.downloadPost("/facturacion/validar/excel", { etiqueta: cab.etiqueta, resumen: R, filas: rep.filas, filas_cc: rep.filas_cc }, `Validacion ${cab.etiqueta}.xlsx`).catch(() => {})}><Icon name="down" size={18} /><span className="mh-tip">Exportar Excel</span></button>
+        onClick={() => api.downloadPost("/facturacion/validar/excel", { etiqueta: cab.etiqueta, resumen: R, filas: rep.filas, filas_cc: rep.filas_cc }, `Validacion ${cab.etiqueta}.xlsx`).catch((e: any) => toast(e.message, true))}><Icon name="down" size={18} /><span className="mh-tip">Exportar Excel</span></button>
     </>
   ) : undefined;
 

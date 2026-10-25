@@ -20,6 +20,7 @@ export function AsyncCombo<T>({ value, buscar, label, renderOpt, getKey, codeOf,
   const [opts, setOpts] = useState<T[]>([]);
   const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const qSeq = useRef(0);   // descarta respuestas de búsquedas superadas (teclado rápido)
 
   // Al montar/cambiar el código, resuelve su etiqueta para mostrarla.
   useEffect(() => {
@@ -35,7 +36,11 @@ export function AsyncCombo<T>({ value, buscar, label, renderOpt, getKey, codeOf,
     const r = wrapRef.current?.getBoundingClientRect();
     if (r) setRect({ left: r.left, top: r.bottom + 3, width: r.width });
   };
-  const query = (q: string) => { buscar(q).then(setOpts).catch(() => setOpts([])); };
+  const query = (q: string) => {
+    const seq = ++qSeq.current;
+    buscar(q).then((r) => { if (seq === qSeq.current) setOpts(r); })
+             .catch(() => { if (seq === qSeq.current) setOpts([]); });
+  };
   const abrir = (q: string) => { posicionar(); setOpen(true); query(q); };
 
   return (

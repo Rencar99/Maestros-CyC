@@ -365,7 +365,7 @@ function EtapaModal({ tid, etapa, onClose, onSaved }: { tid: number; etapa: Etap
   );
 }
 
-function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar?: boolean; esSuper?: boolean }) {
+function ObligacionesCard({ esSuper = false }: { esSuper?: boolean }) {
   const toast = useToast();
   const confirmar = useConfirm();
   const [items, setItems] = useState<Oblig[]>([]);
@@ -429,17 +429,17 @@ function ObligacionesCard({ puedeEditar = true, esSuper = false }: { puedeEditar
           {esSuper && <button className="btn sm" onClick={abrirBatch}
             title="Revisa el diff DIAN de todos los clientes con RUT y aplica agregar/quitar (con confirmación). Úsalo tras cambiar una regla del catálogo. Conserva las manuales.">
             <Icon name="check-circle" size={15} />Revisar DIAN de todos</button>}
-          {puedeEditar && <button className="btn primary sm" onClick={() => { setFocoEtapas(false); setEdit(vacio()); }}><Icon name="plus" size={16} />Nueva Obligación</button>}
+          <button className="btn primary sm" onClick={() => { setFocoEtapas(false); setEdit(vacio()); }}><Icon name="plus" size={16} />Nueva Obligación</button>
         </>}>
         <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
           label="Obligaciones" scrollClass="cat-scroll" storageKey="cat-oblig" fitRows
           searchable exportable actionsWidth="150px" emptyLabel="Sin obligaciones."
-          actions={puedeEditar ? (r) => <>
+          actions={(r) => <>
             <button className="act-btn" title="Etapas (subtareas)" onClick={() => { setFocoEtapas(true); setEdit(r); }}><Icon name="list" size={15} /></button>
             <button className="act-btn" title="Editar" onClick={() => { setFocoEtapas(false); setEdit(r); }}><Icon name="edit" size={15} /></button>
             <button className="act-btn" title="Duplicar (nueva con estos datos)" onClick={() => { setFocoEtapas(false); setEdit({ ...r, id: 0 }); }}><Icon name="copy" size={15} /></button>
             <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
-          </> : undefined} />
+          </>} />
       </CatShell>
       {edit && <ObligacionModal obl={edit} entidades={entidades} formularios={formularios} foco={focoEtapas ? "etapas" : undefined}
         onEntidadCreada={(e) => setEntidades((prev) => [...prev, e].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")))}
