@@ -316,11 +316,19 @@ class ClaveIn(BaseModel):
     clave: str = ""     # en PUT: vacío = no cambiar la clave existente
 
 
-def _clave_dict(k: ClienteClave, portales: dict) -> dict:
-    return {"id": k.id, "portal_id": k.portal_id, "portal": portales.get(k.portal_id, ""),
-            "comentario": k.comentario, "url": k.url, "usuario": k.usuario, "tiene_clave": bool(k.clave_enc),
-            "odbc_nombre": k.odbc_nombre, "odbc_dbf": k.odbc_dbf, "odbc_ip": k.odbc_ip,
+def _clave_base(k: ClienteClave, portales: dict) -> dict:
+    """Campos comunes de una clave (los que comparten la vista por cliente y la
+    global). Cada vista extiende este dict con lo suyo."""
+    return {"id": k.id, "portal": portales.get(k.portal_id, ""),
+            "comentario": k.comentario, "url": k.url, "usuario": k.usuario,
+            "tiene_clave": bool(k.clave_enc),
             "actualizado_at": k.actualizado_at.isoformat() if k.actualizado_at else None}
+
+
+def _clave_dict(k: ClienteClave, portales: dict) -> dict:
+    """Vista por cliente (ficha + modal): núcleo + portal_id + datos ODBC."""
+    return {**_clave_base(k, portales), "portal_id": k.portal_id,
+            "odbc_nombre": k.odbc_nombre, "odbc_dbf": k.odbc_dbf, "odbc_ip": k.odbc_ip}
 
 
 # Reglas de alcance/confidencialidad: fuente única en ``scope`` (ver scope.py).
@@ -346,13 +354,10 @@ def listar_todas_claves(session: Session = Depends(get_session),
             continue
         c = clientes.get(k.cliente_id)
         filas.append({
-            "id": k.id, "cliente_id": k.cliente_id,
+            **_clave_base(k, portales), "cliente_id": k.cliente_id,
             "num_id": c.num_id if c else "", "cliente": c.nombre if c else "(cliente eliminado)",
             "estado": c.estado if c else "", "tipo": c.tipo_contribuyente if c else "",
             "rl": c.representante_nombre if c else "",
-            "portal": portales.get(k.portal_id, ""), "usuario": k.usuario,
-            "comentario": k.comentario, "url": k.url, "tiene_clave": bool(k.clave_enc),
-            "actualizado_at": k.actualizado_at.isoformat() if k.actualizado_at else None,
         })
     filas.sort(key=lambda r: ((r["cliente"] or "").lower(), (r["portal"] or "").lower(),
                               (r["usuario"] or "").lower()))

@@ -5,6 +5,7 @@ import { Icon, SecTitle, SiNo, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal } from "../components/Modal";
 import { CRITERIOS, CRIT_TXT, DISPARADORES, DISP_TXT, FAMILIAS } from "../catalogos-labels";
+import { CatSelect } from "../components/CatSelect";
 
 /** Encabezado de subsección: reusa SecTitle (ícono ámbar), con tooltip opcional. */
 function CatH3({ icon, titulo, hint }: { icon: string; titulo: string; hint?: string }) {
@@ -181,19 +182,6 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
     { key: "activa", label: "Activa", align: "center", width: "80px", value: (r) => (r.activa ? "Sí" : "No"), render: (r) => <SiNo v={r.activa} /> },
   ];
   // Crear entidad al vuelo (patrón "+") desde el campo Ente.
-  const [entCreando, setEntCreando] = useState(false);
-  const [entTxt, setEntTxt] = useState("");
-  const crearEnt = async () => {
-    const nombre = entTxt.trim();
-    if (!nombre) { setEntCreando(false); setEntTxt(""); return; }
-    try {
-      const nueva: EntidadItem = await api.post("/catalogos/entidad", { nombre, sigla: "", activo: true });
-      onEntidadCreada(nueva);
-      set({ ente: nueva.nombre });
-      setEntCreando(false); setEntTxt("");
-      toast("Entidad creada ✓");
-    } catch (e: any) { toast(e.message, true); }
-  };
   const guardar = async () => {
     const codigo = f.codigo.trim().toUpperCase();
     const descripcion = f.descripcion.trim();
@@ -235,26 +223,10 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
                    title={editando ? "El código es la llave estable — no se puede cambiar" : ""}
                    onChange={(e) => set({ codigo: e.target.value })} placeholder="Ej. IVA_BIM" /></label>
           <label className="cq-fld" style={{ width: 250 }}><span>Ente</span>
-            {entCreando ? (
-              <div className="catsel-row">
-                <input autoFocus value={entTxt} placeholder="Nueva entidad…" style={{ flex: 1 }}
-                  onChange={(e) => setEntTxt(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); crearEnt(); } if (e.key === "Escape") { setEntCreando(false); setEntTxt(""); } }} />
-                <button type="button" className="icon-btn" title="Crear" onClick={crearEnt}><Icon name="check" size={16} /></button>
-                <button type="button" className="icon-btn" title="Cancelar" onClick={() => { setEntCreando(false); setEntTxt(""); }}><Icon name="x" size={15} /></button>
-              </div>
-            ) : (
-              <div className="catsel-row">
-                <select style={{ flex: 1 }} value={f.ente} disabled={editando}
-                  title={editando ? "No se puede cambiar en una obligación existente" : ""}
-                  onChange={(e) => set({ ente: e.target.value })}>
-                  {!f.ente && <option value="">— Selecciona —</option>}
-                  {f.ente && !entidades.some((x) => x.nombre === f.ente) && <option value={f.ente}>{f.ente}</option>}
-                  {entidades.filter((x) => x.activo).map((x) => <option key={x.id} value={x.nombre}>{x.nombre}</option>)}
-                </select>
-                {!editando && <button type="button" className="icon-btn add-plus" title="Crear nueva entidad" onClick={() => { setEntTxt(""); setEntCreando(true); }}><Icon name="plus" size={16} /></button>}
-              </div>
-            )}</label>
+            <CatSelect path="entidad" by="descripcion" textKey="nombre"
+              items={entidades.filter((x) => x.activo)} onItems={onEntidadCreada}
+              value={f.ente} onChange={(v) => set({ ente: (v as string) || "" })}
+              disabled={editando} placeholder="— Selecciona —" noAdd={editando} /></label>
           <label className="cq-fld" style={{ width: 230 }}><span>Familia</span>
             <select value={f.familia || "otras"} onChange={(e) => set({ familia: e.target.value })}>
               {FAMILIAS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
@@ -525,39 +497,57 @@ function EntidadModal({ ent, onClose, onSaved }: { ent: EntidadItem; onClose: ()
   );
 }
 
-function EntidadesCard() {
+/** Tarjeta CRUD estándar de catálogo: carga la lista, grilla con editar/eliminar,
+ *  botón "Nuevo" y el modal de edición. Las tarjetas concretas solo aportan path,
+ *  columnas, el objeto vacío y su modal. */
+function CrudCard<T extends { id: number }>({ path, icon, titulo, hint, nuevo, cols, vacio, delTitulo, delMsg, storageKey, emptyLabel, renderModal }: {
+  path: string;                     // base del endpoint ("/catalogos/entidad", "/formularios"…)
+  icon: string; titulo: string; hint: string; nuevo: string;
+  cols: Column<T>[];
+  vacio: () => T;
+  delTitulo: string; delMsg: (r: T) => string;
+  storageKey: string; emptyLabel: string;
+  renderModal: (item: T, onClose: () => void, onSaved: () => void) => ReactNode;
+}) {
   const toast = useToast();
   const confirmar = useConfirm();
-  const [items, setItems] = useState<EntidadItem[]>([]);
-  const [edit, setEdit] = useState<EntidadItem | null>(null);
-  const load = () => api.get("/catalogos/entidad").then(setItems).catch((e) => toast(e.message, true));
+  const [items, setItems] = useState<T[]>([]);
+  const [edit, setEdit] = useState<T | null>(null);
+  const load = () => api.get(path).then(setItems).catch((e: any) => toast(e.message, true));
   useEffect(() => { load(); }, []); // eslint-disable-line
-  const del = async (r: EntidadItem) => {
-    if ((await confirmar({ titulo: "Eliminar entidad", mensaje: `Se eliminará «${r.nombre}».`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
-    try { await api.del(`/catalogos/entidad/${r.id}`); load(); toast("Eliminada"); } catch (e: any) { toast(e.message, true); }
+  const del = async (r: T) => {
+    if ((await confirmar({ titulo: delTitulo, mensaje: delMsg(r), peligro: true, confirmar: "Eliminar" })) !== "si") return;
+    try { await api.del(`${path}/${r.id}`); load(); toast("Eliminado ✓"); } catch (e: any) { toast(e.message, true); }
   };
-  const vacio = (): EntidadItem => ({ id: 0, nombre: "", sigla: "", activo: true });
-  const cols: Column<EntidadItem>[] = [
-    { key: "nombre", label: "Nombre", sortable: true, filterable: true, value: (r) => r.nombre },
-    { key: "sigla", label: "Sigla", sortable: true, filterable: true, width: "180px", value: (r) => r.sigla },
-    { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <SiNo v={r.activo} /> },
-  ];
   return (
     <>
-      <CatShell icon="landmark" titulo="Entidades" n={items.length}
-        hint="Entes de control (DIAN, UGPP, Superintendencias, Hacienda…). Alimentan el Calendario y el Ente de las Obligaciones."
-        right={<button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nueva Entidad</button>}>
+      <CatShell icon={icon} titulo={titulo} n={items.length} hint={hint}
+        right={<button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />{nuevo}</button>}>
         <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
-          label="Entidades" scrollClass="cat-scroll" storageKey="cat-entidad" fitRows
-          searchable exportable actionsWidth="92px" emptyLabel="Sin entidades."
+          label={titulo} scrollClass="cat-scroll" storageKey={storageKey} fitRows
+          searchable exportable actionsWidth="92px" emptyLabel={emptyLabel}
           actions={(r) => <>
             <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
             <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
           </>} />
       </CatShell>
-      {edit && <EntidadModal ent={edit} onClose={() => setEdit(null)} onSaved={load} />}
+      {edit && renderModal(edit, () => setEdit(null), load)}
     </>
   );
+}
+
+function EntidadesCard() {
+  const cols: Column<EntidadItem>[] = [
+    { key: "nombre", label: "Nombre", sortable: true, filterable: true, value: (r) => r.nombre },
+    { key: "sigla", label: "Sigla", sortable: true, filterable: true, width: "180px", value: (r) => r.sigla },
+    { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <SiNo v={r.activo} /> },
+  ];
+  return <CrudCard<EntidadItem> path="/catalogos/entidad" icon="landmark" titulo="Entidades" nuevo="Nueva Entidad"
+    hint="Entes de control (DIAN, UGPP, Superintendencias, Hacienda…). Alimentan el Calendario y el Ente de las Obligaciones."
+    cols={cols} vacio={() => ({ id: 0, nombre: "", sigla: "", activo: true })}
+    delTitulo="Eliminar entidad" delMsg={(r) => `Se eliminará «${r.nombre}».`}
+    storageKey="cat-entidad" emptyLabel="Sin entidades."
+    renderModal={(it, onClose, onSaved) => <EntidadModal ent={it} onClose={onClose} onSaved={onSaved} />} />;
 }
 
 /** Catálogo de Formularios DIAN (350, etc.). Solo Super. La autorización de quién
@@ -602,43 +592,24 @@ function FormularioModal({ f0, obligaciones, onClose, onSaved }: { f0: Formulari
 }
 
 function FormulariosCard() {
-  const toast = useToast();
-  const confirmar = useConfirm();
-  const [items, setItems] = useState<FormularioItem[]>([]);
+  // Los formularios usan /formularios (no /catalogos) y el modal necesita el
+  // catálogo de obligaciones; se carga aquí y se pasa por el renderModal.
   const [obligaciones, setObligaciones] = useState<Oblig[]>([]);
-  const [edit, setEdit] = useState<FormularioItem | null>(null);
-  const load = () => api.get("/formularios").then(setItems).catch((e) => toast(e.message, true));
   useEffect(() => {
-    load();
     api.get("/catalogos/obligacion-tipo").then((l: Oblig[]) => setObligaciones(l)).catch(() => {});
-  }, []); // eslint-disable-line
-  const del = async (r: FormularioItem) => {
-    if ((await confirmar({ titulo: "Eliminar formulario", mensaje: `Se eliminará «${r.nombre}» y sus autorizaciones.`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
-    try { await api.del(`/formularios/${r.id}`); load(); toast("Eliminado"); } catch (e: any) { toast(e.message, true); }
-  };
-  const vacio = (): FormularioItem => ({ id: 0, nombre: "", numero: "", codigo_calendario: "", activo: true });
+  }, []);
   const cols: Column<FormularioItem>[] = [
     { key: "nombre", label: "Nombre", sortable: true, filterable: true, value: (r) => r.nombre },
     { key: "numero", label: "Número", sortable: true, filterable: true, width: "110px", align: "center", value: (r) => r.numero, render: (r) => r.numero ? <span className="pill">{r.numero}</span> : <span className="muted">—</span> },
     { key: "codigo_calendario", label: "Código Calendario", sortable: true, filterable: true, width: "220px", value: (r) => r.codigo_calendario, render: (r) => r.codigo_calendario ? <span className="pill">{r.codigo_calendario}</span> : <span className="muted">—</span> },
     { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <SiNo v={r.activo} /> },
   ];
-  return (
-    <>
-      <CatShell icon="file" titulo="Formularios" n={items.length}
-        hint="Formularios DIAN cuyos borradores se presentan (350, etc.). El Código Calendario es la llave estable (para enlazar con el Calendario). La autorización de quién puede presentar cada uno se define en Roles y permisos → Presentar borradores."
-        right={<button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nuevo Formulario</button>}>
-        <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
-          label="Formularios" scrollClass="cat-scroll" storageKey="cat-formulario" fitRows
-          searchable exportable actionsWidth="92px" emptyLabel="Sin formularios."
-          actions={(r) => <>
-            <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
-            <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
-          </>} />
-      </CatShell>
-      {edit && <FormularioModal f0={edit} obligaciones={obligaciones} onClose={() => setEdit(null)} onSaved={load} />}
-    </>
-  );
+  return <CrudCard<FormularioItem> path="/formularios" icon="file" titulo="Formularios" nuevo="Nuevo Formulario"
+    hint="Formularios DIAN cuyos borradores se presentan (350, etc.). El Código Calendario es la llave estable (para enlazar con el Calendario). La autorización de quién puede presentar cada uno se define en Roles y permisos → Presentar borradores."
+    cols={cols} vacio={() => ({ id: 0, nombre: "", numero: "", codigo_calendario: "", activo: true })}
+    delTitulo="Eliminar formulario" delMsg={(r) => `Se eliminará «${r.nombre}» y sus autorizaciones.`}
+    storageKey="cat-formulario" emptyLabel="Sin formularios."
+    renderModal={(it, onClose, onSaved) => <FormularioModal f0={it} obligaciones={obligaciones} onClose={onClose} onSaved={onSaved} />} />;
 }
 
 /** Catálogo de Emisores: personas que firman/emiten las cuentas de cobro a nombre
@@ -717,17 +688,6 @@ function EmisorModal({ em, onClose, onSaved }: { em: EmisorItem; onClose: () => 
 }
 
 function EmisoresCard() {
-  const toast = useToast();
-  const confirmar = useConfirm();
-  const [items, setItems] = useState<EmisorItem[]>([]);
-  const [edit, setEdit] = useState<EmisorItem | null>(null);
-  const load = () => api.get("/catalogos/emisor").then(setItems).catch((e) => toast(e.message, true));
-  useEffect(() => { load(); }, []); // eslint-disable-line
-  const del = async (r: EmisorItem) => {
-    if ((await confirmar({ titulo: "Eliminar emisor", mensaje: `Se eliminará «${r.nombre}».`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
-    try { await api.del(`/catalogos/emisor/${r.id}`); load(); toast("Eliminado"); } catch (e: any) { toast(e.message, true); }
-  };
-  const vacio = (): EmisorItem => ({ id: 0, nombre: "", cedula: "", direccion: "", celular: "", prefijo: "", consecutivo: 0, nota_383: false, firma: "", activo: true });
   const cols: Column<EmisorItem>[] = [
     { key: "nombre", label: "Nombre", sortable: true, filterable: true, value: (r) => r.nombre },
     { key: "cedula", label: "Cédula", type: "code", sortable: true, width: "140px", value: (r) => r.cedula },
@@ -736,22 +696,12 @@ function EmisoresCard() {
     { key: "nota_383", label: "Nota 383", align: "center", sortable: true, filterable: true, width: "100px", value: (r) => (r.nota_383 ? "Sí" : "No"), render: (r) => <SiNo v={r.nota_383} /> },
     { key: "activo", label: "Activo", align: "center", sortable: true, filterable: true, width: "90px", value: (r) => (r.activo ? "Sí" : "No"), render: (r) => <SiNo v={r.activo} /> },
   ];
-  return (
-    <>
-      <CatShell icon="user" titulo="Emisores" n={items.length}
-        hint="Personas que firman y emiten las cuentas de cobro a nombre de la firma. Cada una lleva su propio consecutivo (ej. MB-421) y, si aplica, la nota del art. 383."
-        right={<button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nuevo Emisor</button>}>
-        <DataGrid columns={cols} rows={items} getKey={(r) => r.id}
-          label="Emisores" scrollClass="cat-scroll" storageKey="cat-emisor" fitRows
-          searchable exportable actionsWidth="92px" emptyLabel="Sin emisores."
-          actions={(r) => <>
-            <button className="act-btn" title="Editar" onClick={() => setEdit(r)}><Icon name="edit" size={15} /></button>
-            <button className="act-btn del" title="Eliminar" onClick={() => del(r)}><Icon name="trash" size={15} /></button>
-          </>} />
-      </CatShell>
-      {edit && <EmisorModal em={edit} onClose={() => setEdit(null)} onSaved={load} />}
-    </>
-  );
+  return <CrudCard<EmisorItem> path="/catalogos/emisor" icon="user" titulo="Emisores" nuevo="Nuevo Emisor"
+    hint="Personas que firman y emiten las cuentas de cobro a nombre de la firma. Cada una lleva su propio consecutivo (ej. MB-421) y, si aplica, la nota del art. 383."
+    cols={cols} vacio={() => ({ id: 0, nombre: "", cedula: "", direccion: "", celular: "", prefijo: "", consecutivo: 0, nota_383: false, firma: "", activo: true })}
+    delTitulo="Eliminar emisor" delMsg={(r) => `Se eliminará «${r.nombre}».`}
+    storageKey="cat-emisor" emptyLabel="Sin emisores."
+    renderModal={(it, onClose, onSaved) => <EmisorModal em={it} onClose={onClose} onSaved={onSaved} />} />;
 }
 
 const CAT_TABS = [
