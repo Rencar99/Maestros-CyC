@@ -89,6 +89,12 @@ PERMISOS_CAT = [
     ("catalogos", [("ver", "Ver"), ("editar", "Editar")]),
     ("consultas", [("ver", "Ver y ejecutar"), ("generar", "Generar consultas")]),
     ("config", [("roles", "Administrar roles")]),
+    # Permisos de la app CALENDARIO (dominio de otra app; Maestros es dueño del
+    # catálogo). Calendario los HACE CUMPLIR (oculta el menú + cierra la ruta); aquí
+    # solo viven como claves asignables en la matriz. Gatean menús de esa app:
+    #   carga   → pantalla "Carga" (carga por responsable)
+    #   generar → "Generar Calendarios"
+    ("calendario", [("carga", "Ver Carga"), ("generar", "Generar calendarios")]),
 ]
 
 # Permisos por rol semilla (replican el comportamiento actual). Super = todos.
@@ -98,6 +104,7 @@ _ADMIN_PERMS = (
     + ["claves." + a for a in ("ver", "crear", "editar", "eliminar", "revelar", "exportar")]
     + ["catalogos.ver", "catalogos.editar"]
     + ["consultas.ver"]           # consumo de consultas compartidas (no generar)
+    + ["calendario.carga", "calendario.generar"]   # gestión ve Carga/Generar del Calendario
 )
 # Consulta preserva el flujo de "claves de mis clientes asignados" (ver/revelar/
 # exportar, ya filtrado por asignación en el backend) + lecturas.
@@ -120,6 +127,7 @@ def bootstrap_roles() -> None:
         orden = 0
         nuevo_generar = False
         nuevo_ver_todos = False
+        nuevo_calendario = False
         for sec, accs in PERMISOS_CAT:
             for acc, etq in accs:
                 clave = f"{sec}.{acc}"
@@ -129,6 +137,8 @@ def bootstrap_roles() -> None:
                         nuevo_generar = True
                     if clave == "clientes.ver_todos":
                         nuevo_ver_todos = True
+                    if clave in ("calendario.carga", "calendario.generar"):
+                        nuevo_calendario = True
                     s.add(Permiso(clave=clave, seccion=sec, accion=acc, etiqueta=etq, orden=orden))
                 else:
                     p.etiqueta = etq; p.orden = orden; s.add(p)
@@ -176,6 +186,22 @@ def bootstrap_roles() -> None:
                     RolPermiso.rol_id == rol.id)).all())
                 if claves & ADMIN_PERMISOS and "clientes.ver_todos" not in claves:
                     s.add(RolPermiso(rol_id=rol.id, permiso_clave="clientes.ver_todos"))
+            s.commit()
+        # 3d) Migración única al estrenar los permisos del Calendario (carga/generar):
+        #     concederlos SOLO a los roles de GESTIÓN existentes (los que ya tienen
+        #     algún ADMIN_PERMISOS: Coordinador/Administrador), NO a Consulta/Contador.
+        #     Así gestión no pierde el acceso de golpe; Renzo afina en la matriz. El
+        #     Super los tiene por `sistema`. Corre una sola vez (primera aparición).
+        if nuevo_calendario:
+            for rol in s.exec(select(Rol)).all():
+                if rol.sistema:
+                    continue
+                claves = set(s.exec(select(RolPermiso.permiso_clave).where(
+                    RolPermiso.rol_id == rol.id)).all())
+                if claves & ADMIN_PERMISOS:
+                    for c in ("calendario.carga", "calendario.generar"):
+                        if c not in claves:
+                            s.add(RolPermiso(rol_id=rol.id, permiso_clave=c))
             s.commit()
         # 4) Migrar usuarios sin rol_id, según su `rol` de texto.
         mapa = {"superadmin": roles["Super Usuario"].id,
