@@ -199,6 +199,19 @@ def _ensure_columns() -> None:
         if not ya_fatal:
             _sembrar_pago_fatal(conn)
         _agente_retenedor_derivado(conn)
+        # Auto-registro de permisos (HANDOFF_RBAC_autoregistro.md): cada app es dueña
+        # de SUS claves en `permiso`. `app` = dueña; `activo` = vigente/deprecada.
+        ya_app = conn.execute(text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema=:s AND table_name='permiso' AND column_name='app'"),
+            {"s": DB_SCHEMA}).first()
+        conn.execute(text(
+            "ALTER TABLE permiso ADD COLUMN IF NOT EXISTS app VARCHAR NOT NULL DEFAULT 'maestros'"))
+        conn.execute(text(
+            "ALTER TABLE permiso ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE"))
+        if not ya_app:   # backfill ÚNICO de propiedad: lo de Calendario pasa a ser suyo.
+            conn.execute(text(
+                "UPDATE permiso SET app='calendario' WHERE seccion='calendario'"))
 
 
 def _ensure_views() -> None:
@@ -231,7 +244,7 @@ CREATE OR REPLACE VIEW "{s}".usuario_permiso_efectivo AS
 SELECT u.id AS usuario_id, u.usuario AS usuario, p.clave AS permiso
   FROM "{s}".usuario u
   CROSS JOIN "{s}".permiso p
- WHERE u.activo
+ WHERE u.activo AND p.activo
    AND (u.rol = 'superadmin'
         OR EXISTS (SELECT 1 FROM "{s}".rol r
                     WHERE r.id = u.rol_id AND r.sistema AND r.activo))

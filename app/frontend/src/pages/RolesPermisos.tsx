@@ -3,7 +3,7 @@ import { api } from "../api";
 import { Icon, norm, SecTitle, useConfirm, useToast } from "../ui";
 
 interface Rol { id: number; nombre: string; sistema: boolean; activo: boolean; n_permisos: number; n_usuarios: number; }
-interface Perm { clave: string; seccion: string; accion: string; etiqueta: string; }
+interface Perm { clave: string; seccion: string; accion: string; etiqueta: string; app?: string; activo?: boolean; }
 
 const SEC: Record<string, { lbl: string; icon: string }> = {
   clientes: { lbl: "Clientes", icon: "clientes" },
@@ -13,6 +13,9 @@ const SEC: Record<string, { lbl: string; icon: string }> = {
   catalogos: { lbl: "Catálogos", icon: "cat" },
   consultas: { lbl: "Consultas", icon: "db" },
   config: { lbl: "Configuración", icon: "shield-check" },
+  // Secciones de otras apps (auto-registro). Etiqueta/ícono amable; el chip de app
+  // ya indica de quién es. Las que no estén aquí caen al nombre de la sección.
+  calendario: { lbl: "Calendario", icon: "clipboard-check" },
 };
 const SENSIBLE = new Set(["eliminar", "revelar"]);   // acciones sensibles → color peligro
 // Permisos que además definen el "rol efectivo" que leen otras apps (Calendario,
@@ -152,16 +155,20 @@ export function RolesPermisos({ active = true }: { active?: boolean }) {
   };
   useEffect(() => { cargar(); }, []); // eslint-disable-line
 
-  // Agrupar el catálogo por sección, en el orden en que viene.
+  // Agrupar el catálogo por sección, en el orden en que viene (Maestros primero,
+  // luego cada app). Cada grupo recuerda la `app` dueña (para el chip de la sección).
   const grupos = useMemo(() => {
-    const g: { seccion: string; perms: Perm[] }[] = [];
+    const g: { seccion: string; app: string; perms: Perm[] }[] = [];
     for (const p of cat) {
       let last = g[g.length - 1];
-      if (!last || last.seccion !== p.seccion) { last = { seccion: p.seccion, perms: [] }; g.push(last); }
+      if (!last || last.seccion !== p.seccion) { last = { seccion: p.seccion, app: p.app || "maestros", perms: [] }; g.push(last); }
       last.perms.push(p);
     }
     return g;
   }, [cat]);
+  // Claves VIGENTES (no deprecadas): base de los conteos "N/total".
+  const activeSet = useMemo(() => new Set(cat.filter((p) => p.activo !== false).map((p) => p.clave)), [cat]);
+  const totalAct = activeSet.size;
 
   // Por defecto la pantalla arranca colapsada por sección (una sola vez, al
   // tener las secciones). El ref evita re-colapsar al recargar o pisar lo que
@@ -175,7 +182,8 @@ export function RolesPermisos({ active = true }: { active?: boolean }) {
   const has = (r: Rol, clave: string) => r.sistema || (perms[r.id]?.has(clave) ?? false);
   const cambiado = (r: Rol, clave: string) =>
     !r.sistema && ((perms[r.id]?.has(clave) ?? false) !== (base[r.id]?.has(clave) ?? false));
-  const activos = (r: Rol) => (r.sistema ? cat.length : (perms[r.id]?.size ?? 0));
+  const activos = (r: Rol) => (r.sistema ? totalAct
+    : [...(perms[r.id] ?? [])].filter((c) => activeSet.has(c)).length);
 
   const toggle = (r: Rol, clave: string) => {
     if (r.sistema) return;
@@ -312,7 +320,7 @@ export function RolesPermisos({ active = true }: { active?: boolean }) {
                     {r.sistema && <Icon name="lock" size={12} />}
                   </div>
                   <div className="rp-rmeta">
-                    <span>{r.n_usuarios} usu. · {activos(r)}/{cat.length}</span>
+                    <span>{r.n_usuarios} usu. · {activos(r)}/{totalAct}</span>
                     {!r.sistema && <button className="act-btn del" title="Eliminar rol" onClick={() => borrarRol(r)}><Icon name="trash" size={13} /></button>}
                   </div>
                 </th>
@@ -334,6 +342,7 @@ export function RolesPermisos({ active = true }: { active?: boolean }) {
                         </button>
                         <span className="rp-modic"><Icon name={info.icon} size={17} /></span>
                         <b>{info.lbl}</b>
+                        {g.app !== "maestros" && <span className="rp-appchip" title={`Funcionalidades de la app «${g.app}» (ella registra y hace cumplir estos permisos; aquí solo los asignas).`}>{g.app}</span>}
                         <span className="rp-modn">{g.perms.length} permisos</span>
                       </div>
                     </td>
@@ -343,9 +352,10 @@ export function RolesPermisos({ active = true }: { active?: boolean }) {
                     })}
                   </tr>
                   {abierto(g.seccion) && g.perms.map((p) => (
-                    <tr key={p.clave} className="rp-act">
+                    <tr key={p.clave} className={"rp-act" + (p.activo === false ? " rp-depr" : "")}>
                       <td className="rp-pl">
-                        {p.etiqueta}
+                        <span className={p.activo === false ? "rp-depr-lbl" : undefined}>{p.etiqueta}</span>
+                        {p.activo === false && <span className="rp-deprtag" title="Permiso deprecado: la app que lo definía lo retiró. Desmárcalo de los roles; ya no aplica.">deprecado</span>}
                         {SENSIBLE.has(p.accion) && <span className="rp-sens">sensible</span>}
                         {CROSS_APP.has(p.clave) && <span className="rp-xapp"
                           title="Este permiso vuelve 'administrador' al rol en las otras apps (Calendario, Liquidador, Descargas DIAN): verá todos los clientes y podrá cambiar claves de portal. Concédelo solo a roles de gestión.">afecta otras apps</span>}

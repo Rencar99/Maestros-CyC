@@ -89,13 +89,12 @@ PERMISOS_CAT = [
     ("catalogos", [("ver", "Ver"), ("editar", "Editar")]),
     ("consultas", [("ver", "Ver y ejecutar"), ("generar", "Generar consultas")]),
     ("config", [("roles", "Administrar roles")]),
-    # Permisos de la app CALENDARIO (dominio de otra app; Maestros es dueño del
-    # catálogo). Calendario los HACE CUMPLIR (oculta el menú + cierra la ruta); aquí
-    # solo viven como claves asignables en la matriz. Gatean menús de esa app:
-    #   carga   → pantalla "Carga" (carga por responsable)
-    #   generar → "Generar Calendarios"
-    ("calendario", [("carga", "Ver Carga"), ("generar", "Generar calendarios")]),
 ]
+# NOTA: los permisos de OTRAS apps (p.ej. calendario.carga/generar) ya NO viven aquí.
+# Cada app registra los suyos en `maestros.permiso` con `app='<app>'` al arrancar
+# (auto-registro; ver HANDOFF_RBAC_autoregistro.md). Maestros solo muestra y asigna.
+# Las claves `calendario.*` ya existentes quedaron con `app='calendario'` (backfill en
+# db._ensure_columns) y las mantiene Calendario; Maestros no las toca ni las deprecará.
 
 # Permisos por rol semilla (replican el comportamiento actual). Super = todos.
 _ADMIN_PERMS = (
@@ -104,7 +103,6 @@ _ADMIN_PERMS = (
     + ["claves." + a for a in ("ver", "crear", "editar", "eliminar", "revelar", "exportar")]
     + ["catalogos.ver", "catalogos.editar"]
     + ["consultas.ver"]           # consumo de consultas compartidas (no generar)
-    + ["calendario.carga", "calendario.generar"]   # gestión ve Carga/Generar del Calendario
 )
 # Consulta preserva el flujo de "claves de mis clientes asignados" (ver/revelar/
 # exportar, ya filtrado por asignación en el backend) + lecturas.
@@ -123,26 +121,33 @@ def bootstrap_roles() -> None:
     """Siembra el catálogo de permisos, los 3 roles semilla y sus permisos, y
     migra el ``rol_id`` de los usuarios existentes según su ``rol`` de texto."""
     with Session(engine) as s:
-        # 1) Catálogo de permisos (idempotente por clave; refresca etiqueta/orden).
+        # 1) Catálogo de permisos de MAESTROS (auto-registro: impl de referencia del
+        #    contrato de HANDOFF_RBAC_autoregistro.md). Upsert idempotente de las claves
+        #    propias (app='maestros', activo) + DEPRECA las propias que ya no estén en
+        #    PERMISOS_CAT (se retiró la función). Solo toca filas app='maestros': las de
+        #    otras apps (calendario.*, dian.*, …) las maneja cada app.
         orden = 0
         nuevo_generar = False
         nuevo_ver_todos = False
-        nuevo_calendario = False
+        vivas: set[str] = set()
         for sec, accs in PERMISOS_CAT:
             for acc, etq in accs:
-                clave = f"{sec}.{acc}"
+                clave = f"{sec}.{acc}"; vivas.add(clave)
                 p = s.get(Permiso, clave)
                 if not p:
                     if clave == "consultas.generar":
                         nuevo_generar = True
                     if clave == "clientes.ver_todos":
                         nuevo_ver_todos = True
-                    if clave in ("calendario.carga", "calendario.generar"):
-                        nuevo_calendario = True
-                    s.add(Permiso(clave=clave, seccion=sec, accion=acc, etiqueta=etq, orden=orden))
+                    s.add(Permiso(clave=clave, seccion=sec, accion=acc, etiqueta=etq,
+                                  orden=orden, app="maestros", activo=True))
                 else:
-                    p.etiqueta = etq; p.orden = orden; s.add(p)
+                    p.etiqueta = etq; p.orden = orden; p.app = "maestros"; p.activo = True; s.add(p)
                 orden += 1
+        # Deprecar las claves PROPIAS (app='maestros') ya retiradas del catálogo.
+        for p in s.exec(select(Permiso).where(Permiso.app == "maestros")).all():
+            if p.clave not in vivas and p.activo:
+                p.activo = False; s.add(p)
         # 2) Roles semilla (idempotente por nombre).
         roles = {r.nombre: r for r in s.exec(select(Rol)).all()}
         defs = [("Super Usuario", True, 0), ("Administrador", False, 1), ("Consulta", False, 2)]
@@ -187,22 +192,10 @@ def bootstrap_roles() -> None:
                 if claves & ADMIN_PERMISOS and "clientes.ver_todos" not in claves:
                     s.add(RolPermiso(rol_id=rol.id, permiso_clave="clientes.ver_todos"))
             s.commit()
-        # 3d) Migración única al estrenar los permisos del Calendario (carga/generar):
-        #     concederlos SOLO a los roles de GESTIÓN existentes (los que ya tienen
-        #     algún ADMIN_PERMISOS: Coordinador/Administrador), NO a Consulta/Contador.
-        #     Así gestión no pierde el acceso de golpe; Renzo afina en la matriz. El
-        #     Super los tiene por `sistema`. Corre una sola vez (primera aparición).
-        if nuevo_calendario:
-            for rol in s.exec(select(Rol)).all():
-                if rol.sistema:
-                    continue
-                claves = set(s.exec(select(RolPermiso.permiso_clave).where(
-                    RolPermiso.rol_id == rol.id)).all())
-                if claves & ADMIN_PERMISOS:
-                    for c in ("calendario.carga", "calendario.generar"):
-                        if c not in claves:
-                            s.add(RolPermiso(rol_id=rol.id, permiso_clave=c))
-            s.commit()
+        # (El grant inicial de calendario.carga/generar a gestión ya se hizo en v1.22.1;
+        #  las claves ahora son de Calendario (app='calendario'). Un futuro permiso de
+        #  otra app se asigna por Renzo en la matriz, o por una reconciliación puntual
+        #  de Maestros — NUNCA por la app, que solo registra definiciones, no asigna.)
         # 4) Migrar usuarios sin rol_id, según su `rol` de texto.
         mapa = {"superadmin": roles["Super Usuario"].id,
                 "admin": roles["Administrador"].id}

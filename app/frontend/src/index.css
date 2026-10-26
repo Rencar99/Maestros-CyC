@@ -833,6 +833,11 @@ tfoot .grid-total .grid-total-lbl{color:var(--ink-2);text-transform:uppercase;le
 .rp-pl{padding:0 12px 0 46px;color:var(--ink);font-size:14px}
 .rp-sens{margin-left:9px;font-size:11px;font-style:italic;color:var(--err)}
 .rp-xapp{margin-left:9px;font-size:11px;font-style:italic;color:#f7931e;cursor:help;border-bottom:1px dotted #f7931e}
+/* Auto-registro de permisos: chip de la app dueña de una sección + estado deprecado */
+.rp-appchip{margin-left:8px;font-size:10.5px;font-weight:600;color:var(--ink-3);background:var(--page);border:1px solid var(--line);border-radius:6px;padding:1px 7px;text-transform:capitalize;cursor:help}
+.rp-depr td{opacity:.6}
+.rp-depr-lbl{text-decoration:line-through;color:var(--ink-3)}
+.rp-deprtag{margin-left:9px;font-size:10.5px;font-weight:600;color:var(--ink-3);background:var(--page);border:1px solid var(--line);border-radius:6px;padding:1px 7px;cursor:help}
 /* Celdas de casilla */
 .rp-c{text-align:center;vertical-align:middle}
 .rp-cell{display:inline-flex;padding:3px;border-radius:6px}

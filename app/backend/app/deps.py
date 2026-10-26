@@ -33,7 +33,8 @@ def permisos_de(session: Session, user: Usuario) -> set[str]:
     """Conjunto de claves de permiso del usuario. Super (por rol de sistema o por
     el `rol` de texto de compatibilidad) = todos los permisos del catálogo."""
     if es_super(session, user):
-        return set(session.exec(select(Permiso.clave)).all())
+        # Super = TODO el catálogo VIGENTE (no las claves deprecadas por su app).
+        return set(session.exec(select(Permiso.clave).where(Permiso.activo == True)).all())  # noqa: E712
     if user.rol_id:
         return set(session.exec(
             select(RolPermiso.permiso_clave).where(RolPermiso.rol_id == user.rol_id)).all())

@@ -201,6 +201,11 @@ class Permiso(SQLModel, table=True):
     accion: str = ""                           # "editar"
     etiqueta: str = ""                         # "Editar"
     orden: int = 0
+    # Auto-registro de permisos (HANDOFF_RBAC_autoregistro.md): `app` = qué app es
+    # DUEÑA de esta clave (la registra y la hace cumplir); `activo`=False = deprecada
+    # (la app la retiró; se muestra tachada, no se borra para no perder asignaciones).
+    app: str = "maestros"
+    activo: bool = True
 
 
 class RolPermiso(SQLModel, table=True):

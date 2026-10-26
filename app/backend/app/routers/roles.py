@@ -47,9 +47,12 @@ def listar(session: Session = Depends(get_session), _=Depends(require_admin)):
 
 @router.get("/permisos")
 def catalogo_permisos(session: Session = Depends(get_session), _=_guard):
-    ps = session.exec(select(Permiso).order_by(Permiso.orden)).all()
+    # Incluye `app` (dueña de la clave; auto-registro) y `activo` (deprecada → tachada).
+    # Orden: lo de Maestros primero, luego cada app; dentro, por `orden`.
+    ps = session.exec(select(Permiso)).all()
+    ps.sort(key=lambda p: (p.app != "maestros", p.app, p.orden))
     return [{"clave": p.clave, "seccion": p.seccion, "accion": p.accion,
-             "etiqueta": p.etiqueta} for p in ps]
+             "etiqueta": p.etiqueta, "app": p.app, "activo": p.activo} for p in ps]
 
 
 @router.get("/{rid}/permisos")
@@ -57,8 +60,9 @@ def permisos_de_rol(rid: int, session: Session = Depends(get_session), _=_guard)
     rol = session.get(Rol, rid)
     if not rol:
         raise HTTPException(404, "Rol no encontrado")
-    if rol.sistema:   # Super: tiene todos
-        return [p.clave for p in session.exec(select(Permiso)).all()]
+    if rol.sistema:   # Super: tiene todos los VIGENTES
+        return [p.clave for p in session.exec(
+            select(Permiso).where(Permiso.activo == True)).all()]  # noqa: E712
     return session.exec(select(RolPermiso.permiso_clave).where(RolPermiso.rol_id == rid)).all()
 
 
