@@ -152,11 +152,6 @@ export function Facturacion({ usuario, puede, active = true, goFacturacion }: { 
     finally { setValidando(false); }
   };
 
-  const tot = useMemo(() => filas.reduce((a, f) => {
-    const v = num(f.valor);
-    return { fa: a.fa + (f.forma === "Fa" ? v : 0), cc: a.cc + (f.forma === "CC" ? v : 0),
-             iva: a.iva + num(f.iva), reteiva: a.reteiva + num(f.reteiva) };
-  }, { fa: 0, cc: 0, iva: 0, reteiva: 0 }), [filas]);
 
   const yaEnGrilla = useMemo(() => new Set(filas.map((f) => `${f.cliente_id}|${f.rol_servicio}`)), [filas]);
   const etqActual = etiqueta || `${MESES[mes]} ${anio}`;
@@ -287,10 +282,16 @@ export function Facturacion({ usuario, puede, active = true, goFacturacion }: { 
 
   // ---------------------------------------------------------------- editor
   const factTabs = (
-    <div className="segtabs">
-      <button className={sub === "detalle" ? "on" : ""} onClick={() => setSub("detalle")}>Detalle</button>
-      <button className={sub === "resumen" ? "on" : ""} onClick={() => setSub("resumen")}>Resumen por cliente</button>
-    </div>
+    <>
+      <div className="segtabs">
+        <button className={sub === "detalle" ? "on" : ""} onClick={() => setSub("detalle")}>Detalle</button>
+        <button className={sub === "resumen" ? "on" : ""} onClick={() => setSub("resumen")}>Resumen por cliente</button>
+      </div>
+      {/* % ReteIVA empujado a la derecha del toolbar (queda junto a Exportar). */}
+      <label className="fact-pct-tb" title="Porcentaje de ReteIVA aplicado a las facturas">% ReteIVA
+        <input value={pctRete} onChange={(e) => cambiarPct(Number(e.target.value) || 0)} />
+      </label>
+    </>
   );
   return (
     <div className="card gframe">
@@ -320,16 +321,6 @@ export function Facturacion({ usuario, puede, active = true, goFacturacion }: { 
           onAgregar={(nuevas) => setFilas((f) => [...f, ...nuevas.map((n: any) => ({ ...n, _uid: nuevoUid() }))])} onClose={() => setModalAdd(false)} />}
         {modalLibre && <FilaLibreModal etiqueta={etqActual} clientes={clientes} pctRete={pctRete}
           onAgregar={(fila) => setFilas((f) => [...f, { ...fila, _uid: nuevoUid() }])} onClose={() => setModalLibre(false)} />}
-
-        <div className="fact-kpis">
-          <span className="ft ok"><em>Facturas</em>$ {fmt(tot.fa)}</span>
-          <span className="ft info"><em>Cuentas de cobro</em>$ {fmt(tot.cc)}</span>
-          <span className="ft gold"><em>IVA</em>$ {fmt(tot.iva)}</span>
-          <span className="ft warn"><em>ReteIVA</em>$ {fmt(tot.reteiva)}</span>
-          <span className="ft-pct"><em>% ReteIVA</em>
-            <input value={pctRete} onChange={(e) => cambiarPct(Number(e.target.value) || 0)} />
-          </span>
-        </div>
 
         <div className="gframe-body">
           {sub === "resumen" && (

@@ -163,6 +163,9 @@ def _ensure_columns() -> None:
         # Cuenta de cobro: ruta donde se guardó el PDF al generar en firme.
         conn.execute(text(
             "ALTER TABLE cuentacobro ADD COLUMN IF NOT EXISTS ruta_pdf VARCHAR NOT NULL DEFAULT ''"))
+        # Cuenta de cobro agrupada por cliente: foto JSON de los renglones de concepto.
+        conn.execute(text(
+            "ALTER TABLE cuentacobro ADD COLUMN IF NOT EXISTS conceptos VARCHAR NOT NULL DEFAULT ''"))
         # Pago en el catálogo de obligaciones (el Calendario lo LEE para el hito de
         # verificación del pago con el recibo 490). Maestros es dueño de escritura.
         ya_pago = conn.execute(text(

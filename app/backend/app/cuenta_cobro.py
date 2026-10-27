@@ -98,7 +98,7 @@ def _miles(n) -> str:
 
 def construir_html(*, numero: str, fecha: date, deudor: str, deudor_doc: str,
                    emisor_nombre: str, emisor_cedula: str, emisor_direccion: str,
-                   emisor_celular: str, nota_383: bool, concepto: str, valor,
+                   emisor_celular: str, nota_383: bool, conceptos: list, valor,
                    pago_banco: str, pago_tipo: str, pago_numero: str, pago_titular: str,
                    nota_383_texto: str = "", firma: str = "") -> str:
     """HTML de la cuenta de cobro con diseño: encabezado del EMISOR (quien cobra),
@@ -106,6 +106,17 @@ def construir_html(*, numero: str, fecha: date, deudor: str, deudor_doc: str,
     f = fecha
     fecha_txt = f"{f.day:02d}/{f.month:02d}/{f.year}"
     letras = num_a_letras(valor)
+    # "Por concepto de": uno o varios renglones (concepto · valor) + total si hay varios.
+    _filas = list(conceptos or [])
+    if len(_filas) <= 1:
+        conceptos_html = f'<div style="font-size:13.5px">{escape(_filas[0]["concepto"] if _filas else "")}</div>'
+    else:
+        _rows = "".join(
+            f'<div class="cpt-row"><span>{escape(str(c.get("concepto", "")))}</span>'
+            f'<span class="cpt-val">$ {_miles(c.get("valor", 0))}</span></div>'
+            for c in _filas)
+        conceptos_html = (f'<div class="cpt-list">{_rows}</div>'
+                          f'<div class="cpt-tot"><span>Total</span><span>$ {_miles(valor)}</span></div>')
     ini = ("".join(p[0] for p in emisor_nombre.split()[:2]).upper()) or "·"
     nota_txt = (nota_383_texto or "").strip() or _NOTA_383
     nota = (f'<div class="nota"><b>Nota (art. 383 ET):</b> {escape(nota_txt)}</div>') if nota_383 else ""
@@ -142,6 +153,11 @@ def construir_html(*, numero: str, fecha: date, deudor: str, deudor_doc: str,
   .suma .lbl {{ color: #185fa5; }}
   .suma .let {{ font-size: 12.5px; color: #5d6b7e; margin-top: 4px; font-style: italic; }}
   .suma .amt {{ font-size: 27px; font-weight: 800; color: #062d65; white-space: nowrap; }}
+  .cpt-list {{ font-size: 13px; }}
+  .cpt-row {{ display: flex; justify-content: space-between; gap: 18px; padding: 5px 0; border-bottom: 1px dashed #eceff3; }}
+  .cpt-row:last-child {{ border-bottom: none; }}
+  .cpt-val {{ color: #062d65; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }}
+  .cpt-tot {{ display: flex; justify-content: space-between; gap: 18px; margin-top: 9px; padding-top: 9px; border-top: 1.5px solid #cfd8e3; font-weight: 800; color: #062d65; }}
   .box.pago {{ background: #fafbfc; }}
   .pago-tx {{ font-size: 12.5px; color: #44474b; line-height: 1.65; }}
   .nota {{ font-size: 11px; color: #667085; line-height: 1.6; border-top: 1px dashed #e2e6ec; padding-top: 12px; margin-bottom: 4px; }}
@@ -174,7 +190,7 @@ def construir_html(*, numero: str, fecha: date, deudor: str, deudor_doc: str,
     </div>
     <div class="box">
       <div class="lbl">Por concepto de</div>
-      <div style="font-size:13.5px">{escape(concepto)}</div>
+      {conceptos_html}
     </div>
     <div class="box pago">
       <div class="lbl">Forma de pago</div>

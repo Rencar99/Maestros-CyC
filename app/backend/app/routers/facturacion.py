@@ -7,6 +7,7 @@ agregar filas manuales (Año/Eventual), guarda el histórico y exporta a Excel.
 from __future__ import annotations
 
 import io
+import json
 import os
 import re
 from datetime import datetime
@@ -537,35 +538,46 @@ def validar_excel(data: ValidarExcelIn, _u: Usuario = Depends(require_perm("fact
 
 
 # ===================================================== Cuentas de cobro (CC)
-def _cc_validar(session: Session, fid: int, item_id: int):
-    """Valida que el ítem exista, sea CC y que el cliente tenga emisor. Devuelve
-    (item, cliente, emisor, deudor_doc). El deudor va como NIT + dígito de
+def _cc_validar_cliente(session: Session, fid: int, cliente_id: int):
+    """Valida que el cliente tenga ítems CC en la facturación y un emisor asignado.
+    Devuelve (items_cc, cliente, emisor, deudor_doc). La CC agrupa TODOS los
+    conceptos CC del cliente en el mes. El deudor va como NIT + dígito de
     verificación aunque el cliente esté registrado como cédula (lo pide el formato)."""
     from ..util import calcular_dv
-    it = session.get(FacturacionItem, item_id)
-    if not it or it.facturacion_id != fid:
-        raise HTTPException(404, "Ítem de facturación no encontrado")
-    if (it.forma or "").upper() != "CC":
-        raise HTTPException(400, "El ítem no es de tipo Cuenta de cobro (CC).")
-    cli = session.get(Cliente, it.cliente_id) if it.cliente_id else None
+    items = session.exec(select(FacturacionItem).where(
+        FacturacionItem.facturacion_id == fid,
+        FacturacionItem.cliente_id == cliente_id)).all()
+    items_cc = [it for it in items if (it.forma or "").upper() == "CC"]
+    if not items_cc:
+        raise HTTPException(404, "El cliente no tiene cuentas de cobro (ítems CC) en esta facturación.")
+    cli = session.get(Cliente, cliente_id)
     if not cli or not cli.emisor_id:
         raise HTTPException(400, "El cliente no tiene un emisor asignado (ficha → Comercial).")
     em = session.get(Emisor, cli.emisor_id)
     if not em:
         raise HTTPException(400, "El emisor asignado ya no existe.")
-    num_fmt = f"{int(cli.num_id):,}".replace(",", ".") if (cli.num_id or "").isdigit() else (cli.num_id or it.num_id)
+    num_fmt = f"{int(cli.num_id):,}".replace(",", ".") if (cli.num_id or "").isdigit() else (cli.num_id or "")
     dv = cli.dv if cli.dv is not None else calcular_dv(cli.num_id)
     deudor_doc = f"NIT. {num_fmt}" + (f" - {dv}" if dv is not None else "")
-    return it, cli, em, deudor_doc
+    return items_cc, cli, em, deudor_doc
 
 
-def _cc_existente(session: Session, anio: int, mes: int, cliente_id, concepto: str) -> "CuentaCobro | None":
-    """La cuenta de cobro EN FIRME ya generada para (año, mes, cliente, concepto),
-    la identidad de negocio estable (sobrevive al re-guardado de la facturación)."""
+def _conceptos_de(items_cc) -> "tuple[list, Decimal]":
+    """Renglones [{"concepto","valor"}] + total, ordenados por valor desc. Reúne los
+    ítems CC del cliente en la lista que viaja a la CC y al PDF."""
+    filas = sorted(items_cc, key=lambda it: float(it.valor or 0), reverse=True)
+    conceptos = [{"concepto": it.concepto or "", "valor": float(it.valor or 0)} for it in filas]
+    total = sum((it.valor or Decimal(0)) for it in filas) or Decimal(0)
+    return conceptos, total
+
+
+def _cc_existente(session: Session, anio: int, mes: int, cliente_id) -> "CuentaCobro | None":
+    """La cuenta de cobro EN FIRME ya generada para (año, mes, cliente): UNA por
+    cliente/mes, agrupando todos sus conceptos CC. Identidad de negocio estable
+    (sobrevive al re-guardado de la facturación)."""
     return session.exec(select(CuentaCobro).where(
         CuentaCobro.anio == anio, CuentaCobro.mes == mes,
-        CuentaCobro.cliente_id == cliente_id,
-        CuentaCobro.concepto == concepto)).first()
+        CuentaCobro.cliente_id == cliente_id).order_by(CuentaCobro.id)).first()
 
 
 def _cc_html(session: Session, cc: "CuentaCobro") -> str:
@@ -577,12 +589,19 @@ def _cc_html(session: Session, cc: "CuentaCobro") -> str:
     if not firma and cc.emisor_id:
         em = session.get(Emisor, cc.emisor_id)
         firma = em.firma if em else ""
+    # Renglones de concepto: de la foto JSON; CC viejas (sin `conceptos`) = un renglón.
+    try:
+        conceptos = json.loads(cc.conceptos) if cc.conceptos else []
+    except (ValueError, TypeError):
+        conceptos = []
+    if not conceptos:
+        conceptos = [{"concepto": cc.concepto, "valor": float(cc.valor or 0)}]
     return construir_html(
         numero=cc.numero, fecha=cc.fecha, deudor=cc.deudor, deudor_doc=cc.deudor_doc,
         emisor_nombre=cc.emisor_nombre, emisor_cedula=cc.emisor_cedula,
         emisor_direccion=cc.emisor_direccion, emisor_celular=cc.emisor_celular,
         nota_383=cc.nota_383, nota_383_texto=cc.nota_383_texto, firma=firma,
-        concepto=cc.concepto, valor=cc.valor or 0,
+        conceptos=conceptos, valor=cc.valor or 0,
         pago_banco=cc.pago_banco, pago_tipo=cc.pago_tipo,
         pago_numero=cc.pago_numero, pago_titular=cc.pago_titular)
 
@@ -601,13 +620,13 @@ def _ruta_cc(carpeta: str, numero: str, cliente: str, anio: int, mes: int) -> st
     return os.path.join(carpeta.strip(), str(anio), nombre)
 
 
-def _generar_cc(session: Session, fid: int, item_id: int, creado_por: str,
+def _generar_cc(session: Session, fid: int, cliente_id: int, creado_por: str,
                 pago: dict | None = None) -> "tuple[CuentaCobro, bool]":
-    """Genera la cuenta de cobro EN FIRME (consume el consecutivo del emisor y
-    guarda la foto). Idempotente por la identidad de negocio (año, mes, cliente,
-    concepto): si ya existe, la devuelve sin quemar otro número. Devuelve
-    (cuenta, nueva?). `pago` se puede pasar precalculado (generación en lote)
-    para no releer los parámetros de cobro por cada ítem."""
+    """Genera la cuenta de cobro EN FIRME del CLIENTE (una por año/mes/cliente,
+    agrupando todos sus conceptos CC). Consume el consecutivo del emisor y guarda
+    la foto. Idempotente por la identidad de negocio: si ya existe, la devuelve sin
+    quemar otro número. Devuelve (cuenta, nueva?). `pago` se puede pasar
+    precalculado (generación en lote) para no releer los parámetros por cliente."""
     from datetime import date
     from .parametros import _cobro
     if pago is None:
@@ -615,32 +634,32 @@ def _generar_cc(session: Session, fid: int, item_id: int, creado_por: str,
     fac = session.get(Facturacion, fid)
     if not fac:
         raise HTTPException(404, "Facturación no encontrada")
-    it, cli, em, deudor_doc = _cc_validar(session, fid, item_id)
-    ya = _cc_existente(session, fac.anio, fac.mes, cli.id, it.concepto)
+    items_cc, cli, em, deudor_doc = _cc_validar_cliente(session, fid, cliente_id)
+    ya = _cc_existente(session, fac.anio, fac.mes, cli.id)
     if ya:
-        # Mantiene al día los enlaces informativos al ítem/encabezado vigentes.
-        if ya.facturacion_item_id != item_id or ya.facturacion_id != fid:
-            ya.facturacion_item_id = item_id
+        if ya.facturacion_id != fid:   # mantiene al día el enlace informativo
             ya.facturacion_id = fid
             session.add(ya)
             session.commit()
             session.refresh(ya)
         return ya, False
+    conceptos, total = _conceptos_de(items_cc)
+    concepto_lbl = " · ".join(c["concepto"] for c in conceptos if c["concepto"])
     # Bloquea la fila del emisor para que dos generaciones no tomen el mismo N°.
     em = session.exec(select(Emisor).where(Emisor.id == em.id).with_for_update()).one()
     nuevo = em.consecutivo + 1
     em.consecutivo = nuevo
     numero = f"{em.prefijo}-{nuevo}" if em.prefijo else str(nuevo)
     cc = CuentaCobro(
-        anio=fac.anio, mes=fac.mes, concepto=it.concepto,
-        facturacion_id=fid, facturacion_item_id=item_id, emisor_id=em.id, cliente_id=cli.id,
+        anio=fac.anio, mes=fac.mes, concepto=concepto_lbl, conceptos=json.dumps(conceptos, ensure_ascii=False),
+        facturacion_id=fid, emisor_id=em.id, cliente_id=cli.id,
         numero=numero, prefijo=em.prefijo, consecutivo=nuevo, fecha=date.today(),
-        deudor=it.nombre or cli.nombre, deudor_doc=deudor_doc,
+        deudor=cli.nombre, deudor_doc=deudor_doc,
         email_destino=(cli.email or "").strip(),
         emisor_nombre=em.nombre, emisor_cedula=em.cedula, emisor_direccion=em.direccion,
         emisor_celular=em.celular, nota_383=em.nota_383, nota_383_texto=pago["nota_383"],
         emisor_firma=em.firma,
-        valor=it.valor,
+        valor=total,
         pago_banco=pago["banco"], pago_tipo=pago["tipo_cuenta"],
         pago_numero=pago["numero_cuenta"], pago_titular=pago["titular"],
         estado="generada", creado_por=creado_por)
@@ -666,38 +685,46 @@ def _generar_cc(session: Session, fid: int, item_id: int, creado_por: str,
 
 
 def filas_cc(session: Session, fac: Facturacion) -> list[dict]:
-    """Una fila por ítem CC de la facturación, con su número (si ya se generó),
-    estado de envío, emisor y correo del cliente. Reutilizado por la sección
-    'Cuentas de cobro' (módulo cobros)."""
+    """Una fila por CLIENTE con ítems CC en la facturación (NO por ítem): agrupa
+    todos sus conceptos del mes en una sola cuenta de cobro (número, total, estado).
+    Reutilizado por la sección 'Cuentas de cobro' (módulo cobros)."""
     from .parametros import _cobro
     carpeta = _cobro(session).get("carpeta", "")
     items = session.exec(select(FacturacionItem).where(
         FacturacionItem.facturacion_id == fac.id)).all()
     cc_items = [it for it in items if (it.forma or "").upper() == "CC"]
+    # Agrupa los ítems CC por cliente, preservando el orden de aparición de clientes.
+    por_cliente: dict = {}
+    for it in cc_items:
+        por_cliente.setdefault(it.cliente_id, []).append(it)
     # Precarga en bloque (evita N+1): clientes por IN y emisores (catálogo chico) una vez.
-    cli_ids = {it.cliente_id for it in cc_items if it.cliente_id}
+    cli_ids = {cid for cid in por_cliente if cid}
     clientes = ({c.id: c for c in session.exec(
                     select(Cliente).options(*cliente_liviano()).where(Cliente.id.in_(cli_ids)))}
                 if cli_ids else {})
     emisores = {e.id: e for e in session.exec(select(Emisor))}
-    # Cuentas de cobro del mes, indexadas por la identidad de negocio (cliente, concepto).
-    ccs = {(c.cliente_id, c.concepto): c for c in session.exec(
+    # Cuentas de cobro del mes, indexadas por cliente (una por cliente).
+    ccs = {c.cliente_id: c for c in session.exec(
         select(CuentaCobro).where(
-            CuentaCobro.anio == fac.anio, CuentaCobro.mes == fac.mes)).all()}
+            CuentaCobro.anio == fac.anio, CuentaCobro.mes == fac.mes).order_by(CuentaCobro.id)).all()}
     out = []
-    for it in cc_items:
-        cli = clientes.get(it.cliente_id) if it.cliente_id else None
+    for cid, its in por_cliente.items():
+        cli = clientes.get(cid) if cid else None
         em = emisores.get(cli.emisor_id) if (cli and cli.emisor_id) else None
-        cc = ccs.get((it.cliente_id, it.concepto))
+        cc = ccs.get(cid)
+        conceptos, total = _conceptos_de(its)
+        nombre = cli.nombre if cli else (its[0].nombre if its else "")
+        concepto_lbl = " · ".join(c["concepto"] for c in conceptos if c["concepto"])
         # N° definitivo (si ya se generó) o el próximo que se asignaría (vista previa).
         proximo = (cc.numero if cc else
                    (f"{em.prefijo}-{em.consecutivo + 1}" if (em and em.prefijo)
                     else (str(em.consecutivo + 1) if em else None)))
         ruta = (cc.ruta_pdf if (cc and cc.ruta_pdf)
-                else (_ruta_cc(carpeta, proximo, it.nombre, fac.anio, fac.mes) if proximo else ""))
+                else (_ruta_cc(carpeta, proximo, nombre, fac.anio, fac.mes) if proximo else ""))
         out.append({
-            "item_id": it.id, "cliente": it.nombre, "concepto": it.concepto,
-            "valor": float(it.valor) if it.valor is not None else None,
+            "cliente_id": cid, "cliente": nombre,
+            "concepto": concepto_lbl, "conceptos": conceptos, "n_conceptos": len(conceptos),
+            "valor": float(cc.valor) if (cc and cc.valor is not None) else float(total),
             "emisor": em.nombre if em else "", "tiene_emisor": bool(em),
             "correo": (cli.email or "").strip() if cli else "",
             "numero": cc.numero if cc else None,
@@ -718,71 +745,75 @@ def cuentas_cobro_estado(fid: int, session: Session = Depends(get_session),
     return filas_cc(session, fac)
 
 
-@router.post("/{fid}/item/{item_id}/cuenta-cobro")
-def generar_cuenta_cobro(fid: int, item_id: int, session: Session = Depends(get_session),
+@router.post("/{fid}/cliente/{cliente_id}/cuenta-cobro")
+def generar_cuenta_cobro(fid: int, cliente_id: int, session: Session = Depends(get_session),
                          u: Usuario = Depends(require_perm("facturacion.editar"))):
-    """Genera EN FIRME la cuenta de cobro de un ítem (quema el consecutivo)."""
-    cc, nueva = _generar_cc(session, fid, item_id, u.nombre or u.usuario or "")
-    return {"item_id": item_id, "numero": cc.numero, "estado": cc.estado, "nueva": nueva, "ruta": cc.ruta_pdf}
+    """Genera EN FIRME la cuenta de cobro del cliente (agrupa sus conceptos CC del
+    mes; quema el consecutivo)."""
+    cc, nueva = _generar_cc(session, fid, cliente_id, u.nombre or u.usuario or "")
+    return {"cliente_id": cliente_id, "numero": cc.numero, "estado": cc.estado, "nueva": nueva, "ruta": cc.ruta_pdf}
 
 
 @router.post("/{fid}/cuentas-cobro/generar")
 def generar_cuentas_cobro_lote(fid: int, session: Session = Depends(get_session),
                                u: Usuario = Depends(require_perm("facturacion.editar"))):
-    """Genera EN FIRME todas las cuentas de cobro pendientes de la facturación
-    (ítems CC con emisor asignado que aún no tienen número). Las que ya existen o
-    no tienen emisor se omiten; devuelve el conteo y las que no se pudieron."""
+    """Genera EN FIRME todas las cuentas de cobro pendientes de la facturación: UNA
+    por cliente con ítems CC y emisor asignado que aún no tenga número. Las que ya
+    existen o no tienen emisor se omiten; devuelve el conteo y las que no se pudieron."""
     fac = session.get(Facturacion, fid)
     if not fac:
         raise HTTPException(404, "Facturación no encontrada")
     from .parametros import _cobro
-    pago = _cobro(session)  # una sola vez para todo el lote (no 6 gets de Parametro por CC)
+    pago = _cobro(session)  # una sola vez para todo el lote
     items = session.exec(select(FacturacionItem).where(
         FacturacionItem.facturacion_id == fid)).all()
-    generadas, omitidas, no_generadas = 0, 0, []
+    # Clientes con ítems CC (orden de aparición), uno por cliente.
+    clientes_cc: dict = {}
     for it in items:
-        if (it.forma or "").upper() != "CC":
-            continue
+        if (it.forma or "").upper() == "CC" and it.cliente_id:
+            clientes_cc.setdefault(it.cliente_id, it.nombre)
+    generadas, omitidas, no_generadas = 0, 0, []
+    for cid, nombre in clientes_cc.items():
         try:
-            _, nueva = _generar_cc(session, fid, it.id, u.nombre or u.usuario or "", pago=pago)
+            _, nueva = _generar_cc(session, fid, cid, u.nombre or u.usuario or "", pago=pago)
             if nueva:
                 generadas += 1
             else:
                 omitidas += 1
         except HTTPException as e:
-            no_generadas.append({"item_id": it.id, "cliente": it.nombre, "motivo": e.detail})
+            no_generadas.append({"cliente_id": cid, "cliente": nombre, "motivo": e.detail})
     return {"generadas": generadas, "ya_existian": omitidas, "no_generadas": no_generadas}
 
 
-@router.get("/{fid}/item/{item_id}/cuenta-cobro.pdf")
-def cuenta_cobro_pdf(fid: int, item_id: int, session: Session = Depends(get_session),
+@router.get("/{fid}/cliente/{cliente_id}/cuenta-cobro.pdf")
+def cuenta_cobro_pdf(fid: int, cliente_id: int, session: Session = Depends(get_session),
                      _u: Usuario = Depends(require_perm("facturacion.ver"))):
-    """PDF de la cuenta de cobro de un ítem CC. Si ya se generó EN FIRME, usa la
-    foto guardada (número definitivo); si no, es VISTA PREVIA con el siguiente
-    consecutivo del emisor (sin consumirlo)."""
+    """PDF de la cuenta de cobro del cliente (agrupa sus conceptos CC). Si ya se
+    generó EN FIRME, usa la foto guardada (número definitivo); si no, es VISTA
+    PREVIA con el siguiente consecutivo del emisor (sin consumirlo)."""
     from datetime import date
     from .parametros import _cobro
     from ..cuenta_cobro import html_a_pdf
     from ..models import CuentaCobro
 
     fac = session.get(Facturacion, fid)
-    it0 = session.get(FacturacionItem, item_id)
-    cc = _cc_existente(session, fac.anio, fac.mes, it0.cliente_id, it0.concepto) if (fac and it0) else None
+    cc = _cc_existente(session, fac.anio, fac.mes, cliente_id) if fac else None
     if cc:
         html = _cc_html(session, cc)
         numero, nombre_cli = cc.numero, cc.deudor
     else:
         # VISTA PREVIA: arma una CuentaCobro TRANSITORIA (no se persiste) y reusa
         # _cc_html → construir_html vive en un solo lugar (firme y preview iguales).
-        it, cli, em, deudor_doc = _cc_validar(session, fid, item_id)
+        items_cc, cli, em, deudor_doc = _cc_validar_cliente(session, fid, cliente_id)
+        conceptos, total = _conceptos_de(items_cc)
         numero = f"{em.prefijo}-{em.consecutivo + 1}" if em.prefijo else str(em.consecutivo + 1)
         pago = _cobro(session)
         draft = CuentaCobro(
-            numero=numero, fecha=date.today(), deudor=it.nombre or cli.nombre, deudor_doc=deudor_doc,
+            numero=numero, fecha=date.today(), deudor=cli.nombre, deudor_doc=deudor_doc,
             emisor_id=em.id, emisor_nombre=em.nombre, emisor_cedula=em.cedula,
             emisor_direccion=em.direccion, emisor_celular=em.celular,
             nota_383=em.nota_383, nota_383_texto=pago["nota_383"], emisor_firma=em.firma,
-            concepto=it.concepto, valor=it.valor or 0,
+            conceptos=json.dumps(conceptos, ensure_ascii=False), valor=total,
             pago_banco=pago["banco"], pago_tipo=pago["tipo_cuenta"],
             pago_numero=pago["numero_cuenta"], pago_titular=pago["titular"])
         html = _cc_html(session, draft)

@@ -85,23 +85,21 @@ def listar(periodo: str, session: Session = Depends(get_session),
             "rows": filas_cc(session, fac)}
 
 
-def _cc_de_item(session: Session, fid: int, item_id: int) -> tuple[Facturacion, "FacturacionItem", CuentaCobro]:
-    """Resuelve (facturación, ítem, cuenta de cobro en firme) o lanza el error
+def _cc_de_cliente(session: Session, fid: int, cliente_id: int) -> tuple[Facturacion, CuentaCobro]:
+    """Resuelve (facturación, cuenta de cobro en firme del cliente) o lanza el error
     correspondiente. La CC tiene que estar generada para poder enviarla."""
-    from ..models import FacturacionItem
     from .facturacion import _cc_existente
     fac = session.get(Facturacion, fid)
-    it = session.get(FacturacionItem, item_id)
-    if not fac or not it:
-        raise HTTPException(404, "Ítem no encontrado")
-    cc = _cc_existente(session, fac.anio, fac.mes, it.cliente_id, it.concepto)
+    if not fac:
+        raise HTTPException(404, "Facturación no encontrada")
+    cc = _cc_existente(session, fac.anio, fac.mes, cliente_id)
     if not cc:
         raise HTTPException(400, "Primero genera la cuenta de cobro en firme.")
-    return fac, it, cc
+    return fac, cc
 
 
-@router.get("/{fid}/item/{item_id}/correo-preview")
-def correo_preview(fid: int, item_id: int, session: Session = Depends(get_session),
+@router.get("/{fid}/cliente/{cliente_id}/correo-preview")
+def correo_preview(fid: int, cliente_id: int, session: Session = Depends(get_session),
                    u: Usuario = Depends(require_perm("facturacion.editar"))):
     """Lo que verá el modal de envío (estilo Outlook) antes de disparar: De (el
     correo conectado del responsable), Para (el del cliente), Asunto y Cuerpo ya
@@ -109,9 +107,9 @@ def correo_preview(fid: int, item_id: int, session: Session = Depends(get_sessio
     en el modal menos el De y el adjunto."""
     from ..models import Cliente, Usuario
     from .parametros import _correo
-    _fac, it, cc = _cc_de_item(session, fid, item_id)
-    para = cc.email_destino or ((session.get(Cliente, it.cliente_id).email or "").strip()
-                                if it.cliente_id else "")
+    _fac, cc = _cc_de_cliente(session, fid, cliente_id)
+    para = cc.email_destino or ((session.get(Cliente, cliente_id).email or "").strip()
+                                if cliente_id else "")
     cfg = _correo(session)
     usr = session.get(Usuario, u.id)
     emisor = _emisor_nombre(session, cc)
@@ -126,11 +124,11 @@ def correo_preview(fid: int, item_id: int, session: Session = Depends(get_sessio
     }
 
 
-@router.post("/{fid}/item/{item_id}/enviar")
-def enviar(fid: int, item_id: int, datos: EnviarIn | None = None,
+@router.post("/{fid}/cliente/{cliente_id}/enviar")
+def enviar(fid: int, cliente_id: int, datos: EnviarIn | None = None,
            session: Session = Depends(get_session),
            u: Usuario = Depends(require_perm("facturacion.editar"))):
-    """Envía la cuenta de cobro en firme de un ítem (PDF adjunto) por Microsoft
+    """Envía la cuenta de cobro en firme del cliente (PDF adjunto) por Microsoft
     365 (Graph DELEGADO): sale del propio correo del responsable que la envía.
     Si el body trae Para/CC/CCO/Asunto/Cuerpo (del modal), usa eso; si viene
     vacío (p.ej. 'Enviar todas'), usa la plantilla y el correo del cliente.
@@ -143,11 +141,11 @@ def enviar(fid: int, item_id: int, datos: EnviarIn | None = None,
     from ..models import Cliente, Usuario
     from ..security import decrypt, encrypt
 
-    _fac, it, cc = _cc_de_item(session, fid, item_id)
+    _fac, cc = _cc_de_cliente(session, fid, cliente_id)
     datos = datos or EnviarIn()
     cfg = _correo(session)
     para = (datos.para or "").strip() or cc.email_destino or (
-        (session.get(Cliente, it.cliente_id).email or "").strip() if it.cliente_id else "")
+        (session.get(Cliente, cliente_id).email or "").strip() if cliente_id else "")
     if not para:
         raise HTTPException(400, "El cliente no tiene correo registrado.")
     emisor = _emisor_nombre(session, cc)

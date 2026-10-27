@@ -7,7 +7,9 @@ import { Modal } from "../components/Modal";
 import { MESES, PeriodoPicker } from "../components/PeriodoPicker";
 
 interface Row {
-  item_id: number; cliente: string; concepto: string; valor: number | null;
+  cliente_id: number; cliente: string; concepto: string;
+  conceptos?: { concepto: string; valor: number }[]; n_conceptos?: number;
+  valor: number | null;
   emisor: string; tiene_emisor: boolean; correo: string;
   numero: string | null; proximo_numero: string | null; ruta: string;
   estado: string; enviado_at: string | null;
@@ -50,7 +52,7 @@ export function CuentasCobro({ puede, active }: { puede: (c: string) => boolean;
       confirmar: "Generar",
     })) !== "si") return;
     try {
-      const x = await api.post(`/facturacion/${fid}/item/${r.item_id}/cuenta-cobro`, {});
+      const x = await api.post(`/facturacion/${fid}/cliente/${r.cliente_id}/cuenta-cobro`, {});
       toast(x.nueva ? `Generada ${x.numero} ✓${x.ruta ? " · PDF guardado" : ""}` : `Ya existía (${x.numero})`);
       cargar();
     } catch (e: any) { toast(e.message, true); }
@@ -75,7 +77,7 @@ export function CuentasCobro({ puede, active }: { puede: (c: string) => boolean;
   };
   const revisar = async (r: Row) => {
     if (!fid) return;
-    try { await api.openPdf(`/facturacion/${fid}/item/${r.item_id}/cuenta-cobro.pdf`); }
+    try { await api.openPdf(`/facturacion/${fid}/cliente/${r.cliente_id}/cuenta-cobro.pdf`); }
     catch (e: any) { toast(e.message, true); }
   };
   const enviarTodas = async () => {
@@ -89,7 +91,7 @@ export function CuentasCobro({ puede, active }: { puede: (c: string) => boolean;
     })) !== "si") return;
     let ok = 0;
     for (const r of elig) {
-      try { await api.post(`/cobros/${fid}/item/${r.item_id}/enviar`, {}); ok++; }
+      try { await api.post(`/cobros/${fid}/cliente/${r.cliente_id}/enviar`, {}); ok++; }
       catch (e: any) { toast(e.message, true); break; }
     }
     if (ok) toast(`Enviadas: ${ok} ✓`);
@@ -106,7 +108,7 @@ export function CuentasCobro({ puede, active }: { puede: (c: string) => boolean;
     {
       key: "cliente", label: "Cliente", sortable: true, filterable: true, minWidth: "240px",
       value: (r) => r.cliente || "",
-      render: (r) => <div><div>{r.cliente}</div>{r.concepto && <div className="cc-sub">{r.concepto}</div>}</div>,
+      render: (r) => <div><div>{r.cliente}</div>{r.concepto && <div className="cc-sub">{r.n_conceptos && r.n_conceptos > 1 ? `${r.n_conceptos} conceptos · ` : ""}{r.concepto}</div>}</div>,
     },
     {
       key: "emisor", label: "Emisor", sortable: true, filterable: true, width: "140px", value: (r) => r.emisor || "",
@@ -142,7 +144,7 @@ export function CuentasCobro({ puede, active }: { puede: (c: string) => boolean;
       <div className="gframe-body">
         {!fid && !cargando
           ? <p style={{ color: "var(--ink-3)", padding: "8px 2px" }}>No hay facturación guardada de {MESES[mes]} {anio}. Genérala y guárdala en «Facturación» para ver aquí sus cuentas de cobro.</p>
-          : <DataGrid columns={cols} rows={rows} getKey={(r) => r.item_id}
+          : <DataGrid columns={cols} rows={rows} getKey={(r) => r.cliente_id}
               label={`Cuentas de cobro · ${MESES[mes]} ${anio}`} storageKey="cobros-grid" fitRows
               searchable exportable defaultTotals={["valor"]}
               emptyLabel={cargando ? "Cargando…" : "No hay cuentas de cobro (ítems CC) en la facturación de este mes."}
@@ -156,7 +158,7 @@ export function CuentasCobro({ puede, active }: { puede: (c: string) => boolean;
               </span>} />}
       </div>
       <div className="gframe-foot">
-        {rows.length} ítem{rows.length === 1 ? "" : "s"} de cobro
+        {rows.length} cuenta{rows.length === 1 ? "" : "s"} de cobro
         {actualizado && <><span className="gf-dot">·</span> Actualizado: {actualizado}</>}
       </div>
       {componer && fid && <EnviarCorreoModal fid={fid} row={componer} onClose={() => setComponer(null)} onSent={cargar} />}
@@ -184,7 +186,7 @@ function EnviarCorreoModal({ fid, row, onClose, onSent }: {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    api.get(`/cobros/${fid}/item/${row.item_id}/correo-preview`)
+    api.get(`/cobros/${fid}/cliente/${row.cliente_id}/correo-preview`)
       .then((d: any) => {
         setDe(d.de || ""); setConectado(!!d.conectado); setPara(d.para || "");
         setAsunto(d.asunto || ""); setCuerpo(d.cuerpo || ""); setAdjunto(d.adjunto || "");
@@ -197,11 +199,11 @@ function EnviarCorreoModal({ fid, row, onClose, onSent }: {
     if (!para.trim()) { toast("Indica el destinatario (Para).", true); return; }
     setEnviando(true);
     try {
-      const r: any = await api.post(`/cobros/${fid}/item/${row.item_id}/enviar`, { para, cc, cco, asunto, cuerpo });
+      const r: any = await api.post(`/cobros/${fid}/cliente/${row.cliente_id}/enviar`, { para, cc, cco, asunto, cuerpo });
       toast(`Enviada a ${r.correo} ✓`); onSent(); onClose();
     } catch (e: any) { toast(e.message, true); setEnviando(false); }
   };
-  const verPdf = () => api.openPdf(`/facturacion/${fid}/item/${row.item_id}/cuenta-cobro.pdf`).catch((e: any) => toast(e.message, true));
+  const verPdf = () => api.openPdf(`/facturacion/${fid}/cliente/${row.cliente_id}/cuenta-cobro.pdf`).catch((e: any) => toast(e.message, true));
 
   const aviso = err ? err
     : !conectado ? "No has conectado tu correo (Configuración → Mi correo). Conéctalo para poder enviar."

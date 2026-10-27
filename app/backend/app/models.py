@@ -592,6 +592,12 @@ class CuentaCobro(SQLModel, table=True):
     emisor_firma: str = ""                 # foto de la firma del emisor (data URI) al generar, para el PDF
 
     # --- Contenido ---
+    # Una CC agrupa TODOS los conceptos CC del cliente en el mes (como la factura).
+    # `conceptos` = foto JSON de los renglones [{"concepto": str, "valor": float}];
+    # `concepto` = etiqueta combinada (para listado/búsqueda/nombre de archivo);
+    # `valor` = TOTAL (suma de los renglones). CC viejas (pre-agrupación) traen
+    # `conceptos` vacío y un solo `concepto`/`valor` (se leen como un renglón).
+    conceptos: str = ""                    # JSON [{"concepto","valor"}]
     valor: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(14, 2)))
 
     # --- Foto de los datos de pago (config al momento de generar) ---
