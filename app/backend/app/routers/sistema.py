@@ -150,6 +150,10 @@ def explorar(ruta: str = "", solo_carpetas: bool = False, libre: bool = False,
              _u=Depends(get_current_user)):
     """Explorador del almacenamiento del servidor. Por defecto LIMITADO a
     EXPLORADOR_RAIZ; con ``libre=true`` navega todo el equipo (unidades incluidas)."""
+    # Expandir tokens (%OneDrive%…) y ~ para que una ruta portable guardada
+    # (ruta_trabajo = %OneDrive%\…) abra en la carpeta correcta de ESTE equipo.
+    if ruta and ruta != "::equipo::":
+        ruta = os.path.expanduser(os.path.expandvars(ruta))
     if libre:
         # Navega todo el equipo. Arranca en la carpeta de la firma (cómodo) pero
         # deja subir hasta las unidades. Sentinela "::equipo::" = lista de unidades.

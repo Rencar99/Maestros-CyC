@@ -119,12 +119,19 @@ DB_URL = db_url_efectivo()
 SECRET_KEY_PATH = DATA_DIR / "secret.key"
 FERNET_KEY = os.getenv("FERNET_KEY", "").strip()
 
-# Raíz permitida para el explorador de carpetas/archivos del servidor (se usa
-# para elegir la "Ruta de trabajo del cliente" y la propuesta). La navegación
-# se limita a esta carpeta hacia abajo, por seguridad. Configurable por .env.
-EXPLORADOR_RAIZ = os.getenv(
-    "EXPLORADOR_RAIZ",
-    r"C:\Users\COMPUMAX\OneDrive - Cardona & Castillo Consultores S.A.S").strip()
+# Raíz del explorador de carpetas/archivos (elegir "Ruta de trabajo", propuesta,
+# archivo base). Debe ser el OneDrive del usuario de Windows que corre el backend
+# —cada equipo/perfil el suyo— NO una ruta fija de un equipo. Si no hay OneDrive,
+# cae al perfil del usuario. Se puede forzar con EXPLORADOR_RAIZ en el .env.
+def _explorador_raiz_default() -> str:
+    for var in ("OneDriveCommercial", "OneDrive"):
+        v = (os.environ.get(var) or "").strip()
+        if v and Path(v).is_dir():
+            return v
+    return str(Path.home())
+
+
+EXPLORADOR_RAIZ = (os.getenv("EXPLORADOR_RAIZ") or _explorador_raiz_default()).strip()
 
 
 def _session_secret() -> str:
