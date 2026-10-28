@@ -1285,7 +1285,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
           onOk={async (payload) => {
             try {
               if (claveEdit === "new") await api.post(`/clientes/${cliente.id}/claves`, payload);
-              else await api.put(`/clientes/${cliente.id}/claves/${(claveEdit as ClienteClave).id}`, payload);
+              else await api.put(`/clientes/${cliente.id}/claves/${(claveEdit as ClienteClave).id}?base=${encodeURIComponent((claveEdit as any).actualizado_at || "")}`, payload);
               setClaveEdit(null); cargarClaves(); toast("Guardada ✓");
             } catch (e: any) { toast(e.message, true); }
           }} />

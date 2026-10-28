@@ -122,19 +122,37 @@ function Ficha({ resp, esSuper, puede, cargos, onCargo, formaciones, prevId, nex
   const interno = r.tipo === "Int";
   // Al navegar a otro registro el modal NO se remonta (evita el "salto"): refrescamos el estado aquí.
   const primera = useRef(true);
+  // Concurrencia optimista: marca de tiempo con la que se cargó la ficha (se manda
+  // al guardar; si otro guardó entretanto, el backend devuelve 409).
+  const baseTs = useRef<string>((resp as any).actualizado_at || "");
   useEffect(() => {
     if (primera.current) { primera.current = false; return; }
     setR(resp); setPass(""); setPassTouched(false); setShowPw(false); setApodoAuto(!resp.apodo); setMin(false);
+    baseTs.current = (resp as any).actualizado_at || "";
   }, [resp.id]); // eslint-disable-line
 
   const guardarRaw = async (): Promise<boolean> => {
     try {
       const body: any = { ...r };
       if (passTouched && pass) body.password = pass;
-      if (nuevo) { delete body.id; await api.post("/responsables", body); }
-      else await api.put(`/responsables/${resp.id}`, body);
+      if (nuevo) { delete body.id; const x: any = await api.post("/responsables", body); baseTs.current = x?.actualizado_at || ""; }
+      else { const x: any = await api.put(`/responsables/${resp.id}?base=${encodeURIComponent(baseTs.current || "")}`, body); baseTs.current = x?.actualizado_at || ""; }
       return true;
-    } catch (e: any) { toast(e.message, true); return false; }
+    } catch (e: any) {
+      const msg = String(e?.message || "");
+      if (/fue modificado/i.test(msg)) {
+        const res = await confirmar({
+          titulo: "Conflicto al guardar", peligro: true,
+          mensaje: msg + " Si recargas, verás los datos actuales y perderás lo que escribiste sin guardar.",
+          confirmar: "Recargar ficha", cancelar: "Seguir editando",
+        });
+        if (res === "si") {
+          try { const fresh: any = await api.get(`/responsables/${resp.id}`); setR(fresh); baseTs.current = fresh?.actualizado_at || ""; }
+          catch (ex: any) { toast(ex.message, true); }
+        }
+      } else { toast(msg, true); }
+      return false;
+    }
   };
   const guardar = async () => { if (await guardarRaw()) { toast("Guardado ✓"); onSaved(); } };
   const verOcultarClave = async () => {

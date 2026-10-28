@@ -97,6 +97,8 @@ class ResponsableRead(ResponsableBase):
     id: int
     debe_cambiar: bool
     creado_at: datetime
+    actualizado_at: Optional[datetime] = None
+    actualizado_por: str = ""
 
 
 # ----------------------------------------------------------- Hijas de Cliente

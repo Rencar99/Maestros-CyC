@@ -1,10 +1,14 @@
 """CRUD de Responsables (tabla ``usuario``: internos con login y externos)."""
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_
 from sqlmodel import Session, select
 
+from ..concurrency import exigir_sin_conflicto
 from ..db import get_session
 from ..deps import ADMIN_PERMISOS, get_current_user, require_perm
 from ..models import Cliente, Rol, RolPermiso, Usuario, UsuarioFormulario
@@ -71,12 +75,25 @@ def crear(data: ResponsableCreate, session: Session = Depends(get_session),
     return _read(u)
 
 
-@router.put("/{uid}", response_model=ResponsableRead)
-def actualizar(uid: int, data: ResponsableUpdate, session: Session = Depends(get_session),
-               _admin=Depends(require_perm("responsables.editar"))):
+@router.get("/{uid}", response_model=ResponsableRead)
+def obtener(uid: int, session: Session = Depends(get_session),
+            _u=Depends(get_current_user)):
+    """Un responsable por id (para recargar la ficha ante un conflicto de edición)."""
     u = session.get(Usuario, uid)
     if not u:
         raise HTTPException(404, "Responsable no encontrado")
+    return _read(u)
+
+
+@router.put("/{uid}", response_model=ResponsableRead)
+def actualizar(uid: int, data: ResponsableUpdate, base: Optional[str] = None,
+               session: Session = Depends(get_session),
+               admin: Usuario = Depends(require_perm("responsables.editar"))):
+    u = session.get(Usuario, uid)
+    if not u:
+        raise HTTPException(404, "Responsable no encontrado")
+    # Concurrencia optimista: si otra persona guardó mientras editabas → 409.
+    exigir_sin_conflicto(base, u.actualizado_at, u.nombre, u.actualizado_por)
     campos = data.model_dump(exclude_unset=True, exclude={"password"})
     if "usuario" in campos:
         nuevo = campos["usuario"] or None
@@ -92,6 +109,8 @@ def actualizar(uid: int, data: ResponsableUpdate, session: Session = Depends(get
         u.password_hash = hash_password(data.password)
         u.password_enc = encrypt(data.password)   # reversible: para que el superusuario la vea
         u.debe_cambiar = True
+    u.actualizado_at = datetime.utcnow()
+    u.actualizado_por = admin.usuario or admin.nombre
     session.add(u)
     session.commit()
     session.refresh(u)

@@ -215,6 +215,12 @@ def _ensure_columns() -> None:
         if not ya_app:   # backfill ÚNICO de propiedad: lo de Calendario pasa a ser suyo.
             conn.execute(text(
                 "UPDATE permiso SET app='calendario' WHERE seccion='calendario'"))
+        # Concurrencia optimista en Responsables: marca de tiempo y autor del último
+        # guardado (la ficha manda la base con ?base= y el backend detecta choques).
+        conn.execute(text(
+            "ALTER TABLE usuario ADD COLUMN IF NOT EXISTS actualizado_at TIMESTAMP"))
+        conn.execute(text(
+            "ALTER TABLE usuario ADD COLUMN IF NOT EXISTS actualizado_por VARCHAR NOT NULL DEFAULT ''"))
 
 
 def _ensure_views() -> None:

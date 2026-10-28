@@ -271,6 +271,10 @@ class Usuario(SQLModel, table=True):
     correo_cuenta: str = ""
     correo_token_enc: str = ""
     creado_at: datetime = Field(default_factory=datetime.utcnow)
+    # Concurrencia optimista (editado por dos personas a la vez): marca de tiempo
+    # y autor del último guardado; la ficha manda la base con ?base=.
+    actualizado_at: Optional[datetime] = None
+    actualizado_por: str = ""
 
 
 class Formulario(SQLModel, table=True):

@@ -19,6 +19,7 @@ from sqlmodel import Session, select
 
 from pydantic import BaseModel
 
+from ..concurrency import exigir_sin_conflicto
 from ..db import get_session
 from ..deps import get_current_user, require_perm, require_superadmin
 from ..models import (Cliente, ClienteClave, ClienteMunicipioIca, ClienteObligacion,
@@ -201,23 +202,6 @@ def _portabilizar_rutas(c: Cliente) -> None:
     """Deja las rutas del cliente en forma PORTABLE antes de persistir."""
     for k in _PATH_FIELDS:
         setattr(c, k, _ruta_portable(getattr(c, k, "") or ""))
-
-
-def _mismo_ts(base: Optional[str], dt: Optional[datetime]) -> bool:
-    """¿La marca de tiempo que cargó el frontend (ISO) coincide con la actual?
-    Control de concurrencia OPTIMISTA: si NO coincide, otra persona guardó
-    mientras editabas. Tolerante a la serialización (zona horaria, al segundo)."""
-    if not base:                 # el front no la mandó ("" o None): sin base que comparar
-        return dt is None or base is None
-    if dt is None:
-        return False
-    try:
-        b = datetime.fromisoformat(base.replace("Z", "+00:00"))
-        if b.tzinfo:
-            b = b.astimezone(timezone.utc).replace(tzinfo=None)
-        return abs((b - dt).total_seconds()) < 1.0
-    except ValueError:
-        return False
 
 
 def _leer(session: Session, c: Cliente, ver_comercial: bool = True) -> ClienteRead:
@@ -553,11 +537,13 @@ def crear_clave(cid: int, data: ClaveIn, session: Session = Depends(get_session)
 
 
 @router.put("/{cid}/claves/{kid}")
-def actualizar_clave(cid: int, kid: int, data: ClaveIn, session: Session = Depends(get_session),
+def actualizar_clave(cid: int, kid: int, data: ClaveIn, base: Optional[str] = None,
+                     session: Session = Depends(get_session),
                      _admin=Depends(require_perm("claves.editar"))):
     k = session.get(ClienteClave, kid)
     if not k or k.cliente_id != cid:
         raise HTTPException(404, "Clave no encontrada")
+    exigir_sin_conflicto(base, k.actualizado_at, "La clave")   # concurrencia optimista
     k.portal_id = data.portal_id
     k.comentario = data.comentario.strip()
     k.url = data.url.strip()
@@ -636,11 +622,7 @@ def actualizar(cid: int, data: ClienteCreate, base: Optional[str] = None,
         raise HTTPException(404, "Cliente no encontrado")
     # Concurrencia optimista: si otra persona guardó mientras tenías la ficha
     # abierta, la marca de tiempo base no coincide → 409 (no se pisa su cambio).
-    if not _mismo_ts(base, c.actualizado_at):
-        quien = c.actualizado_por or "otra persona"
-        cuando = f" ({c.actualizado_at.replace(tzinfo=timezone.utc).astimezone().strftime('%d/%m %H:%M')})" if c.actualizado_at else ""
-        raise HTTPException(409, f"«{c.nombre}» fue modificado por {quien}{cuando} mientras lo "
-                                 f"editabas. Recarga la ficha y vuelve a aplicar tus cambios.")
+    exigir_sin_conflicto(base, c.actualizado_at, c.nombre, c.actualizado_por)
     choque = session.exec(select(Cliente).where(Cliente.num_id == data.num_id)).first()
     if choque and choque.id != cid:
         raise HTTPException(409, "Ya existe otro cliente con ese número de documento")
