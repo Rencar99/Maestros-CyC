@@ -6,6 +6,7 @@ de administrador puede revelarla, igual que en Documentos DIAN).
 from __future__ import annotations
 
 import io
+import os
 import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -160,6 +161,46 @@ def _sync_hijas(session: Session, cliente_id: int, data: ClienteCreate,
 # aparte con `sync_servicios`.
 _COMERCIAL = ("cliente_desde", "estado", "archivo_propuesta", "emisor_id")
 
+# Rutas de archivo/carpeta por cliente: se GUARDAN portables (token %OneDrive%)
+# para que sirvan en CUALQUIER equipo, y se EXPANDEN al OneDrive de ESTE equipo al
+# leerlas (para mostrarlas y abrir el explorador ahí). Una ruta absoluta de otro
+# equipo (p. ej. C:\Users\COMPUMAX\OneDrive…\X) no existe en los demás y rompía el
+# selector: por eso nunca se guarda absoluta.
+_PATH_FIELDS = ("ruta_trabajo", "ruta_generador", "archivo_propuesta")
+
+
+def _ruta_portable(p: str) -> str:
+    """Absoluta bajo OneDrive → `%OneDriveCommercial%\\…` (o `%OneDrive%`); si ya es
+    token o no cuelga de OneDrive, la deja igual. Idempotente."""
+    ruta = (p or "").strip()
+    if not ruta or ruta.startswith("%"):
+        return ruta
+    for var in ("OneDriveCommercial", "OneDrive"):
+        base = (os.environ.get(var) or "").rstrip("\\/")
+        if base and ruta.lower().startswith(base.lower()):
+            return f"%{var}%" + ruta[len(base):]
+    return ruta
+
+
+def _ruta_expandir(p: str) -> str:
+    """Token `%OneDrive%`/`~` → ruta absoluta de ESTE equipo (mostrar/abrir). Si el
+    token usa una variable de OneDrive que este equipo no tiene pero sí la otra, la
+    cambia (comercial y personal apuntan al mismo OneDrive de la firma)."""
+    ruta = (p or "").strip()
+    if not ruta:
+        return ruta
+    if ruta.startswith("%OneDriveCommercial%") and not os.environ.get("OneDriveCommercial") and os.environ.get("OneDrive"):
+        ruta = "%OneDrive%" + ruta[len("%OneDriveCommercial%"):]
+    elif ruta.startswith("%OneDrive%") and not os.environ.get("OneDrive") and os.environ.get("OneDriveCommercial"):
+        ruta = "%OneDriveCommercial%" + ruta[len("%OneDrive%"):]
+    return os.path.expanduser(os.path.expandvars(ruta))
+
+
+def _portabilizar_rutas(c: Cliente) -> None:
+    """Deja las rutas del cliente en forma PORTABLE antes de persistir."""
+    for k in _PATH_FIELDS:
+        setattr(c, k, _ruta_portable(getattr(c, k, "") or ""))
+
 
 def _leer(session: Session, c: Cliente, ver_comercial: bool = True) -> ClienteRead:
     servicios = session.exec(
@@ -174,6 +215,9 @@ def _leer(session: Session, c: Cliente, ver_comercial: bool = True) -> ClienteRe
         for k in _COMERCIAL:                     # vacío por tipo: "" para texto, None para numéricos (p.ej. emisor_id)
             base[k] = "" if isinstance(base.get(k), str) else None
         servicios = []
+    for k in _PATH_FIELDS:                        # token portable → ruta de ESTE equipo (display + explorador)
+        if base.get(k):
+            base[k] = _ruta_expandir(base[k])
     return ClienteRead(
         **base,
         tiene_password=bool(c.password_enc),
@@ -550,6 +594,7 @@ def crear(data: ClienteCreate, session: Session = Depends(get_session),
     _aplicar_nombre(c)
     _normalizar_regimen_iva(c)
     _derivar_agente_retenedor(c)
+    _portabilizar_rutas(c)
     c.dv = calcular_dv(c.num_id)
     if data.password:
         c.password_enc = encrypt(data.password)
@@ -587,6 +632,7 @@ def actualizar(cid: int, data: ClienteCreate, session: Session = Depends(get_ses
     _aplicar_nombre(c)
     _normalizar_regimen_iva(c)
     _derivar_agente_retenedor(c)
+    _portabilizar_rutas(c)
     c.dv = calcular_dv(c.num_id)
     if data.password:                       # solo si viene una clave nueva
         c.password_enc = encrypt(data.password)

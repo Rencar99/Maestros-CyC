@@ -1248,11 +1248,9 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
       </form>
       {explorar && <Explorador modo={explorar.modo} inicio={explorar.inicio} exts={explorar.exts} onSelect={async (ruta) => {
         if (explorar.pick) { await explorar.pick(ruta); return; }
-        if (explorar.key === "ruta_generador") {
-          let v = ruta;
-          try { const r: any = await api.get(`/sistema/ruta-portable?ruta=${encodeURIComponent(ruta)}`); v = r.ruta || ruta; } catch { /* usar la ruta tal cual */ }
-          set("ruta_generador", v);
-        } else if (explorar.key) { set(explorar.key, ruta); }
+        // El backend guarda las rutas en forma portable (%OneDrive%) y las expande
+        // al OneDrive de cada equipo al leerlas; aquí solo tomamos la ruta elegida.
+        if (explorar.key) set(explorar.key, ruta);
       }} onClose={() => setExplorar(null)} />}
       {claveEdit && (
         <ClaveModal portales={portalesCat} setPortales={setPortalesCat}
