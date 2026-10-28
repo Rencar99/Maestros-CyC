@@ -1366,3 +1366,7 @@ table.mtx td.mtx-c.hoy{background:var(--primary);color:#fff;font-weight:700;bord
 .upd-card p{margin:0;font-size:13.5px;color:var(--ink-3);line-height:1.5}
 .upd-spin{display:inline-block;width:38px;height:38px;border:3.5px solid var(--line-2);border-top-color:var(--azul-vivo);border-radius:50%;animation:upd-rot .8s linear infinite}
 @keyframes upd-rot{to{transform:rotate(360deg)}}
+
+/* Chip de adjunto en el modal de envío de cartera */
+.cxc-adj{display:inline-flex;align-items:center;gap:7px;margin-top:4px;padding:7px 11px;background:var(--card-2);border:1px solid var(--line);border-radius:8px;font-size:12.5px;color:var(--ink-3)}
+.cxc-adj>svg{stroke:currentColor;fill:none;stroke-width:1.8;flex:none;color:var(--azul-vivo)}

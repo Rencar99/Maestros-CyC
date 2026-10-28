@@ -73,6 +73,7 @@ export function Cartera({ puede, active }: { puede: (c: string) => boolean; acti
   const [sincronizando, setSincronizando] = useState(false);
   const [gestion, setGestion] = useState<Row | null>(null);
   const [cuenta, setCuenta] = useState<Row | null>(null);
+  const [enviar, setEnviar] = useState<Row | null>(null);
   const [edad, setEdad] = useState<string>("todos");   // chip de rango de edad activo
 
   // Saldo/nº de clientes por rango (antigüedad máxima del cliente) para los chips,
@@ -231,6 +232,7 @@ export function Cartera({ puede, active }: { puede: (c: string) => boolean; acti
                 onRowClick={(r) => setGestion(r)}
                 actions={(r) => <span className="cc-cell">
                   <button className="act-btn" title="Estado de cuenta (documentos)" onClick={() => setCuenta(r)}><Icon name="list" size={15} /></button>
+                  {puedeEditar && <button className="act-btn" title="Enviar estado de cuenta" onClick={() => setEnviar(r)}><Icon name="mail" size={15} /></button>}
                   {puedeEditar && <button className="act-btn" title="Gestión de cobro" onClick={() => setGestion(r)}><Icon name="edit" size={15} /></button>}
                 </span>} />
             : <DataGrid columns={dcols} rows={docsFiltrados} getKey={(d) => d.nit + "|" + d.documento}
@@ -246,7 +248,76 @@ export function Cartera({ puede, active }: { puede: (c: string) => boolean; acti
 
       {gestion && <GestionModal row={gestion} puedeEditar={puedeEditar} onClose={() => setGestion(null)} onSaved={cargar} onVerCuenta={() => { setCuenta(gestion); setGestion(null); }} />}
       {cuenta && <CuentaModal row={cuenta} onClose={() => setCuenta(null)} />}
+      {enviar && <EnviarModal row={enviar} onClose={() => setEnviar(null)} onSent={cargar} />}
     </div>
+  );
+}
+
+/** Enviar el estado de cuenta: correo (PDF por Graph delegado) + WhatsApp (wa.me).
+ *  El correo del cliente, asunto y cuerpo son editables; el PDF se arma al enviar. */
+function EnviarModal({ row, onClose, onSent }: { row: Row; onClose: () => void; onSent: () => void }) {
+  const toast = useToast();
+  const [cargando, setCargando] = useState(true);
+  const [enviando, setEnviando] = useState(false);
+  const [para, setPara] = useState("");
+  const [asunto, setAsunto] = useState("");
+  const [cuerpo, setCuerpo] = useState("");
+  const [celular, setCelular] = useState("");
+  const [waTexto, setWaTexto] = useState("");
+
+  useEffect(() => {
+    api.get(`/cartera/cliente/${encodeURIComponent(row.nit)}/correo-preview`)
+      .then((d: any) => {
+        setPara(d.para || ""); setAsunto(d.asunto || ""); setCuerpo(d.cuerpo || "");
+        setCelular(d.celular || ""); setWaTexto(d.wa_texto || "");
+      })
+      .catch((e: any) => toast(e.message, true))
+      .finally(() => setCargando(false));
+  }, []); // eslint-disable-line
+
+  const enviarCorreo = async () => {
+    if (!para.trim()) { toast("Falta el correo del cliente", true); return; }
+    setEnviando(true);
+    try {
+      const r: any = await api.post(`/cartera/cliente/${encodeURIComponent(row.nit)}/enviar`,
+        { para: para.trim(), asunto, cuerpo });
+      toast(`Estado de cuenta enviado a ${r.para} ✓`);
+      onSent(); onClose();
+    } catch (e: any) { toast(e.message, true); }
+    finally { setEnviando(false); }
+  };
+  const abrirWhatsApp = () => {
+    if (!celular) { toast("El cliente no tiene celular registrado en el maestro", true); return; }
+    const num = celular.length === 10 ? "57" + celular : celular;   // Colombia
+    window.open(`https://wa.me/${num}?text=${encodeURIComponent(waTexto)}`, "_blank");
+  };
+
+  return (
+    <Modal title={row.nombre || row.nit} sub={`Enviar estado de cuenta · saldo ${pesos(row.saldo)}`}
+           icon="mail" size="lg" onClose={onClose}
+           onSave={enviarCorreo} saving={enviando} canSave={!!para.trim()}
+           saveLabel="Enviar por correo" saveIcon="mail"
+           extraActions={
+             <button className="mh-act" onClick={abrirWhatsApp} disabled={!celular}
+               aria-label="WhatsApp" title={celular ? "Abrir WhatsApp con el mensaje" : "Sin celular en el maestro"}>
+               <Icon name="whatsapp" size={18} /><span className="mh-tip">WhatsApp</span>
+             </button>}
+           aviso={cargando ? "Cargando…" : (!para.trim() ? "El cliente no tiene correo en el maestro; escríbelo o envía por WhatsApp." : "El PDF del estado de cuenta se adjunta automáticamente.")}
+           avisoTone={!cargando && !para.trim() ? "warn" : "info"}>
+      {cargando ? <div className="hint">Cargando…</div> : (
+        <div className="fieldgroup">
+          <div className="obl-grid">
+            <label className="cq-fld obl-wide"><span>Para</span>
+              <input value={para} onChange={(e) => setPara(e.target.value)} placeholder="correo@cliente.com" /></label>
+            <label className="cq-fld obl-wide"><span>Asunto</span>
+              <input value={asunto} onChange={(e) => setAsunto(e.target.value)} /></label>
+            <label className="cq-fld obl-wide"><span>Mensaje</span>
+              <textarea rows={7} value={cuerpo} onChange={(e) => setCuerpo(e.target.value)} /></label>
+          </div>
+          <div className="cxc-adj"><Icon name="file" size={14} /> Estado de cuenta {row.nombre || row.nit}.pdf</div>
+        </div>
+      )}
+    </Modal>
   );
 }
 
