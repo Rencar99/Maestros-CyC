@@ -489,10 +489,14 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   // Al navegar a otro registro el modal NO se remonta (evita el "salto"): refrescamos el estado aquí.
   const primera = useRef(true);
   const icaSeedRef = useRef<number | null>(null);   // ¿ya se evaluó la siembra del domicilio ICA para este cliente?
+  // Marca de tiempo con la que se cargó la ficha (control de concurrencia optimista:
+  // se manda al guardar; si otro guardó entretanto, el backend devuelve 409).
+  const baseTs = useRef<string>((cliente as any).actualizado_at || "");
   useEffect(() => {
     if (primera.current) { primera.current = false; return; }
     setC({ ...cliente }); setTab("ident"); setClave(""); setClaveTouched(false);
     setShowPw(false); setRutItems(null); setRutNit(null); icaSeedRef.current = null; setMin(false);
+    baseTs.current = (cliente as any).actualizado_at || "";
   }, [cliente.id]); // eslint-disable-line
   const nuevo = !cliente.id;
   const jur = c.tipo_contribuyente === "Jur";
@@ -853,10 +857,29 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
       }));
       if (claveTouched) body.password = clave;
       delete body.dv; delete body.tiene_password; delete body.id;
-      if (nuevo) await api.post("/clientes", body);
-      else await api.put(`/clientes/${cliente.id}`, body);
+      if (nuevo) {
+        const r: any = await api.post("/clientes", body);
+        baseTs.current = r?.actualizado_at || "";
+      } else {
+        const r: any = await api.put(`/clientes/${cliente.id}?base=${encodeURIComponent(baseTs.current || "")}`, body);
+        baseTs.current = r?.actualizado_at || "";   // nueva base para un 2º guardado desde la misma ficha
+      }
       return true;
-    } catch (e: any) { toast(e.message, true); return false; }
+    } catch (e: any) {
+      const msg = String(e?.message || "");
+      if (/fue modificado/i.test(msg)) {   // conflicto de concurrencia (409)
+        const r = await confirmar({
+          titulo: "Conflicto al guardar", peligro: true,
+          mensaje: msg + " Si recargas, verás los datos actuales y perderás lo que escribiste sin guardar.",
+          confirmar: "Recargar ficha", cancelar: "Seguir editando",
+        });
+        if (r === "si") {
+          try { const fresh: any = await api.get(`/clientes/${cliente.id}`); setC(fresh); baseTs.current = fresh?.actualizado_at || ""; }
+          catch (ex: any) { toast(ex.message, true); }
+        }
+      } else { toast(msg, true); }
+      return false;
+    }
   };
   const guardar = async () => { if (await guardarRaw()) { toast("Guardado ✓"); onSaved(); } };
   const cambiado = () => JSON.stringify(c) !== JSON.stringify(cliente) || claveTouched;
