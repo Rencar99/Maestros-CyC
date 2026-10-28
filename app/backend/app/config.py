@@ -121,17 +121,24 @@ FERNET_KEY = os.getenv("FERNET_KEY", "").strip()
 
 # Raíz del explorador de carpetas/archivos (elegir "Ruta de trabajo", propuesta,
 # archivo base). Debe ser el OneDrive del usuario de Windows que corre el backend
-# —cada equipo/perfil el suyo— NO una ruta fija de un equipo. Si no hay OneDrive,
-# cae al perfil del usuario. Se puede forzar con EXPLORADOR_RAIZ en el .env.
-def _explorador_raiz_default() -> str:
-    for var in ("OneDriveCommercial", "OneDrive"):
-        v = (os.environ.get(var) or "").strip()
-        if v and Path(v).is_dir():
-            return v
+# —cada equipo/perfil el suyo— NO una ruta fija de un equipo.
+def _explorador_raiz() -> str:
+    """Primera ruta que EXISTE entre: EXPLORADOR_RAIZ del .env, el OneDrive del
+    usuario de Windows (comercial o personal) o su carpeta de perfil. Validar que
+    exista es clave: un .env viejo (ruta de otro equipo) ya no deja el explorador
+    tirado en las unidades; si apunta a la nada, se deriva el OneDrive real."""
+    candidatos = [
+        os.path.expandvars((os.getenv("EXPLORADOR_RAIZ") or "").strip()),
+        (os.environ.get("OneDriveCommercial") or "").strip(),
+        (os.environ.get("OneDrive") or "").strip(),
+    ]
+    for c in candidatos:
+        if c and Path(c).is_dir():
+            return c
     return str(Path.home())
 
 
-EXPLORADOR_RAIZ = (os.getenv("EXPLORADOR_RAIZ") or _explorador_raiz_default()).strip()
+EXPLORADOR_RAIZ = _explorador_raiz()
 
 
 def _session_secret() -> str:
