@@ -158,3 +158,31 @@ CORS_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# --- Cartera / CxC: conexión de SOLO LECTURA a GLERP (SQL Server del proveedor) --
+# Se lee del .env (secreto, fuera de git). La clave idealmente debe ser de un
+# usuario de SOLO LECTURA sobre la base de GLERP. El driver por defecto es el
+# "SQL Server" que trae Windows (no requiere instalar nada). Ejemplo .env:
+#   GLERP_SERVER=bd07.vit.com.co,46608
+#   GLERP_DATABASE=GL_CardonayCastillo
+#   GLERP_UID=usuario_lectura
+#   GLERP_PWD=********
+#   GLERP_DRIVER=SQL Server
+GLERP_SERVER = os.getenv("GLERP_SERVER", "").strip()
+GLERP_DATABASE = os.getenv("GLERP_DATABASE", "").strip()
+GLERP_UID = os.getenv("GLERP_UID", "").strip()
+GLERP_PWD = os.getenv("GLERP_PWD", "").strip()
+GLERP_DRIVER = os.getenv("GLERP_DRIVER", "SQL Server").strip()
+
+
+def glerp_configurado() -> bool:
+    """¿Hay conexión a GLERP definida en el .env?"""
+    return bool(GLERP_SERVER and GLERP_DATABASE and GLERP_UID and GLERP_PWD)
+
+
+def glerp_conn_str() -> str:
+    """Cadena de conexión pyodbc para GLERP, o "" si falta configuración."""
+    if not glerp_configurado():
+        return ""
+    return (f"DRIVER={{{GLERP_DRIVER}}};SERVER={GLERP_SERVER};"
+            f"DATABASE={GLERP_DATABASE};UID={GLERP_UID};PWD={GLERP_PWD}")

@@ -9,6 +9,7 @@ import { Responsables as ResponsablesRaw } from "./pages/Responsables";
 import { Catalogos as CatalogosRaw } from "./pages/Catalogos";
 import { Facturacion as FacturacionRaw } from "./pages/Facturacion";
 import { CuentasCobro as CuentasCobroRaw } from "./pages/CuentasCobro";
+import { Cartera as CarteraRaw } from "./pages/Cartera";
 import { Claves as ClavesRaw } from "./pages/Claves";
 import { Consultas as ConsultasRaw } from "./pages/Consultas";
 import { ConsultasPublicas as ConsultasPublicasRaw } from "./pages/ConsultasPublicas";
@@ -25,12 +26,13 @@ const Responsables = memo(ResponsablesRaw);
 const Catalogos = memo(CatalogosRaw);
 const Facturacion = memo(FacturacionRaw);
 const CuentasCobro = memo(CuentasCobroRaw);
+const Cartera = memo(CarteraRaw);
 const Claves = memo(ClavesRaw);
 const Consultas = memo(ConsultasRaw);
 const ConsultasPublicas = memo(ConsultasPublicasRaw);
 const Config = memo(ConfigRaw);
 
-type Page = "clientes" | "responsables" | "claves" | "catalogos" | "facturacion" | "cobros" | "consultas" | "generar" | "config";
+type Page = "clientes" | "responsables" | "claves" | "catalogos" | "facturacion" | "cobros" | "cartera" | "consultas" | "generar" | "config";
 const TITLES: Record<Page, [string, string]> = {
   clientes: ["Clientes", "Catálogo general de clientes de la firma"],
   responsables: ["Responsables", "Personal de la firma (internos y externos)"],
@@ -38,17 +40,18 @@ const TITLES: Record<Page, [string, string]> = {
   catalogos: ["Catálogos", "Listas maestras editables"],
   facturacion: ["Facturación", "Generación mensual de la facturación"],
   cobros: ["Cuentas de cobro", "Generación y envío de cuentas de cobro"],
+  cartera: ["Cartera", "Cartera por cobrar de la firma (CxC) y gestión de cobro"],
   consultas: ["Consultas", "Consultas disponibles para ejecutar"],
   generar: ["Generar Consultas", "Arma consultas sobre la base sin escribir SQL"],
   config: ["Configuración", "Roles, permisos y manual de usuario"],
 };
 // Pantallas migradas al marco de grilla (gframe): la tarjeta llena el alto y
 // solo scrollea la grilla (se van sumando por fases).
-const GFRAME = new Set<Page>(["claves", "responsables", "clientes", "cobros", "consultas", "facturacion"]);
+const GFRAME = new Set<Page>(["claves", "responsables", "clientes", "cobros", "cartera", "consultas", "facturacion"]);
 // Grupo del menú al que pertenece cada pantalla (línea dorada sobre el título).
 const GRUPO: Record<Page, string> = {
   clientes: "Maestros", responsables: "Maestros", claves: "Maestros",
-  facturacion: "Maestros", cobros: "Maestros", consultas: "Maestros",
+  facturacion: "Maestros", cobros: "Maestros", cartera: "Maestros", consultas: "Maestros",
   catalogos: "Sistema", generar: "Sistema", config: "Sistema",
 };
 // Permiso que habilita cada página. Catálogos es pantalla de edición =
@@ -135,7 +138,7 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
   }, [user.rol, user.permisos]);
   // Si la página activa dejó de ser visible (por permisos), caer a la primera permitida.
   useEffect(() => {
-    const orden: Page[] = ["clientes", "responsables", "claves", "facturacion", "cobros", "consultas", "catalogos", "generar", "config"];
+    const orden: Page[] = ["clientes", "responsables", "claves", "facturacion", "cobros", "cartera", "consultas", "catalogos", "generar", "config"];
     if (page !== "config" && !puede(CLAVE_VER(page))) {   // Configuración es visible para todos (Manual)
       const primera = orden.find((p) => puede(CLAVE_VER(p)));
       if (primera) setPage(primera);
@@ -177,6 +180,9 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
             </div>
           )}
         </>)}
+        {puede("cartera.ver") && (
+          <button className={"nav-item" + (page === "cartera" ? " on" : "")} title="Cartera" onClick={() => setPage("cartera")}><Icon name="coins" /><span className="nav-txt">Cartera</span></button>
+        )}
         {puede("consultas.ver") && (
           <button className={"nav-item" + (page === "consultas" ? " on" : "")} title="Consultas" onClick={() => setPage("consultas")}><Icon name="search" /><span className="nav-txt">Consultas</span></button>
         )}
@@ -239,6 +245,7 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
           {vistas.has("catalogos") && puede("catalogos.editar") && <div style={{ display: page === "catalogos" ? "contents" : "none" }}><Catalogos esSuper={user.rol === "superadmin"} /></div>}
           {vistas.has("facturacion") && puede("facturacion.ver") && <div style={{ display: page === "facturacion" ? "contents" : "none" }}><Facturacion usuario={user.usuario || user.nombre} puede={puede} active={page === "facturacion"} goFacturacion={goFacturacion} /></div>}
           {vistas.has("cobros") && puede("facturacion.ver") && <div style={{ display: page === "cobros" ? "contents" : "none" }}><CuentasCobro puede={puede} active={page === "cobros"} /></div>}
+          {vistas.has("cartera") && puede("cartera.ver") && <div style={{ display: page === "cartera" ? "contents" : "none" }}><Cartera puede={puede} active={page === "cartera"} /></div>}
           {vistas.has("consultas") && puede("consultas.ver") && <div style={{ display: page === "consultas" ? "contents" : "none" }}><ConsultasPublicas /></div>}
           {vistas.has("generar") && puede("consultas.generar") && <div style={{ display: page === "generar" ? "contents" : "none" }}><Consultas active={page === "generar"} /></div>}
           {vistas.has("config") && <div style={{ display: page === "config" ? "contents" : "none" }}><Config active={page === "config"} puede={puede} /></div>}

@@ -9,8 +9,9 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import BASE_DIR, CORS_ORIGINS, VERSION, servidor_info
 from .db import init_db
-from .routers import (auth, catalogos, clientes, cobros, consultas, facturacion,
-                      formularios, parametros, responsables, roles, servidor, sistema)
+from .routers import (auth, cartera, catalogos, clientes, cobros, consultas,
+                      facturacion, formularios, parametros, responsables, roles,
+                      servidor, sistema)
 from .seed import (bootstrap_admin, bootstrap_cargos, bootstrap_ciiu,
                    bootstrap_disparadores_canon, bootstrap_entidades,
                    bootstrap_formas_cobro, bootstrap_formularios, bootstrap_municipios,
@@ -40,6 +41,7 @@ app.include_router(roles.router)
 app.include_router(formularios.router)
 app.include_router(parametros.router)
 app.include_router(cobros.router)
+app.include_router(cartera.router)
 
 
 @app.on_event("startup")

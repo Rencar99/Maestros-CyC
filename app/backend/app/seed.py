@@ -86,6 +86,8 @@ PERMISOS_CAT = [
                 ("eliminar", "Eliminar"), ("revelar", "Revelar clave"), ("exportar", "Exportar")]),
     ("facturacion", [("ver", "Ver"), ("crear", "Crear"), ("editar", "Editar"),
                      ("eliminar", "Eliminar"), ("exportar", "Exportar"), ("aprobar", "Aprobar"), ("validar", "Validar")]),
+    ("cartera", [("ver", "Ver"), ("editar", "Gestionar cobro"),
+                 ("sincronizar", "Sincronizar con GLERP")]),
     ("catalogos", [("ver", "Ver"), ("editar", "Editar")]),
     ("consultas", [("ver", "Ver y ejecutar"), ("generar", "Generar consultas")]),
     ("config", [("roles", "Administrar roles")]),
@@ -129,6 +131,7 @@ def bootstrap_roles() -> None:
         orden = 0
         nuevo_generar = False
         nuevo_ver_todos = False
+        nuevo_cartera = False
         vivas: set[str] = set()
         for sec, accs in PERMISOS_CAT:
             for acc, etq in accs:
@@ -139,6 +142,8 @@ def bootstrap_roles() -> None:
                         nuevo_generar = True
                     if clave == "clientes.ver_todos":
                         nuevo_ver_todos = True
+                    if clave == "cartera.ver":
+                        nuevo_cartera = True
                     s.add(Permiso(clave=clave, seccion=sec, accion=acc, etiqueta=etq,
                                   orden=orden, app="maestros", activo=True))
                 else:
@@ -191,6 +196,21 @@ def bootstrap_roles() -> None:
                     RolPermiso.rol_id == rol.id)).all())
                 if claves & ADMIN_PERMISOS and "clientes.ver_todos" not in claves:
                     s.add(RolPermiso(rol_id=rol.id, permiso_clave="clientes.ver_todos"))
+            s.commit()
+        # 3d) Migración única al estrenar el módulo Cartera: concederlo SOLO a los
+        #     roles de GESTIÓN existentes (los que ya tienen algún ADMIN_PERMISOS),
+        #     igual que clientes.ver_todos. El Super lo tiene por `sistema`; el resto
+        #     lo asigna Renzo en la matriz. Las tres claves (ver/editar/sincronizar).
+        if nuevo_cartera:
+            for rol in s.exec(select(Rol)).all():
+                if rol.sistema:
+                    continue
+                claves = set(s.exec(select(RolPermiso.permiso_clave).where(
+                    RolPermiso.rol_id == rol.id)).all())
+                if claves & ADMIN_PERMISOS:
+                    for c in ("cartera.ver", "cartera.editar", "cartera.sincronizar"):
+                        if c not in claves:
+                            s.add(RolPermiso(rol_id=rol.id, permiso_clave=c))
             s.commit()
         # (El grant inicial de calendario.carga/generar a gestión ya se hizo en v1.22.1;
         #  las claves ahora son de Calendario (app='calendario'). Un futuro permiso de

@@ -153,7 +153,12 @@ def _sync_hijas(session: Session, cliente_id: int, data: ClienteCreate,
 
 
 # Campos comerciales que el Administrador NO puede ver ni modificar (solo superusuario).
-_COMERCIAL = ("archivo_propuesta", "ruta_trabajo")
+# Campos de la pestaña "Comercial" (solo el Super Usuario los edita; para los demás
+# se ocultan al leer y se revierten al guardar). SOLO los de esa pestaña: p. ej.
+# `ruta_trabajo` vive en la pestaña Gestión, así que NO va aquí (cualquier rol con
+# `clientes.editar` debe poder guardarla). Los servicios (hija comercial) se controlan
+# aparte con `sync_servicios`.
+_COMERCIAL = ("cliente_desde", "estado", "archivo_propuesta", "emisor_id")
 
 
 def _leer(session: Session, c: Cliente, ver_comercial: bool = True) -> ClienteRead:
@@ -166,8 +171,8 @@ def _leer(session: Session, c: Cliente, ver_comercial: bool = True) -> ClienteRe
     base = c.model_dump()
     base.pop("password_enc", None)
     if not ver_comercial:                       # oculta lo comercial a los Administradores
-        for k in _COMERCIAL:
-            base[k] = ""
+        for k in _COMERCIAL:                     # vacío por tipo: "" para texto, None para numéricos (p.ej. emisor_id)
+            base[k] = "" if isinstance(base.get(k), str) else None
         servicios = []
     return ClienteRead(
         **base,

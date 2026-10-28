@@ -399,7 +399,7 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
           {actualizado && <><span className="gf-dot">·</span> Actualizado: {actualizado}</>}
         </div>
       </div>
-      {edit && <Ficha cliente={edit} autoRut={autoRut} software={software} setSoftware={setSoftware} roles={roles} setRoles={setRoles} obligTipos={obligTipos} setObligTipos={setObligTipos} resp={resp} tiposDoc={tiposDoc} setTiposDoc={setTiposDoc} respsCat={respsCat} setRespsCat={setRespsCat} emisores={emisores} esSuper={esSuper} esAdmin={esAdmin} veConf={esSuper || puede("clientes.ver_confidencial")} puedeEliminar={puede("clientes.eliminar")}
+      {edit && <Ficha cliente={edit} autoRut={autoRut} software={software} setSoftware={setSoftware} roles={roles} setRoles={setRoles} obligTipos={obligTipos} setObligTipos={setObligTipos} resp={resp} tiposDoc={tiposDoc} setTiposDoc={setTiposDoc} respsCat={respsCat} setRespsCat={setRespsCat} emisores={emisores} esSuper={esSuper} esAdmin={esAdmin} veConf={esSuper || puede("clientes.ver_confidencial")} puedeEliminar={puede("clientes.eliminar")} puede={puede}
         prevId={vecino("prev") ?? null} nextId={vecino("next") ?? null} onGo={abrir} reload={load}
         onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />}
       {verClaves && <ClavesClienteModal cliente={verClaves} onClose={() => setVerClaves(null)} />}
@@ -429,7 +429,7 @@ const REP_CODES: [string, string][] = [
 // La regla de aplicabilidad DIAN vive SOLO en el backend (Maestros = fuente única):
 // el botón "Generar DIAN" consulta /clientes/derivar-preview para no duplicarla aquí.
 
-function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, obligTipos, setObligTipos, resp, tiposDoc, setTiposDoc, respsCat, setRespsCat, emisores, esSuper, esAdmin, veConf, puedeEliminar, prevId, nextId, onGo, reload, onClose, onSaved }: {
+function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, obligTipos, setObligTipos, resp, tiposDoc, setTiposDoc, respsCat, setRespsCat, emisores, esSuper, esAdmin, veConf, puedeEliminar, puede, prevId, nextId, onGo, reload, onClose, onSaved }: {
   cliente: Cliente; autoRut?: boolean; software: CatItem[]; setSoftware: (fn: (p: CatItem[]) => CatItem[]) => void;
   roles: CatItem[]; setRoles: (fn: (p: CatItem[]) => CatItem[]) => void;
   obligTipos: ObligTipo[]; setObligTipos: (fn: (p: ObligTipo[]) => ObligTipo[]) => void; resp: Responsable[];
@@ -438,7 +438,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   respsCat: { codigo: string; descripcion: string }[];
   setRespsCat: (fn: (p: { codigo: string; descripcion: string }[]) => { codigo: string; descripcion: string }[]) => void;
   emisores: { id: number; nombre: string; prefijo: string }[];
-  esSuper: boolean; esAdmin: boolean; veConf: boolean; puedeEliminar: boolean;
+  esSuper: boolean; esAdmin: boolean; veConf: boolean; puedeEliminar: boolean; puede: (c: string) => boolean;
   prevId?: number | null; nextId?: number | null; onGo?: (id: number) => void; reload?: () => void;
   onClose: () => void; onSaved: () => void;
 }) {
@@ -917,7 +917,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
       </div>
       <div className="ficha-layout">
         <nav className="ficha-nav">
-          {TABS.filter(([k]) => (esSuper || k !== "comercial") && (esAdmin || k !== "claves")).map(([k, l]) => (
+          {TABS.filter(([k]) => (esSuper || k !== "comercial") && (puede("claves.ver") || k !== "claves")).map(([k, l]) => (
             <button key={k} type="button" className={"ficha-nav-item" + (tab === k ? " on" : "")} onClick={() => setTab(k)}>
               <Icon name={TAB_ICON[k]} size={16} />{l}
             </button>
@@ -1184,12 +1184,12 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                   : <DataGrid columns={claveCols} rows={claves} getKey={(k) => k.id}
                       label="Claves y portales" scrollClass="srv-scroll" storageKey="cli-claves"
                       searchable exportable={false}
-                      toolbar={<button type="button" className="btn sm" style={{ marginLeft: "auto" }} onClick={() => setClaveEdit("new")}><Icon name="plus" size={14} />Nueva clave</button>}
-                      emptyLabel={'Sin claves. Usa «Nueva clave» para agregar.'}
+                      toolbar={puede("claves.crear") ? <button type="button" className="btn sm" style={{ marginLeft: "auto" }} onClick={() => setClaveEdit("new")}><Icon name="plus" size={14} />Nueva clave</button> : undefined}
+                      emptyLabel={puede("claves.crear") ? 'Sin claves. Usa «Nueva clave» para agregar.' : 'Sin claves.'}
                       actions={(k) => (
                         <div className="act-btns">
-                          <button className="act-btn" onClick={() => setClaveEdit(k)} title="Editar"><Icon name="edit" size={14} /></button>
-                          <button className="act-btn del" onClick={() => borrarClave(k)} title="Eliminar"><Icon name="trash" size={14} /></button>
+                          {puede("claves.editar") && <button className="act-btn" onClick={() => setClaveEdit(k)} title="Editar"><Icon name="edit" size={14} /></button>}
+                          {puede("claves.eliminar") && <button className="act-btn del" onClick={() => borrarClave(k)} title="Eliminar"><Icon name="trash" size={14} /></button>}
                         </div>
                       )} />}
               </div>

@@ -640,3 +640,76 @@ class ConsultaRol(SQLModel, table=True):
 
     consulta_id: int = Field(primary_key=True)
     rol_id: int = Field(primary_key=True)
+
+
+# ============================================================ Cartera / CxC (GLERP)
+# La cartera por cobrar de la firma vive en GLERP (SQL Server del proveedor). El
+# módulo la lee en SOLO LECTURA y guarda una FOTO (snapshot) en estas tablas:
+# así la pantalla vuela, queda histórico de edades y el seguimiento de cobro —que
+# es dato NUESTRO— no se huérfana cuando GLERP cierra un documento. El enlace al
+# maestro de Clientes es por NIT (respeta confidencialidad y RBAC). Nunca se
+# escribe en GLERP.
+class CxcSync(SQLModel, table=True):
+    """Resumen de UNA sincronización de cartera desde GLERP (para el histórico de
+    edades / tendencia). El detalle vivo está en ``CxcItem`` (se reemplaza en cada
+    sync); aquí queda la foto agregada de cada corrida, que no se borra."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    fecha: datetime = Field(default_factory=datetime.utcnow, index=True)
+    docs: int = 0
+    clientes: int = 0
+    total: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(16, 2)))
+    corriente: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(16, 2)))
+    d1_30: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(16, 2)))
+    d31_60: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(16, 2)))
+    d61_90: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(16, 2)))
+    d90mas: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(16, 2)))
+    por: str = ""                 # usuario que sincronizó
+
+
+class CxcItem(SQLModel, table=True):
+    """Documento de cartera abierto (saldo<>0) traído de GLERP (``acccccxc``). Es
+    la FOTO vigente: se borra y reinserta completa en cada sincronización. La edad
+    (``dias_venc``/``bucket``) se calcula al sincronizar, contra la fecha de la foto."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    documento: str = ""           # nrofac
+    tipodoc: str = ""             # tipo de documento (TD)
+    nit: str = Field(default="", index=True)   # clientes.clinit (enlace por NIT)
+    nombre: str = ""              # clientes.clinom (nombre en GLERP, foto)
+    codcli: str = ""              # clientes.clicod (código GLERP)
+    fecfac: Optional[date] = None
+    venfac: int = 0               # plazo en días (vencimiento = fecfac + venfac)
+    vencimiento: Optional[date] = None
+    vlrfac: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(16, 2)))
+    saldo: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(16, 2)))
+    dias_venc: int = 0            # días vencido (negativo = aún no vence)
+    bucket: str = ""              # corriente | 1-30 | 31-60 | 61-90 | 90+
+    fetched_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class CxcGestion(SQLModel, table=True):
+    """Seguimiento de cobro por cliente (dato NUESTRO, enlazado por NIT). Una fila
+    por NIT con el estado actual y el compromiso vigente; el detalle/historial va
+    en ``CxcNota``."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    nit: str = Field(default="", index=True, unique=True)
+    # sin_gestion | en_gestion | promesa | disputa | juridico | al_dia
+    estado: str = "sin_gestion"
+    compromiso_fecha: Optional[date] = None
+    compromiso_valor: Optional[Decimal] = Field(default=None, sa_column=Column(Numeric(16, 2)))
+    proximo_contacto: Optional[date] = None
+    actualizado_at: datetime = Field(default_factory=datetime.utcnow)
+    actualizado_por: str = ""
+
+
+class CxcNota(SQLModel, table=True):
+    """Anotación del historial de gestión de cobro de un cliente (por NIT)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    nit: str = Field(default="", index=True)
+    fecha: datetime = Field(default_factory=datetime.utcnow)
+    usuario: str = ""
+    texto: str = ""
+    estado: str = ""              # foto del estado al momento de anotar
