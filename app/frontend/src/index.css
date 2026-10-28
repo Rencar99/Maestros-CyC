@@ -1351,12 +1351,16 @@ table.mtx td.mtx-c.hoy{background:var(--primary);color:#fff;font-weight:700;bord
 @media(max-width:1100px){.cxc-kpis{grid-template-columns:repeat(3,1fr)}}
 
 /* --- Aviso de actualización ---------------------------------------------- */
-/* Aviso discreto en la zona de versión (pie del menú): botón ámbar. */
-.srv-upd{margin-left:auto;display:flex;align-items:center;gap:5px;border:0;cursor:pointer;background:rgba(247,147,30,.16);color:#f7b24e;font-size:11px;font-weight:700;padding:5px 9px;border-radius:7px;white-space:nowrap;transition:.15s}
-.srv-upd:hover{background:rgba(247,147,30,.28);color:#ffc266}
+/* Control de actualización en la zona de versión (pie del menú): ÍCONO chico.
+   Reposo = discreto (buscar); .on = ámbar (hay nueva versión). El detalle va en
+   un modal al pulsar, no en texto que tape la sección. */
+.srv-upd{margin-left:auto;display:grid;place-items:center;border:0;cursor:pointer;background:transparent;color:#8298bd;padding:6px;border-radius:7px;transition:.15s;flex:none}
+.srv-upd:hover{background:#ffffff12;color:#eaf0fb}
+.srv-upd.on{background:rgba(247,147,30,.16);color:#f7b24e}
+.srv-upd.on:hover{background:rgba(247,147,30,.28);color:#ffc266}
 .srv-upd:disabled{opacity:.7;cursor:default}
 .srv-upd>svg{stroke:currentColor;fill:none;stroke-width:2.2;flex:none}
-.side.collapsed .srv-upd{margin:6px 0 0;padding:6px}
+.side.collapsed .srv-upd{margin:6px 0 0}
 .upd-btn{margin-left:auto;border:0;background:var(--azul-vivo);color:#fff;font-size:12.5px;font-weight:700;padding:6px 14px;border-radius:7px;cursor:pointer;box-shadow:0 2px 3px rgba(8,54,199,.28);transition:.15s}
 .upd-btn:hover{background:#0a2fa8}
 .upd-btn:disabled{opacity:.6;cursor:default}

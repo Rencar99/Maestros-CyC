@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, clearToken, getToken } from "./api";
 import { Responsable } from "./types";
-import { ConfirmProvider, Icon, ToastProvider, useConfirm } from "./ui";
+import { ConfirmProvider, Icon, ToastProvider, useConfirm, useToast } from "./ui";
 import { Splash } from "./components/Splash";
 import { Login } from "./pages/Login";
 import { Clientes as ClientesRaw } from "./pages/Clientes";
@@ -138,7 +138,9 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
   const [upd, setUpd] = useState<{ disponible: string } | null>(null);
   const [updBusy, setUpdBusy] = useState(false);
   const [updListo, setUpdListo] = useState(false);        // pantalla "actualizando…"
+  const [updBuscando, setUpdBuscando] = useState(false);  // chequeo manual en curso
   const confirmar = useConfirm();
+  const toast = useToast();
   useEffect(() => {
     Promise.all([
       api.get("/servidor").catch(() => null),
@@ -160,18 +162,32 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
       if (u?.hay && u?.disponible) setUpd({ disponible: u.disponible });
     });
   }, []);
-  const actualizar = async () => {
-    if (updBusy || !upd) return;
+  const ejecutarActualizacion = async (disponible: string) => {
+    if (updBusy) return;
     const r = await confirmar({
-      titulo: "Actualizar la aplicación",
-      mensaje: `Se instalará la versión ${upd.disponible}. La app se reiniciará sola en unos segundos.`,
-      confirmar: "Actualizar ahora", cancelar: "Ahora no",
+      titulo: "Nueva versión disponible",
+      mensaje: `Hay una nueva versión (${disponible}) lista para instalar. La app se actualizará y se reiniciará sola en unos segundos.`,
+      confirmar: "Actualizar ahora", cancelar: "Después",
     });
     if (r !== "si") return;
     setUpdBusy(true);
     try { await api.post("/sistema/actualizar", {}); }
     catch { /* la conexión se cae al detenerse el backend: es esperado */ }
     setUpdListo(true);
+  };
+  const actualizar = () => { if (upd) ejecutarActualizacion(upd.disponible); };
+  // Chequeo A DEMANDA (ícono en el pie): re-consulta al instalador; si hay algo
+  // nuevo entra directo a actualizar; si no, avisa que ya está al día. Sin tener
+  // que cerrar y reabrir la app para que revise.
+  const buscarActualizacion = async () => {
+    if (updBuscando || updBusy) return;
+    setUpdBuscando(true);
+    try {
+      const u: any = await api.get("/sistema/actualizacion");
+      if (u?.hay && u?.disponible) { setUpd({ disponible: u.disponible }); await ejecutarActualizacion(u.disponible); }
+      else { toast(`Ya tienes la última versión${srv?.version ? ` (v${srv.version})` : ""}.`); }
+    } catch (e: any) { toast(e?.message || "No se pudo consultar actualizaciones", true); }
+    finally { setUpdBuscando(false); }
   };
   // Mientras actualiza: sondea /health y recarga sola cuando el backend vuelve
   // con la versión nueva (el actualizador reinicia el backend). Sin recargar a
@@ -261,11 +277,15 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
           <div className="who">Servidor de la firma
             <span>{srv ? (srvOk ? "Conectado" : "Sin conexión") : "Verificando…"}{srv?.version ? ` · v${srv.version}` : ""}</span>
           </div>
-          {upd && (
-            <button className="srv-upd" onClick={actualizar} disabled={updBusy}
-              title={updBusy ? "Actualizando…" : `Actualizar a v${upd.disponible}`} aria-label="Actualizar">
-              <Icon name="down" size={13} />
-              {!colapsado && <span>{updBusy ? "Actualizando…" : `Actualizar · v${upd.disponible}`}</span>}
+          {upd ? (
+            <button className="srv-upd on" onClick={actualizar} disabled={updBusy}
+              title={updBusy ? "Actualizando…" : `Nueva versión disponible (v${upd.disponible})`} aria-label="Actualizar">
+              <Icon name={updBusy ? "hourglass" : "down"} size={14} />
+            </button>
+          ) : (
+            <button className="srv-upd" onClick={buscarActualizacion} disabled={updBuscando}
+              title={updBuscando ? "Buscando…" : "Buscar actualizaciones"} aria-label="Buscar actualizaciones">
+              <Icon name={updBuscando ? "hourglass" : "refresh"} size={14} />
             </button>
           )}
         </div>
