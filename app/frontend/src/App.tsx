@@ -145,6 +145,17 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
       api.get("/health").catch(() => null),
       api.get("/sistema/actualizacion").catch(() => null),
     ]).then(([s, h, u]: any) => {
+      // Si el backend quedó MÁS NUEVO que este bundle (se desplegó bajo una
+      // ventana abierta), el JS cargado está viejo y puede llamar rutas que ya
+      // no existen. Recargar UNA vez trae el bundle que coincide (index.html es
+      // no-cache). Guard en sessionStorage para no entrar en bucle.
+      const build = (import.meta as any).env?.VITE_APP_VERSION || "";
+      if (build && h?.version && h.version !== build && _vge(h.version, build)) {
+        const marca = "maestros_reload_" + h.version;
+        try {
+          if (!sessionStorage.getItem(marca)) { sessionStorage.setItem(marca, "1"); location.reload(); return; }
+        } catch { /* sessionStorage no disponible: no forzar recarga */ }
+      }
       setSrv({ ...(s || {}), version: h?.version || "" });
       if (u?.hay && u?.disponible) setUpd({ disponible: u.disponible });
     });
