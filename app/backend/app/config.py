@@ -153,6 +153,66 @@ def _version() -> str:
 
 VERSION = _version()
 
+# Raíz de ESTA instalación (…\MaestrosCyC): backend/ -> su carpeta madre.
+INSTALL_ROOT = BASE_DIR.parent
+
+# --- Auto-actualización: instalador compartido de la firma -------------------
+# El equipo compara su VERSION con la del instalador compartido y ofrece
+# actualizarse (estilo Windows Update). La ubicación del instalador puede variar
+# entre equipos (share UNC en la LAN, letra de Google Drive, copia local), así
+# que se prueban VARIOS candidatos y gana el que exista con la versión más alta.
+# Un .env con INSTALADOR_DIR fuerza una única ubicación (override explícito).
+_INSTALADOR_CANDIDATOS = [
+    r"\\192.168.8.22\Instaladores\Maestros",   # share canónico en la LAN
+    r"G:\Mi unidad\Instaladores\Maestros",       # Google Drive de la firma
+    r"C:\Instaladores\Maestros",                  # copia local (equipo servidor)
+]
+
+
+def _vtuple(s: str) -> tuple:
+    """'1.22.4' -> (1, 22, 4) para comparar numéricamente (no como texto)."""
+    nums = re.findall(r"\d+", s or "")
+    return tuple(int(n) for n in nums) if nums else (0,)
+
+
+def _version_en(dir_: str) -> str:
+    try:
+        return (Path(dir_) / "app" / "backend" / "app" / "VERSION").read_text(
+            encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _candidatos_instalador() -> list[str]:
+    forzado = os.path.expandvars(os.getenv("INSTALADOR_DIR", "")).strip()
+    return [forzado] if forzado else _INSTALADOR_CANDIDATOS
+
+
+def resolver_instalador() -> tuple[str, str]:
+    """(carpeta, versión) del mejor instalador alcanzable (mayor versión), o ('','')."""
+    mejor_dir, mejor_ver = "", ""
+    for d in _candidatos_instalador():
+        if not d:
+            continue
+        v = _version_en(d)
+        if v and (not mejor_ver or _vtuple(v) > _vtuple(mejor_ver)):
+            mejor_dir, mejor_ver = d, v
+    return mejor_dir, mejor_ver
+
+
+def version_instalador() -> str:
+    """VERSION disponible en el instalador compartido, o '' si no se encuentra."""
+    return resolver_instalador()[1]
+
+
+def hay_actualizacion() -> tuple[bool, str]:
+    """(¿el instalador trae una versión más nueva que la instalada?, esa versión)."""
+    disp = version_instalador()
+    if not disp:
+        return (False, "")
+    return (_vtuple(disp) > _vtuple(VERSION), disp)
+
+
 # Orígenes permitidos para el frontend en desarrollo (Vite).
 CORS_ORIGINS = [
     "http://localhost:5173",

@@ -18,10 +18,51 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..config import EXPLORADOR_RAIZ
+from ..config import (EXPLORADOR_RAIZ, INSTALL_ROOT, VERSION,
+                     hay_actualizacion, resolver_instalador)
 from ..deps import get_current_user
 
 router = APIRouter(prefix="/api/sistema", tags=["sistema"])
+
+
+@router.get("/actualizacion")
+def actualizacion(_u=Depends(get_current_user)):
+    """¿Este equipo está atrás del instalador compartido? La App lo consulta al
+    arrancar para avisar (estilo Windows Update) y ofrecer actualizarse."""
+    hay, disp = hay_actualizacion()
+    return {"actual": VERSION, "disponible": disp, "hay": hay}
+
+
+@router.post("/actualizar")
+def actualizar(_u=Depends(get_current_user)):
+    """Lanza el actualizador del instalador compartido contra ESTA instalación.
+    El actualizador detiene este backend, copia el código nuevo y termina; por
+    eso se lanza DESAPEGADO (sobrevive a que nos maten) y con un respiro para
+    que la respuesta HTTP alcance a volver. El usuario reabre la app al final."""
+    hay, disp = hay_actualizacion()
+    if not hay:
+        raise HTTPException(409, "Ya estás en la última versión.")
+    inst_dir, _ = resolver_instalador()   # la MISMA carpeta que trajo la versión nueva
+    cmd = Path(inst_dir) / "ACTUALIZAR.cmd"
+    if not inst_dir or not cmd.is_file():
+        raise HTTPException(404, f"No se encontró el actualizador en '{inst_dir}'.")
+    if os.name != "nt":
+        raise HTTPException(400, "La actualización automática solo corre en Windows.")
+    # Se lanza por PowerShell (quoting seguro vs. 'cmd /c' con comillas internas):
+    # espera 2 s para que este 200 alcance a volver, y corre ACTUALIZAR.cmd en su
+    # propia consola visible, pasándole el destino = raíz de ESTA instalación. El
+    # .cmd detiene este backend, copia y termina con "pause".
+    cmd_q = str(cmd).replace("'", "''")
+    root_q = str(INSTALL_ROOT).replace("'", "''")
+    psc = f"Start-Sleep -Seconds 2; & '{cmd_q}' -Destino '{root_q}'"
+    try:
+        subprocess.Popen(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psc],
+            cwd=str(inst_dir),
+            creationflags=0x00000010)  # CREATE_NEW_CONSOLE (consola propia; sobrevive a que nos maten)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(500, f"No se pudo lanzar el actualizador: {exc}")
+    return {"ok": True, "version": disp}
 
 
 def _ruta_portable(abs_path: str) -> str:

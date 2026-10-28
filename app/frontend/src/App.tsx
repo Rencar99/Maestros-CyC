@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, clearToken, getToken } from "./api";
 import { Responsable } from "./types";
-import { ConfirmProvider, Icon, ToastProvider } from "./ui";
+import { ConfirmProvider, Icon, ToastProvider, useConfirm } from "./ui";
 import { Splash } from "./components/Splash";
 import { Login } from "./pages/Login";
 import { Clientes as ClientesRaw } from "./pages/Clientes";
@@ -122,10 +122,36 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
 
   // Info del equipo/servidor para la franja y el pie del menú.
   const [srv, setSrv] = useState<SrvInfo | null>(null);
+  // Actualización pendiente (estilo Windows): la App compara su versión con la
+  // del instalador compartido y ofrece actualizarse con un clic.
+  const [upd, setUpd] = useState<{ disponible: string } | null>(null);
+  const [updCerrado, setUpdCerrado] = useState(false);   // "Después" (solo esta sesión)
+  const [updBusy, setUpdBusy] = useState(false);
+  const [updListo, setUpdListo] = useState(false);        // pantalla "actualizando…"
+  const confirmar = useConfirm();
   useEffect(() => {
-    Promise.all([api.get("/servidor").catch(() => null), api.get("/health").catch(() => null)])
-      .then(([s, h]: any) => setSrv({ ...(s || {}), version: h?.version || "" }));
+    Promise.all([
+      api.get("/servidor").catch(() => null),
+      api.get("/health").catch(() => null),
+      api.get("/sistema/actualizacion").catch(() => null),
+    ]).then(([s, h, u]: any) => {
+      setSrv({ ...(s || {}), version: h?.version || "" });
+      if (u?.hay && u?.disponible) setUpd({ disponible: u.disponible });
+    });
   }, []);
+  const actualizar = async () => {
+    if (updBusy || !upd) return;
+    const r = await confirmar({
+      titulo: "Actualizar la aplicación",
+      mensaje: `Se instalará la versión ${upd.disponible}. La aplicación se cerrará un momento para actualizarse; cuando termine, vuelve a abrirla desde el acceso directo.`,
+      confirmar: "Actualizar ahora", cancelar: "Ahora no",
+    });
+    if (r !== "si") return;
+    setUpdBusy(true);
+    try { await api.post("/sistema/actualizar", {}); }
+    catch { /* la conexión se cae al detenerse el backend: es esperado */ }
+    setUpdListo(true);
+  };
 
   const inicial = (user.nombre || "?").split(" ").map((x) => x[0]).slice(0, 2).join("").toUpperCase();
   const rolLbl = user.rol === "superadmin" ? "Super Usuario" : user.rol === "admin" ? "Administrador" : "Usuario";
@@ -200,6 +226,18 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
         </div>
       </aside>
       <div className="main">
+        {upd && !updCerrado && (
+          <div className="upd-bar" role="status">
+            <Icon name="down" size={16} />
+            <span className="upd-txt">Hay una actualización disponible<b> · v{upd.disponible}</b></span>
+            <button className="upd-btn" onClick={actualizar} disabled={updBusy}>
+              {updBusy ? "Actualizando…" : "Actualizar ahora"}
+            </button>
+            <button className="upd-x" title="Después" aria-label="Después" onClick={() => setUpdCerrado(true)}>
+              <Icon name="x" size={14} />
+            </button>
+          </div>
+        )}
         <header className="topbar marco">
           <div className="ctx-band">
             <div className="ctx-cell ctx-firma">CARDONA &amp; CARDONA CONSULTORES S.A.S.</div>
@@ -251,6 +289,15 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
           {vistas.has("config") && <div style={{ display: page === "config" ? "contents" : "none" }}><Config active={page === "config"} puede={puede} /></div>}
         </div>
       </div>
+      {updListo && (
+        <div className="upd-overlay">
+          <div className="upd-card">
+            <span className="upd-spin" />
+            <h3>Actualizando Maestros…</h3>
+            <p>Se está instalando la versión {upd?.disponible}. Cuando la ventana de actualización termine, vuelve a abrir la app desde el acceso directo.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
