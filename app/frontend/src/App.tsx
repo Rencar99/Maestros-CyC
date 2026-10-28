@@ -97,6 +97,17 @@ export default function App() {
 
 /** Shell autenticado: menú lateral + barra superior (franja + usuario) + contenido. */
 type SrvInfo = { host?: string; puerto?: number; conectado?: boolean; hostname?: string; ip_equipo?: string; version?: string };
+
+// ¿versión a >= b? (comparación numérica por segmentos: 1.23.10 >= 1.23.9)
+const _vnums = (s: string) => (String(s || "").match(/\d+/g) || []).map(Number);
+function _vge(a: string, b: string): boolean {
+  const x = _vnums(a), y = _vnums(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] || 0) - (y[i] || 0);
+    if (d) return d > 0;
+  }
+  return true; // iguales
+}
 function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | null) => void }) {
   const [page, setPage] = useState<Page>("clientes");
   // Menú del usuario (estilo cuenta): se abre desde el chip de arriba a la derecha.
@@ -125,7 +136,6 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
   // Actualización pendiente (estilo Windows): la App compara su versión con la
   // del instalador compartido y ofrece actualizarse con un clic.
   const [upd, setUpd] = useState<{ disponible: string } | null>(null);
-  const [updCerrado, setUpdCerrado] = useState(false);   // "Después" (solo esta sesión)
   const [updBusy, setUpdBusy] = useState(false);
   const [updListo, setUpdListo] = useState(false);        // pantalla "actualizando…"
   const confirmar = useConfirm();
@@ -143,7 +153,7 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
     if (updBusy || !upd) return;
     const r = await confirmar({
       titulo: "Actualizar la aplicación",
-      mensaje: `Se instalará la versión ${upd.disponible}. La aplicación se cerrará un momento para actualizarse; cuando termine, vuelve a abrirla desde el acceso directo.`,
+      mensaje: `Se instalará la versión ${upd.disponible}. La app se reiniciará sola en unos segundos.`,
       confirmar: "Actualizar ahora", cancelar: "Ahora no",
     });
     if (r !== "si") return;
@@ -152,6 +162,23 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
     catch { /* la conexión se cae al detenerse el backend: es esperado */ }
     setUpdListo(true);
   };
+  // Mientras actualiza: sondea /health y recarga sola cuando el backend vuelve
+  // con la versión nueva (el actualizador reinicia el backend). Sin recargar a
+  // mano ni quedarse colgado. A los ~90 s sin volver, ofrece recargar manual.
+  const [updTardo, setUpdTardo] = useState(false);
+  useEffect(() => {
+    if (!updListo) return;
+    const objetivo = upd?.disponible || "";
+    const t0 = Date.now();
+    const id = setInterval(async () => {
+      try {
+        const h: any = await api.get("/health");
+        if (h?.version && _vge(h.version, objetivo)) { clearInterval(id); location.reload(); return; }
+      } catch { /* backend reiniciándose */ }
+      if (Date.now() - t0 > 90_000) setUpdTardo(true);
+    }, 2500);
+    return () => clearInterval(id);
+  }, [updListo]); // eslint-disable-line
 
   const inicial = (user.nombre || "?").split(" ").map((x) => x[0]).slice(0, 2).join("").toUpperCase();
   const rolLbl = user.rol === "superadmin" ? "Super Usuario" : user.rol === "admin" ? "Administrador" : "Usuario";
@@ -218,26 +245,21 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
           <button className={"nav-item" + (page === "generar" ? " on" : "")} title="Generar Consultas" onClick={() => setPage("generar")}><Icon name="db" /><span className="nav-txt">Generar Consultas</span></button>
         )}
         <button className={"nav-item" + (page === "config" ? " on" : "")} title="Configuración" onClick={() => setPage("config")}><Icon name="gear" /><span className="nav-txt">Configuración</span></button>
-        <div className="side-foot side-srv" title={srvOk === false ? "Sin conexión con el servidor de datos" : "Servidor de datos de la firma"}>
+        <div className={"side-foot side-srv" + (upd ? " has-upd" : "")} title={srvOk === false ? "Sin conexión con el servidor de datos" : "Servidor de datos de la firma"}>
           <span className={"srv-dot" + (srvOk === false ? " off" : "")} />
           <div className="who">Servidor de la firma
             <span>{srv ? (srvOk ? "Conectado" : "Sin conexión") : "Verificando…"}{srv?.version ? ` · v${srv.version}` : ""}</span>
           </div>
+          {upd && (
+            <button className="srv-upd" onClick={actualizar} disabled={updBusy}
+              title={updBusy ? "Actualizando…" : `Actualizar a v${upd.disponible}`} aria-label="Actualizar">
+              <Icon name="down" size={13} />
+              {!colapsado && <span>{updBusy ? "Actualizando…" : `Actualizar · v${upd.disponible}`}</span>}
+            </button>
+          )}
         </div>
       </aside>
       <div className="main">
-        {upd && !updCerrado && (
-          <div className="upd-bar" role="status">
-            <Icon name="down" size={16} />
-            <span className="upd-txt">Hay una actualización disponible<b> · v{upd.disponible}</b></span>
-            <button className="upd-btn" onClick={actualizar} disabled={updBusy}>
-              {updBusy ? "Actualizando…" : "Actualizar ahora"}
-            </button>
-            <button className="upd-x" title="Después" aria-label="Después" onClick={() => setUpdCerrado(true)}>
-              <Icon name="x" size={14} />
-            </button>
-          </div>
-        )}
         <header className="topbar marco">
           <div className="ctx-band">
             <div className="ctx-cell ctx-firma">CARDONA &amp; CARDONA CONSULTORES S.A.S.</div>
@@ -294,7 +316,12 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
           <div className="upd-card">
             <span className="upd-spin" />
             <h3>Actualizando Maestros…</h3>
-            <p>Se está instalando la versión {upd?.disponible}. Cuando la ventana de actualización termine, vuelve a abrir la app desde el acceso directo.</p>
+            <p>Instalando la versión {upd?.disponible}. La app se reiniciará sola en unos segundos.</p>
+            {updTardo && (
+              <button className="upd-btn" style={{ marginTop: 16 }} onClick={() => location.reload()}>
+                Reabrir ahora
+              </button>
+            )}
           </div>
         </div>
       )}

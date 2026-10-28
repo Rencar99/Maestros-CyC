@@ -1350,15 +1350,16 @@ table.mtx td.mtx-c.hoy{background:var(--primary);color:#fff;font-weight:700;bord
 .cxc-ec tfoot td{padding:8px 10px;border-top:1px solid var(--line-2);font-variant-numeric:tabular-nums}
 @media(max-width:1100px){.cxc-kpis{grid-template-columns:repeat(3,1fr)}}
 
-/* --- Aviso de actualización (estilo Windows Update) ---------------------- */
-.upd-bar{display:flex;align-items:center;gap:10px;padding:8px 18px;background:var(--gold-soft);border-bottom:1px solid #EAD6B4;color:var(--warn);font-size:13px;font-weight:600;animation:fade .18s ease}
-.upd-bar>svg{stroke:currentColor;fill:none;stroke-width:2;flex:none}
-.upd-txt{color:#7A5312}.upd-txt b{color:var(--warn)}
+/* --- Aviso de actualización ---------------------------------------------- */
+/* Aviso discreto en la zona de versión (pie del menú): botón ámbar. */
+.srv-upd{margin-left:auto;display:flex;align-items:center;gap:5px;border:0;cursor:pointer;background:rgba(247,147,30,.16);color:#f7b24e;font-size:11px;font-weight:700;padding:5px 9px;border-radius:7px;white-space:nowrap;transition:.15s}
+.srv-upd:hover{background:rgba(247,147,30,.28);color:#ffc266}
+.srv-upd:disabled{opacity:.7;cursor:default}
+.srv-upd>svg{stroke:currentColor;fill:none;stroke-width:2.2;flex:none}
+.side.collapsed .srv-upd{margin:6px 0 0;padding:6px}
 .upd-btn{margin-left:auto;border:0;background:var(--azul-vivo);color:#fff;font-size:12.5px;font-weight:700;padding:6px 14px;border-radius:7px;cursor:pointer;box-shadow:0 2px 3px rgba(8,54,199,.28);transition:.15s}
 .upd-btn:hover{background:#0a2fa8}
 .upd-btn:disabled{opacity:.6;cursor:default}
-.upd-x{border:0;background:transparent;color:var(--warn);cursor:pointer;display:grid;place-items:center;padding:4px;border-radius:6px;opacity:.75}
-.upd-x:hover{opacity:1;background:rgba(169,118,28,.12)}
 .upd-overlay{position:fixed;inset:0;background:rgba(15,23,42,.42);backdrop-filter:blur(2px);display:grid;place-items:center;z-index:200;animation:fade .2s ease}
 .upd-card{background:var(--card);border-radius:16px;box-shadow:var(--shadow-2);padding:34px 40px;max-width:420px;text-align:center}
 .upd-card h3{margin:16px 0 8px;font-size:17px;color:var(--ink)}
