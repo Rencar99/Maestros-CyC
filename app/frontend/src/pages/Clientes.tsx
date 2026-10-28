@@ -810,21 +810,14 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     }
     finally { setRutCargando(false); }
   };
-  // Selector nativo que arranca en la carpeta de trabajo del cliente (lo que el
-  // <input type=file> del navegador no permite). El backend lee el PDF elegido.
-  const compararRut = async () => {
+  // Usa NUESTRO explorador (modo archivo, solo PDF) arrancando en la carpeta de
+  // trabajo del cliente. El backend lee el PDF elegido y lo compara con la ficha.
+  const compararRut = () => {
     if (rutCargando) return;
-    const dir = (c.ruta_trabajo || "").trim();
-    try {
-      const r = await api.get(`/sistema/seleccionar-archivo?dir=${encodeURIComponent(dir)}`
-        + `&titulo=${encodeURIComponent("Selecciona el RUT (PDF) del cliente")}`
-        + `&filtro=${encodeURIComponent("RUT en PDF (*.pdf)|*.pdf|Todos los archivos (*.*)|*.*")}`);
-      const path = String(r?.path || "").trim();
-      if (!path) return;   // canceló el diálogo
-      await procesarRut(() => api.get(`/clientes/rut/parse-path?path=${encodeURIComponent(path)}`));
-    } catch (e: any) {
-      toast(String(e?.message || "No se pudo abrir el selector de archivo"), true);
-    }
+    setExplorar({
+      modo: "archivo", exts: ["pdf"], inicio: (c.ruta_trabajo || "").trim(),
+      pick: (ruta) => procesarRut(() => api.get(`/clientes/rut/parse-path?path=${encodeURIComponent(ruta)}`)),
+    });
   };
   const aplicarRut = () => {
     const nuevo = { ...(rutItems || []).filter((it) => it.check).reduce((acc, it) => it.apply(acc), c), rut_actualizado: hoyISO() };
@@ -843,7 +836,7 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     { key: "actual", label: "En la ficha", value: (it) => it.actual || "", render: (it) => <span className="cell-dash">{it.actual || "—"}</span> },
     { key: "propuesto", label: "En el RUT", value: (it) => it.propuesto || "", render: (it) => <span style={{ color: it.info ? "#E8A020" : "var(--primary)" }}>{it.propuesto}</span> },
   ];
-  const [explorar, setExplorar] = useState<{ modo: "carpeta" | "archivo"; key: keyof Cliente; inicio?: string } | null>(null);
+  const [explorar, setExplorar] = useState<{ modo: "carpeta" | "archivo"; key?: keyof Cliente; inicio?: string; exts?: string[]; pick?: (ruta: string) => void | Promise<void> } | null>(null);
 
   const guardarRaw = async (): Promise<boolean> => {
     if (c.email_responsable_cliente && !emailOk(c.email_responsable_cliente)) {
@@ -1253,12 +1246,13 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
         </div>
       </div>
       </form>
-      {explorar && <Explorador modo={explorar.modo} inicio={explorar.inicio} onSelect={async (ruta) => {
+      {explorar && <Explorador modo={explorar.modo} inicio={explorar.inicio} exts={explorar.exts} onSelect={async (ruta) => {
+        if (explorar.pick) { await explorar.pick(ruta); return; }
         if (explorar.key === "ruta_generador") {
           let v = ruta;
           try { const r: any = await api.get(`/sistema/ruta-portable?ruta=${encodeURIComponent(ruta)}`); v = r.ruta || ruta; } catch { /* usar la ruta tal cual */ }
           set("ruta_generador", v);
-        } else { set(explorar.key, ruta); }
+        } else if (explorar.key) { set(explorar.key, ruta); }
       }} onClose={() => setExplorar(null)} />}
       {claveEdit && (
         <ClaveModal portales={portalesCat} setPortales={setPortalesCat}

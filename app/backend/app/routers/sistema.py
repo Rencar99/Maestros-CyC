@@ -1,19 +1,13 @@
-"""Selectores nativos de Windows (uso local: el diálogo se abre en la máquina
-del backend, que aquí es la del usuario).
+"""Sistema: explorador de archivos/carpetas del equipo (nuestro propio selector,
+servido por el backend), rutas portables (%OneDrive%) y auto-actualización.
 
-- Carpeta: diálogo MODERNO de Windows (IFileOpenDialog) compilado en
-  ``folderpicker.exe`` (app de ventana, sin consola). Mismo del Explorador.
-- Archivo: OpenFileDialog de WinForms vía PowerShell (traído al frente).
-
-Réplica del patrón de la app Descargar DIAN, para obtener la ruta REAL del disco
-(lo que el navegador no puede por seguridad).
+El selector nativo de Windows se retiró: la UI usa el componente Explorador
+(``/sistema/explorar``), consistente y con el mismo look de la app.
 """
 from __future__ import annotations
 
-import base64
 import os
 import subprocess
-import threading
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -184,83 +178,3 @@ def explorar(ruta: str = "", solo_carpetas: bool = False, libre: bool = False,
     padre = "" if actual == raiz else str(actual.parent)
     return {"ruta": str(actual), "padre": padre, "raiz": str(raiz),
             "es_raiz": actual == raiz, "carpetas": carpetas, "archivos": archivos}
-
-# folderpicker.exe vive en  app/backend/folderpicker.exe
-_PICKER = Path(__file__).resolve().parents[2] / "folderpicker.exe"
-_lock = threading.Lock()  # evita abrir dos diálogos a la vez
-
-
-@router.get("/seleccionar-carpeta")
-def seleccionar_carpeta(_u=Depends(get_current_user)):
-    if not _PICKER.is_file():
-        raise HTTPException(500, "No se encontró el selector de carpeta (folderpicker.exe).")
-    if not _lock.acquire(blocking=False):
-        return {"path": ""}
-    flags = 0x08000000 if os.name == "nt" else 0  # CREATE_NO_WINDOW
-    try:
-        res = subprocess.run([str(_PICKER)], capture_output=True, text=True,
-                             timeout=300, creationflags=flags)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(500, f"No se pudo abrir el selector de carpeta: {exc}")
-    finally:
-        _lock.release()
-    return {"path": (res.stdout or "").strip()}
-
-
-@router.get("/seleccionar-archivo")
-def seleccionar_archivo(dir: str = "", titulo: str = "Ubica el archivo de la propuesta",
-                        filtro: str = "", _u=Depends(get_current_user)):
-    """Diálogo nativo de Windows para elegir UN archivo. Devuelve su ruta absoluta.
-    ``dir`` = carpeta inicial; ``titulo`` = título del diálogo; ``filtro`` =
-    filtro de tipos estilo WinForms (ej. 'PDF (*.pdf)|*.pdf|Todos|*.*')."""
-    if not _lock.acquire(blocking=False):
-        return {"path": ""}
-    init = (dir or "").replace("'", "''")
-    tit = (titulo or "Ubica el archivo").replace("'", "''")
-    filt = (filtro or "").replace("'", "''")
-    ps = "\n".join([
-        "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8",
-        "Add-Type -AssemblyName System.Windows.Forms",
-        "Add-Type -AssemblyName System.Drawing",
-        "$sig = @'",
-        '[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);',
-        '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
-        '[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr p);',
-        '[DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();',
-        '[DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool f);',
-        '[DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);',
-        "'@",
-        "$W = Add-Type -MemberDefinition $sig -Name Fg -Namespace Native -PassThru",
-        "$o = New-Object System.Windows.Forms.Form",
-        "$o.TopMost = $true; $o.StartPosition = 'CenterScreen'",
-        "$o.Size = New-Object System.Drawing.Size(1,1); $o.Opacity = 0; $o.ShowInTaskbar = $false",
-        "$o.Add_Shown({",
-        "  $fg = $W::GetForegroundWindow()",
-        "  $tid = $W::GetWindowThreadProcessId($fg, [IntPtr]::Zero)",
-        "  $cur = $W::GetCurrentThreadId()",
-        "  [void]$W::AttachThreadInput($tid, $cur, $true)",
-        "  [void]$W::SetForegroundWindow($o.Handle)",
-        "  [void]$W::BringWindowToTop($o.Handle)",
-        "  [void]$W::AttachThreadInput($tid, $cur, $false)",
-        "})",
-        "$o.Show(); [System.Windows.Forms.Application]::DoEvents()",
-        "$d = New-Object System.Windows.Forms.OpenFileDialog",
-        "$d.Multiselect = $false",
-        f"$d.Title = '{tit}'",
-        f"$d.InitialDirectory = '{init}'",
-        *([f"$d.Filter = '{filt}'"] if filtro else []),
-        "$r = $d.ShowDialog($o)",
-        "$o.Close()",
-        "if ($r -eq [System.Windows.Forms.DialogResult]::OK) { $d.FileName }",
-    ])
-    b64 = base64.b64encode(ps.encode("utf-16-le")).decode()
-    flags = 0x08000000 if os.name == "nt" else 0
-    try:
-        res = subprocess.run(
-            ["powershell", "-NoProfile", "-STA", "-EncodedCommand", b64],
-            capture_output=True, text=True, encoding="utf-8", timeout=300, creationflags=flags)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(500, f"No se pudo abrir el selector de archivo: {exc}")
-    finally:
-        _lock.release()
-    return {"path": (res.stdout or "").strip()}

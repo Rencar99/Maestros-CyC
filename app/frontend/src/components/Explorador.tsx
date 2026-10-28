@@ -12,12 +12,13 @@ interface Data { ruta: string; padre: string; raiz: string; es_raiz: boolean; ca
  *  Interacción: un clic SELECCIONA la fila (y enfoca la lista para teclado); doble
  *  clic ENTRA a la carpeta / elige el archivo. Con la lista enfocada: ↑/↓ mueven la
  *  selección, Enter entra/elige, y escribir letras salta a la fila que coincide. */
-export function Explorador({ modo, onSelect, onClose, inicio, libre = true }: {
+export function Explorador({ modo, onSelect, onClose, inicio, libre = true, exts }: {
   modo: "carpeta" | "archivo";
   onSelect: (ruta: string) => void;
   onClose: () => void;
   inicio?: string;   // carpeta inicial donde abrir (si no, la carpeta de la firma)
   libre?: boolean;   // navegar todo el equipo (abre en la carpeta de la firma; se puede subir a cualquier unidad)
+  exts?: string[];   // en modo archivo, mostrar solo estas extensiones (sin punto, ej. ["pdf"])
 }) {
   const toast = useToast();
   const [data, setData] = useState<Data | null>(null);
@@ -37,8 +38,10 @@ export function Explorador({ modo, onSelect, onClose, inicio, libre = true }: {
   useEffect(() => { cargar(inicio || ""); }, []); // eslint-disable-line
 
   const q = filtro.trim().toLowerCase();
+  const extset = (exts || []).map((e) => e.replace(/^\./, "").toLowerCase());
+  const okExt = (nombre: string) => !extset.length || extset.includes((nombre.split(".").pop() || "").toLowerCase());
   const carpetas = (data?.carpetas || []).filter((c) => !q || c.nombre.toLowerCase().includes(q));
-  const archivos = (data?.archivos || []).filter((a) => !q || a.nombre.toLowerCase().includes(q));
+  const archivos = (data?.archivos || []).filter((a) => okExt(a.nombre) && (!q || a.nombre.toLowerCase().includes(q)));
   const items: Item[] = [...carpetas, ...(modo === "archivo" ? archivos : [])];
   const esCarpeta = (it: Item) => carpetas.some((c) => c.ruta === it.ruta);
 
