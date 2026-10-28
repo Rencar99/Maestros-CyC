@@ -35,8 +35,11 @@ async function req(method: string, path: string, body?: unknown, muta = true): P
   // al manejador de abajo para mostrar el mensaje real del backend).
   if (r.status === 401 && tok && !path.includes("/auth/login")) {
     clearToken();
+    let msg = "Tu sesión se cerró.";
+    try { const j = await r.json(); if (j?.detail && typeof j.detail === "string") msg = j.detail; } catch { /* sin cuerpo */ }
+    try { sessionStorage.setItem("maestros_logout_msg", msg); } catch { /* ignore */ }
     window.dispatchEvent(new Event("maestros:logout"));
-    throw new Error("Sesión expirada");
+    throw new Error(msg);
   }
   if (!r.ok) {
     let msg = r.statusText;
@@ -149,4 +152,14 @@ export const api = {
   download,
   downloadPost,
   openPdf,
+  // Cierra la sesión en el servidor (libera el "una sola sesión por equipo").
+  logout: () => req("POST", "/auth/logout").catch(() => {}),
+  // Latido: mantiene fresca la sesión mientras la App esté abierta.
+  latido: () => req("GET", "/auth/me").catch(() => {}),
+  // Beacon de cierre de ventana: cierra la sesión aunque no se use «Salir».
+  logoutBeacon: () => {
+    const t = getToken();
+    if (!t) return;
+    try { navigator.sendBeacon("/api/auth/logout", new Blob([JSON.stringify({ token: t })], { type: "application/json" })); } catch { /* ignore */ }
+  },
 };

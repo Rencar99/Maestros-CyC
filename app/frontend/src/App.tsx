@@ -77,6 +77,16 @@ export default function App() {
     return () => window.removeEventListener("maestros:logout", salir);
   }, []);
 
+  // Mientras hay sesión: latido periódico (mantiene "fresca" la sesión para el
+  // control de 'una sola por equipo') y beacon de cierre al cerrar la ventana.
+  useEffect(() => {
+    if (!user) return;
+    const t = window.setInterval(() => { void api.latido(); }, 90_000);
+    const beacon = () => api.logoutBeacon();
+    window.addEventListener("pagehide", beacon);
+    return () => { window.clearInterval(t); window.removeEventListener("pagehide", beacon); };
+  }, [user]);
+
   return (
     <ToastProvider>
     <ConfirmProvider>
@@ -225,7 +235,7 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
     }
   }, [page]); // eslint-disable-line
 
-  const salir = () => { clearToken(); onUser(null); };
+  const salir = () => { void api.logout(); clearToken(); onUser(null); };
   // Estable: evita invalidar el memo de <Facturacion> en cada render del Shell.
   const goFacturacion = useCallback(() => setPage("facturacion"), []);
 

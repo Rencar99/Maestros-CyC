@@ -1,11 +1,13 @@
 """Dependencias de FastAPI: usuario actual (JWT) y control de rol."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import Depends, Header, HTTPException
 from sqlmodel import Session, select
 
 from .db import get_session
-from .models import Permiso, Rol, RolPermiso, Usuario
+from .models import Permiso, Rol, RolPermiso, Sesion, Usuario
 from .security import leer_token
 
 # Permisos que hacen a un rol "administrador de la firma" (texto de compat 'admin',
@@ -60,6 +62,18 @@ def get_current_user(authorization: str = Header(default=""),
     data = leer_token(token) if token else None
     if not data:
         raise HTTPException(401, "No autenticado")
+    # Sesión única: el jti debe seguir activo (los tokens viejos sin jti se aceptan
+    # por compatibilidad). Si se inició en otro equipo o un admin la cerró, cae aquí.
+    jti = data.get("jti")
+    if jti:
+        ses = session.exec(select(Sesion).where(Sesion.jti == jti)).first()
+        if not ses or not ses.activa:
+            raise HTTPException(401, "Tu sesión fue cerrada (se inició en otro equipo o la cerró un administrador).")
+        ahora = datetime.utcnow()   # refresca la actividad (con freno: 1 escritura/30 s)
+        if (ahora - ses.ultima_actividad).total_seconds() > 30:
+            ses.ultima_actividad = ahora
+            session.add(ses)
+            session.commit()
     try:
         user = session.get(Usuario, int(data.get("sub", 0)))
     except (TypeError, ValueError):

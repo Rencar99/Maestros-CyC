@@ -713,3 +713,18 @@ class CxcNota(SQLModel, table=True):
     usuario: str = ""
     texto: str = ""
     estado: str = ""              # foto del estado al momento de anotar
+
+
+class Sesion(SQLModel, table=True):
+    """Sesión activa de un usuario para coordinar 'una sola sesión por equipo':
+    el JWT lleva el `jti` y se valida contra esta tabla en cada petición. Solo se
+    permite una sesión activa y fresca por usuario a la vez (bloquea el ingreso en
+    un 2º equipo mientras la 1ª siga viva). Propia de Maestros (esquema maestros)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    usuario_id: int = Field(index=True)
+    jti: str = Field(index=True, unique=True)   # id del token (para revocar/validar)
+    equipo: str = ""                            # hostname del equipo donde se inició
+    activa: bool = True
+    creado_at: datetime = Field(default_factory=datetime.utcnow)
+    ultima_actividad: datetime = Field(default_factory=datetime.utcnow)

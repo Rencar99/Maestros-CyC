@@ -26,6 +26,15 @@ export function Login({ onOk }: { onOk: (u: Responsable) => void }) {
   const [loading, setLoading] = useState(false);
   const [cfgServidor, setCfgServidor] = useState(false);
 
+  // Si llegamos al login porque la sesión se cerró (se inició en otro equipo o la
+  // cerró un admin), mostrar el motivo.
+  useEffect(() => {
+    try {
+      const m = sessionStorage.getItem("maestros_logout_msg");
+      if (m) { setErr(m); sessionStorage.removeItem("maestros_logout_msg"); }
+    } catch { /* ignore */ }
+  }, []);
+
   // Lista de responsables internos activos para el desplegable.
   useEffect(() => {
     api.get("/auth/usuarios")

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { Icon, SecTitle, useToast } from "../ui";
+import { Icon, SecTitle, useConfirm, useToast } from "../ui";
 import { RolesPermisos } from "./RolesPermisos";
 import { ManualUsuario } from "../components/ManualUsuario";
 import { ServidorConfig } from "../components/ServidorConfig";
@@ -171,12 +171,83 @@ function MiCorreoCard() {
 /** Pantalla Configuración: agrupa en pestañas los ajustes de administración.
  *  - "Manual de usuario": visible para todos. El resto: solo config.roles (Super).
  *  Por eso la pantalla es visible para todos; las pestañas se filtran por permiso. */
+interface SesionRow { id: number; usuario: string; usuario_login: string; equipo: string; inicio: string | null; ultima_actividad: string | null; colgada: boolean; }
+const fmtSes = (iso: string | null) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "—" : d.toLocaleString("es-CO", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+};
+
+/** Monitor de sesiones activas (admin): quién está conectado y en qué equipo;
+ *  permite cerrar una sesión (el equipo queda deslogueado en su próxima acción).
+ *  Regla: una sola sesión activa por usuario a la vez. */
+function SesionesCard({ active }: { active: boolean }) {
+  const toast = useToast();
+  const confirmar = useConfirm();
+  const [rows, setRows] = useState<SesionRow[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [cerrando, setCerrando] = useState<number | null>(null);
+
+  const cargar = () => api.get("/sesiones")
+    .then((r: SesionRow[]) => setRows(r))
+    .catch((e: any) => toast(e.message, true))
+    .finally(() => setCargando(false));
+  useEffect(() => {
+    if (!active) return;
+    cargar();
+    const t = window.setInterval(cargar, 15_000);
+    return () => window.clearInterval(t);
+  }, [active]); // eslint-disable-line
+
+  const cerrar = async (s: SesionRow) => {
+    if ((await confirmar({
+      titulo: "Cerrar sesión", peligro: true, confirmar: "Cerrar",
+      mensaje: `Se cerrará la sesión de ${s.usuario} en «${s.equipo}». El equipo quedará deslogueado en su próxima acción.`,
+    })) !== "si") return;
+    setCerrando(s.id);
+    try { await api.del(`/sesiones/${s.id}`); toast("Sesión cerrada ✓"); cargar(); }
+    catch (e: any) { toast(e.message, true); }
+    finally { setCerrando(null); }
+  };
+
+  return (
+    <div className="card">
+      <div className="card-h" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <SecTitle icon="resp">Sesiones activas</SecTitle>
+        <button className="btn sm" onClick={cargar} title="Actualizar"><Icon name="refresh" size={15} /> Actualizar</button>
+      </div>
+      <div style={{ padding: 16 }}>
+        {cargando ? <div className="hint">Cargando…</div>
+          : rows.length === 0 ? <div className="hint">No hay sesiones activas.</div>
+          : (
+            <table className="cxc-ec">
+              <thead><tr><th>Usuario</th><th>Equipo</th><th>Inicio</th><th>Última actividad</th><th>Estado</th><th></th></tr></thead>
+              <tbody>
+                {rows.map((s) => (
+                  <tr key={s.id}>
+                    <td><b>{s.usuario}</b>{s.usuario_login ? <div style={{ fontSize: 11, color: "var(--ink-3)" }}>{s.usuario_login}</div> : null}</td>
+                    <td>{s.equipo}</td>
+                    <td>{fmtSes(s.inicio)}</td>
+                    <td>{fmtSes(s.ultima_actividad)}</td>
+                    <td><span className={"cxc-chip " + (s.colgada ? "cxc-g-sin" : "cxc-g-ok")}>{s.colgada ? "Inactiva" : "Activa"}</span></td>
+                    <td className="r"><button className="btn sm danger" disabled={cerrando === s.id} onClick={() => cerrar(s)}><Icon name="logout" size={14} /> Cerrar</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+      </div>
+    </div>
+  );
+}
+
 export function Config({ active = true, puede }: { active?: boolean; puede: (c: string) => boolean }) {
   const sup = puede("config.roles");
   const tabs = [
     ...(sup ? [{ k: "roles", lbl: "Roles y permisos", icon: "shield-check" }] : []),
     { k: "manual", lbl: "Manual de usuario", icon: "file" },
     { k: "micorreo", lbl: "Mi correo", icon: "mail" },
+    ...(sup ? [{ k: "sesiones", lbl: "Sesiones", icon: "resp" }] : []),
     ...(sup ? [{ k: "cobro", lbl: "Datos de cobro", icon: "coins" }] : []),
     ...(sup ? [{ k: "correo", lbl: "Plantilla del correo", icon: "mail" }] : []),
     ...(sup ? [{ k: "servidor", lbl: "Servidor de datos", icon: "gear" }] : []),
@@ -193,6 +264,7 @@ export function Config({ active = true, puede }: { active?: boolean; puede: (c: 
         ))}
       </div>
       {tab === "roles" && sup && <RolesPermisos active={active && tab === "roles"} />}
+      {tab === "sesiones" && sup && <SesionesCard active={active && tab === "sesiones"} />}
       {tab === "manual" && <ManualUsuario />}
       {tab === "micorreo" && <MiCorreoCard />}
       {tab === "cobro" && sup && <DatosCobroCard />}
