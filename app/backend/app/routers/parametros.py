@@ -77,6 +77,31 @@ def guardar_cobro(data: CobroIn, session: Session = Depends(get_session),
     _set(session, "cobro_carpeta", data.carpeta.strip())
     _set(session, "cobro_nota_383", data.nota_383.strip() or _COBRO_DEF["cobro_nota_383"])
     session.commit()
+
+
+# ===================================================== Carpeta de Facturas de Venta
+# Raíz (portable) donde se archivan los PDF de las facturas; el visor de cartera
+# resuelve <raíz>\<año>\Facturas de Venta\<N. Mes>\<CLIENTE> - FEV - CYC<n>.pdf.
+_FACTURAS_ROOT_DEF = r"%OneDriveCommercial%\Asesorias Externas\C&C"
+
+
+class FacturasRootIn(BaseModel):
+    carpeta: str = ""
+
+
+@router.get("/cartera-facturas")
+def obtener_facturas_root(session: Session = Depends(get_session), _u=Depends(get_current_user)):
+    return {"carpeta": _get(session, "cartera_facturas_root", _FACTURAS_ROOT_DEF)}
+
+
+@router.put("/cartera-facturas")
+def guardar_facturas_root(data: FacturasRootIn, session: Session = Depends(get_session),
+                          _=Depends(require_perm("config.roles"))):
+    from .clientes import _ruta_portable
+    v = data.carpeta.strip()
+    _set(session, "cartera_facturas_root", (_ruta_portable(v) if v else "") or _FACTURAS_ROOT_DEF)
+    session.commit()
+    return {"carpeta": _get(session, "cartera_facturas_root", _FACTURAS_ROOT_DEF)}
     return _cobro(session)
 
 
@@ -114,6 +139,156 @@ def guardar_correo(data: CorreoIn, session: Session = Depends(get_session),
     _set(session, "correo_cuerpo", data.cuerpo.strip() or _CORREO_CUERPO_DEF)
     session.commit()
     return _correo(session)
+
+
+# =============================================== Texto base del correo de reasignación
+# Plantilla (asunto + introducción + cierre) del aviso que se envía al Responsable de
+# Impuestos tras una reasignación. La TABLA la arma la app; aquí solo el texto.
+# Variables: {responsable} (quien recibe) · {periodo} (AAAA-MM) · {mes_nom} (noviembre) · {anio}.
+_REASIG_ASUNTO_DEF = "Preparación y supervisión de vencimientos tributarios - {periodo}"
+_REASIG_INTRO_DEF = ("Hola, {responsable}:\n\nPara el mes de {mes_nom}, como lo hemos venido "
+                     "conversando, la revisión y aprobación de las liquidaciones tributarias "
+                     "que tienes a cargo quedará distribuida de la siguiente manera:")
+_REASIG_CIERRE_DEF = ("Las liquidaciones y sus soportes deberán remitirse al supervisor "
+                      "correspondiente con la anticipación necesaria para realizar la revisión "
+                      "y atender los ajustes antes del vencimiento. Cualquier dificultad que "
+                      "pueda afectar el cumplimiento deberá informarse oportunamente.\n\n"
+                      "Deberás mantener actualizado el calendario tributario, registrando los "
+                      "soportes de presentación y pago cuando corresponda, así como las "
+                      "observaciones y los pendientes de cada obligación.\n\nSaludos,")
+
+
+class ReasigCorreoIn(BaseModel):
+    asunto: str = ""
+    intro: str = ""
+    cierre: str = ""
+
+
+def _reasig(session: Session) -> dict:
+    """Texto base del correo de reasignación (editable en Configuración)."""
+    return {
+        "asunto": _get(session, "reasig_asunto", _REASIG_ASUNTO_DEF),
+        "intro": _get(session, "reasig_intro", _REASIG_INTRO_DEF),
+        "cierre": _get(session, "reasig_cierre", _REASIG_CIERRE_DEF),
+    }
+
+
+@router.get("/reasig-correo")
+def obtener_reasig(session: Session = Depends(get_session), _=Depends(require_perm("config.roles"))):
+    return _reasig(session)
+
+
+@router.put("/reasig-correo")
+def guardar_reasig(data: ReasigCorreoIn, session: Session = Depends(get_session),
+                   _=Depends(require_perm("config.roles"))):
+    _set(session, "reasig_asunto", data.asunto.strip() or _REASIG_ASUNTO_DEF)
+    _set(session, "reasig_intro", data.intro.strip() or _REASIG_INTRO_DEF)
+    _set(session, "reasig_cierre", data.cierre.strip() or _REASIG_CIERRE_DEF)
+    session.commit()
+    return _reasig(session)
+
+
+# ===================================================== Mensaje de WhatsApp (cartera)
+# Plantilla del texto que se prellena en wa.me para el cobro de cartera. Variables:
+# {saludo} {cliente} {total} {firma} {banco} {tipo_cuenta} {numero_cuenta} {titular}.
+# WhatsApp acepta formato: *negrita*, _cursiva_ y bloque monoespaciado con ``` ``` (la
+# tabla). {tabla} la arma la app con las facturas; las demás variables son texto.
+_WA_LINEA = "──────────────────"
+_WA_DEF = ("🧾 *Srs. {cliente}*\n\n"
+           "👋 Estimado(a){saludo}.\n\n"
+           "En *{firma}* queremos recordarle que a la fecha presenta un saldo "
+           "pendiente, que detallamos a continuación:\n"
+           f"{_WA_LINEA}\n"
+           "{tabla}\n"
+           "💰 *Total: {total}*\n"
+           f"{_WA_LINEA}\n\n"
+           "🏦 Si lo desea, puede realizar su pago en la cuenta de "
+           "*{tipo_cuenta} N° {numero_cuenta}* del banco *{banco}* a nombre de {titular}.\n\n"
+           "🙏 Agradeciendo su atención, quedamos atentos a su pronto pago.\n\n"
+           "P.D. Si ya realizó su pago, por favor haga caso omiso de este mensaje.")
+
+
+class WaIn(BaseModel):
+    plantilla: str = ""
+
+
+def _wa(session: Session) -> str:
+    """Plantilla del mensaje de WhatsApp de cartera."""
+    return _get(session, "wa_plantilla", _WA_DEF)
+
+
+@router.get("/wa")
+def obtener_wa(session: Session = Depends(get_session), _u=Depends(get_current_user)):
+    return {"plantilla": _wa(session)}
+
+
+@router.put("/wa")
+def guardar_wa(data: WaIn, session: Session = Depends(get_session),
+               _=Depends(require_perm("config.roles"))):
+    _set(session, "wa_plantilla", data.plantilla.strip() or _WA_DEF)
+    session.commit()
+    return {"plantilla": _wa(session)}
+
+
+# ===================================================== Pie de correo corporativo
+# Bloque de firma/contacto que va al pie de los correos de la firma (estado de
+# cuenta de cartera y, a futuro, cuentas de cobro). Editable por Super; nada
+# quemado en el código.
+_PIE_LEGAL_DEF = ("Este mensaje y sus anexos son confidenciales y para uso exclusivo "
+                  "del destinatario. Si lo recibiste por error, por favor notifícanos "
+                  "y elimínalo.")
+_PIE_DEF = {
+    "pie_nit": "901183812",
+    "pie_nombre": "Ana Milena Cardona F.",
+    "pie_cargo": "Gerente Administrativa y Financiera",
+    "pie_telefono": "(+57) 324 683 3314",
+    "pie_correo": "comercial@cardonaycardona.com",
+    "pie_ciudad": "Cartagena, Colombia",
+    "pie_web": "www.cardonaycardona.com",
+    "pie_facebook": "facebook.com/cardonaycardona",
+    "pie_instagram": "instagram.com/cardonaycardona",
+    "pie_legal": _PIE_LEGAL_DEF,
+}
+
+
+class PieIn(BaseModel):
+    nit: str = ""
+    nombre: str = ""
+    cargo: str = ""
+    telefono: str = ""
+    correo: str = ""
+    ciudad: str = ""
+    web: str = ""
+    facebook: str = ""
+    instagram: str = ""
+    legal: str = ""
+
+
+def _pie_correo(session: Session) -> dict:
+    """Datos del pie de correo corporativo (con defaults de la firma)."""
+    return {k.removeprefix("pie_"): _get(session, k, v) for k, v in _PIE_DEF.items()}
+
+
+@router.get("/pie-correo")
+def obtener_pie(session: Session = Depends(get_session), _u=Depends(get_current_user)):
+    return _pie_correo(session)
+
+
+@router.put("/pie-correo")
+def guardar_pie(data: PieIn, session: Session = Depends(get_session),
+                _=Depends(require_perm("config.roles"))):
+    _set(session, "pie_nit", data.nit.strip())
+    _set(session, "pie_nombre", data.nombre.strip())
+    _set(session, "pie_cargo", data.cargo.strip())
+    _set(session, "pie_telefono", data.telefono.strip())
+    _set(session, "pie_correo", data.correo.strip())
+    _set(session, "pie_ciudad", data.ciudad.strip())
+    _set(session, "pie_web", data.web.strip())
+    _set(session, "pie_facebook", data.facebook.strip())
+    _set(session, "pie_instagram", data.instagram.strip())
+    _set(session, "pie_legal", data.legal.strip() or _PIE_LEGAL_DEF)
+    session.commit()
+    return _pie_correo(session)
 
 
 # ===================================================== Mi correo (Graph delegado, por usuario)

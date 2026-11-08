@@ -130,6 +130,8 @@ export interface Cliente {
   firma_revisor_id: number | null;
   responsable_cliente: string;
   email_responsable_cliente: string;
+  contacto_cobro: string;
+  celular_cobro: string;
   grupo: string;
   notas: string;
   archivo_propuesta: string;

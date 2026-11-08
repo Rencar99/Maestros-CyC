@@ -1,0 +1,130 @@
+/* ===========================================================================
+   Tema CyC (kit compartido) — modo claro/oscuro + paletas de marca.
+   No editar la copia del aplicativo: se edita en estandar-cyc\tema y se replica
+   con Sync-TemaCyC.ps1. Contrato de tokens: ESTANDAR_TEMA_CYC.md.
+
+   Tres capas, en este orden (importa: a igual especificidad gana la última):
+   1. PALETA en claro   :root[data-palette=X]                  solo tokens de marca
+   2. MODO oscuro       :root[data-theme=oscuro]               neutrales, superficies, semáforo
+   3. PALETA en oscuro  :root[data-theme=oscuro][data-palette=X]  marca más luminosa
+   Los neutrales en CLARO los pone cada aplicativo en su :root (cada uno tiene su tinte);
+   las capas de aquí tienen más especificidad que ese :root y lo pisan solo donde deben.
+   =========================================================================== */
+
+/* ---- 1. PALETAS en claro -------------------------------------------------- */
+:root[data-palette="navy"]{
+  --nav-900:#101F38; --nav-800:#17294A; --nav-700:#1B3358; --nav-600:#1F5FA8;
+  --nav-solid:#101F38; --nav-solid-2:#0B1628;
+  --nav-ink:#fff; --nav-ink-2:#c3d0e8; --nav-ink-3:#8fa4c6; --nav-ink-4:#6d84ab;
+  --primary:#1F5FA8; --primary-h:#1a5292; --primary-08:#1F5FA8; --primary-ink:#092f61; --accent:#5281b7;
+  --cta:#0836c7; --cta-h:#0730a8;
+  --info:#1F5FA8; --info-bg:#E9F0F9; --brand-wash:#EEF3FA; --brand-wash-2:#E9F0F9; --ring:rgba(31,95,168,.22);
+  --grid-header:#F1F4F8; --grid-row-hover:#F5F8FC; --grid-row-active:#F5F8FC;
+}
+:root[data-palette="azul"]{
+  --nav-900:#0a2a9e; --nav-800:#0930b3; --nav-700:#0836c7; --nav-600:#1e54e0;
+  --nav-solid:#0b2f9c; --nav-solid-2:#071f5e;
+  --nav-ink:#fff; --nav-ink-2:rgba(255,255,255,.82); --nav-ink-3:rgba(255,255,255,.6); --nav-ink-4:rgba(255,255,255,.5);
+  --primary:#0836c7; --primary-h:#072ea8; --primary-08:#0836c7; --primary-ink:#1133a0; --accent:#3e74ff;
+  --cta:#0836c7; --cta-h:#072ea8;
+  --info:#0836c7; --info-bg:#E6ECFB; --brand-wash:#eef2fc; --brand-wash-2:#e6ecfb; --ring:rgba(8,54,199,.22);
+  --grid-header:#EAF0FB; --grid-row-hover:#F2F6FD; --grid-row-active:#EAF1FD;
+}
+:root[data-palette="verde"]{
+  --nav-900:#3f7a27; --nav-800:#3a7524; --nav-700:#346f20; --nav-600:#4e9433;
+  --nav-solid:#296a15; --nav-solid-2:#1c3f12;
+  --nav-ink:#fff; --nav-ink-2:rgba(255,255,255,.82); --nav-ink-3:rgba(255,255,255,.6); --nav-ink-4:rgba(255,255,255,.5);
+  --primary:#4e9433; --primary-h:#3f7a27; --primary-08:#4e9433; --primary-ink:#2f6a1d; --accent:#6db44e;
+  --cta:#4e9433; --cta-h:#3f7a27;
+  --info:#4e9433; --info-bg:#ECF5E1; --brand-wash:#eef5e6; --brand-wash-2:#edf5e3; --ring:rgba(78,148,51,.22);
+  --grid-header:#EDF2E7; --grid-row-hover:#F5FAEF; --grid-row-active:#EFF6E6;
+}
+:root[data-palette="grafito"]{
+  --nav-900:#374151; --nav-800:#414b5a; --nav-700:#4b5563; --nav-600:#6b7280;
+  --nav-solid:#374151; --nav-solid-2:#1f2733;
+  --nav-ink:#fff; --nav-ink-2:rgba(255,255,255,.82); --nav-ink-3:rgba(255,255,255,.6); --nav-ink-4:rgba(255,255,255,.5);
+  --primary:#4b5563; --primary-h:#374151; --primary-08:#4b5563; --primary-ink:#374151; --accent:#8a94a4;
+  --cta:#4b5563; --cta-h:#374151;
+  --info:#4b5563; --info-bg:#EEF0F3; --brand-wash:#eef0f3; --brand-wash-2:#e6e9ee; --ring:rgba(75,85,99,.22);
+  --grid-header:#EEF0F3; --grid-row-hover:#F4F5F7; --grid-row-active:#ECEEF2;
+}
+
+/* ---- 2. MODO oscuro: neutrales, superficies y semáforo (igual en toda paleta) -- */
+:root[data-theme="oscuro"]{
+  color-scheme:dark;
+  --page:#13161a; --card:#1c2024; --card-2:#232a31; --field:#20262d; --field-ro:#171b1f;
+  --ink:#e8ece7; --ink-2:#aab2a8; --ink-3:#7c857c; --ink-strong:#e8ece7;
+  --line:#2c333a; --line-2:#394149; --line-soft:#262c33;
+  --thead-2:#20262d; --thead-3:#232a31; --seg-bg:#232a31;
+  --grid-border:#2a313a; --grid-header:#20272d; --grid-row-hover:#20262c; --grid-row-active:#242b31;
+  --grid-cell-active:#352f1c;
+  --gframe-border:#394149; --cell-border:#2c333a;
+  --sb-track:#171b1f; --sb-thumb:#3a424b; --sb-thumb-h:#4b555f;
+  --gold:#E2A336; --gold-soft:#3a3221;
+  --amb:#f7a73f; --amb-bg:#3a2a14;
+  --shadow:none; --shadow-2:0 6px 18px rgba(0,0,0,.45),0 1px 3px rgba(0,0,0,.4);
+  --ov:rgba(0,0,0,.62);
+  --focus:#e8ece7; --focus-soft:rgba(255,255,255,.28);
+  --ok:#4fcb82; --ok-bg:#15311f; --warn:#e0a73a; --warn-bg:#342a12;
+  --err:#e8736b; --err-bg:#3a1f1f;
+  /* Grilla React del kit (1.8.2+): en claro usa su propio respaldo */
+  --gk-move:#5d6876; --gk-move-act:var(--primary); --gk-move-bg:#26303d;
+  --gk-sum-ink:var(--primary-ink); --gk-sum-btn:#8b97a8;
+  --gk-pop-line:#3a4552; --gk-pop-bg:var(--card); --gk-pop-ink:var(--ink); --gk-pop-hover:var(--card-2); --gk-pop-sep:var(--line-2);
+  --gk-mark-bg:var(--info-bg); --gk-mark-ink:var(--primary-ink);
+  --gk-foot-bg:#222a33;
+  --gk-act:var(--primary); --gk-act-hover:var(--info-bg);
+  --gk-borrar:#ef8a80; --gk-borrar-h:#f5aaa2; --gk-ok:#4fc3b3; --gk-aviso:#e0b04a;
+}
+
+/* ---- 3. PALETAS en oscuro: marca más luminosa para leer sobre fondo oscuro ---- */
+:root[data-theme="oscuro"][data-palette="navy"]{
+  --nav-900:#0c1628; --nav-800:#15233b; --nav-700:#1c2f4f; --nav-600:#4f86d6;
+  --nav-solid:#0c1628; --nav-solid-2:#070e1a;
+  --nav-ink-2:#b3c1da; --nav-ink-3:#7f93b5; --nav-ink-4:#61789e;
+  --primary:#5b8fd9; --primary-h:#73a1e3; --primary-08:#2c5a99; --primary-ink:#a6c2ec; --accent:#7aa6e6;
+  --cta:#2f62d6; --cta-h:#3d70e3;
+  --info:#5b8fd9; --info-bg:#17233a; --brand-wash:#17233a; --brand-wash-2:#1b2942; --ring:rgba(91,143,217,.32);
+}
+:root[data-theme="oscuro"][data-palette="azul"]{
+  --nav-600:#5a86ff; --nav-solid:#122a70; --nav-solid-2:#0a1c4e;
+  --primary:#5a86ff; --primary-h:#3e74ff; --primary-08:#2a52d8; --primary-ink:#8fb0ff; --accent:#7596ff;
+  --cta:#2f5fe0; --cta-h:#3e74ff;
+  --info:#5a86ff; --info-bg:#16203f; --brand-wash:#16203f; --brand-wash-2:#1b2748; --ring:rgba(90,134,255,.32);
+}
+:root[data-theme="oscuro"][data-palette="verde"]{
+  --nav-600:#5fae41; --nav-solid:#1f4d12; --nav-solid-2:#143409;
+  --primary:#5fae41; --primary-h:#6db44e; --primary-08:#4e9433; --primary-ink:#8fd06f; --accent:#7cc45a;
+  --cta:#3f8a2a; --cta-h:#4e9433;
+  --info:#5fae41; --info-bg:#1d2a16; --brand-wash:#1d2a16; --brand-wash-2:#223017; --ring:rgba(95,174,65,.32);
+}
+:root[data-theme="oscuro"][data-palette="grafito"]{
+  --nav-600:#8a94a4; --nav-solid:#2b333f; --nav-solid-2:#1b212a;
+  --primary:#8a94a4; --primary-h:#9ba5b4; --primary-08:#5b6675; --primary-ink:#aeb7c4; --accent:#9ba5b4;
+  --cta:#5b6675; --cta-h:#6b7685;
+  --info:#8a94a4; --info-bg:#232a31; --brand-wash:#232a31; --brand-wash-2:#2a323a; --ring:rgba(138,148,164,.32);
+}
+
+/* ---- Selector de tema ------------------------------------------------------ */
+.tema-wrap{position:relative;display:inline-flex}
+.tema-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--line-2,#d6dce5);background:var(--card,#fff);
+  color:var(--ink-2,#5d6b7e);display:grid;place-items:center;cursor:pointer;padding:0;transition:.14s}
+.tema-btn:hover,.tema-btn.on{color:var(--primary,#1f5fa8);border-color:var(--primary,#1f5fa8);background:var(--info-bg,#e9f0f9)}
+.tema-pop{position:absolute;top:calc(100% + 9px);right:0;z-index:70;width:214px;background:var(--card,#fff);
+  border:1px solid var(--line,#e2e6ec);border-radius:11px;box-shadow:var(--shadow-2,0 10px 30px rgba(16,31,56,.16));padding:11px;
+  animation:tema-fade .13s ease}
+@keyframes tema-fade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.tema-grp{font-size:10px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3,#8792a3);margin:2px 2px 7px}
+.tema-grp:not(:first-child){margin-top:13px}
+.tema-seg{display:flex;gap:3px;background:var(--seg-bg,#eceff5);border-radius:9px;padding:3px}
+.tema-seg-b{flex:1;display:inline-flex;flex-direction:column;align-items:center;gap:3px;border:none;background:none;font:inherit;
+  font-size:11px;font-weight:600;color:var(--ink-2,#5d6b7e);padding:7px 2px;border-radius:7px;cursor:pointer;transition:.12s}
+.tema-seg-b:hover{color:var(--primary-ink,#092f61)}
+.tema-seg-b.on{background:var(--card,#fff);color:var(--primary,#1f5fa8);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.tema-pals{display:flex;flex-direction:column;gap:3px}
+.tema-pal{display:inline-flex;align-items:center;gap:9px;width:100%;text-align:left;border:1px solid transparent;background:none;font:inherit;
+  font-size:12.5px;font-weight:600;color:var(--ink-2,#5d6b7e);padding:6px 8px;border-radius:8px;cursor:pointer;transition:.12s}
+.tema-pal:hover{background:var(--card-2,#f1f4f8)}
+.tema-pal.on{border-color:var(--primary,#1f5fa8);color:var(--ink,#12243f);background:var(--info-bg,#e9f0f9)}
+.tema-sw{width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,.14)}
+:root[data-theme="oscuro"] .tema-sw{box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}

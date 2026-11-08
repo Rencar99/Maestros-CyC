@@ -1,0 +1,805 @@
+{
+ "fuente": "Complejidad.xlsx / Asignacion_Final",
+ "escala": {
+  "0": "No aplica",
+  "1": "Muy baja",
+  "2": "Baja",
+  "3": "Media",
+  "4": "Media-alta",
+  "5": "Alta",
+  "6": "Crítica"
+ },
+ "clientes": [
+  {
+   "nit": "806005967",
+   "razon_social": "GASFRIO S.A.S.",
+   "nivel": 5,
+   "etiqueta": "Alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "890404029",
+   "razon_social": "HERRERA Y DURAN LTDA.",
+   "nivel": 5,
+   "etiqueta": "Alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "901419838",
+   "razon_social": "JOYERIA Y TALLER SANTO DOMINGO S.A.S",
+   "nivel": 5,
+   "etiqueta": "Alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "79501994",
+   "razon_social": "CONGOTE FONTALVO CARLOS MANUEL",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto"
+  },
+  {
+   "nit": "901912212",
+   "razon_social": "PFR MARINE S.A.S",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "900394396",
+   "razon_social": "SERVICIOS INTEGRALES MARITIMOS SAS",
+   "nivel": 6,
+   "etiqueta": "Crítica",
+   "obligaciones_criticas": "Renta PJ, Exógena, Activos exterior, IVA mixto, ICA"
+  },
+  {
+   "nit": "73122162",
+   "razon_social": "MASSA ACOSTA CRISTOBAL",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, ICA"
+  },
+  {
+   "nit": "901857418",
+   "razon_social": "ORTOGENA S.A.S.",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "901937674",
+   "razon_social": "IDEALE LABS S.A.S",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "901803801",
+   "razon_social": "GRUPO PAOTI SAS",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "806016002",
+   "razon_social": "REFRIAIRE INTEGRAL S.A.S.",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Exógena, RST anual, ICA"
+  },
+  {
+   "nit": "73083927",
+   "razon_social": "DIAZ WRIGHT ALVARO DE JESUS",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "45450165",
+   "razon_social": "HERRERA ARGUMEDO CARMEN JUDITH",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, ICA"
+  },
+  {
+   "nit": "73094794",
+   "razon_social": "ALBERTO CABALLERO DIAZGRANADOS",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Renta PN, ICA"
+  },
+  {
+   "nit": "45764686",
+   "razon_social": "DIANA PAOLA BARBOZA HERNANDEZ",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "RST anual, ICA"
+  },
+  {
+   "nit": "901864894",
+   "razon_social": "INVERSIONES M&TH SAS",
+   "nivel": 5,
+   "etiqueta": "Alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "806003035",
+   "razon_social": "INVERSIONES E INMOBILIARIA FINCA RAIZ S.A.S.",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "900278297",
+   "razon_social": "FUNDACION CREAR UN NUEVO MAÑANA",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "900975125",
+   "razon_social": "PRODUCCION Y SERVICIOS LOGISTICOS S.A.S.",
+   "nivel": 4,
+   "etiqueta": "Media-alta",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "900641028",
+   "razon_social": "PROLOGIK S.A.S.",
+   "nivel": 4,
+   "etiqueta": "Media-alta",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "901108014",
+   "razon_social": "ABR LOGISTICS S.A.S",
+   "nivel": 4,
+   "etiqueta": "Media-alta",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "901007210",
+   "razon_social": "INVERSIONES Y NEGOCIOS ND S.A.S",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "902007431",
+   "razon_social": "MOMENTUM LIVE S.A.S",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Exógena, RST anual, ICA"
+  },
+  {
+   "nit": "901835522",
+   "razon_social": "DISTRIBUIDORA DE CEMENTOS DE LA COSTA S.A.S.",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Renta PJ, Exógena"
+  },
+  {
+   "nit": "73134519",
+   "razon_social": "NADER DAVID ANTONIO ELIAS",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual"
+  },
+  {
+   "nit": "1047452085",
+   "razon_social": "PERIÑAN HERRERA FREDDY JAVIER",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "RST anual, ICA"
+  },
+  {
+   "nit": "73114847",
+   "razon_social": "Guillermo Enrique Quintana Osorio",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "RST anual"
+  },
+  {
+   "nit": "901565113",
+   "razon_social": "PALM IT S.A.S.",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "3806943",
+   "razon_social": "GALVIS BARCENAS HEIDER ANTONIO",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "RST anual"
+  },
+  {
+   "nit": "73131935",
+   "razon_social": "CANALEJO ANGEL JOSE LUIS",
+   "nivel": 5,
+   "etiqueta": "Alta",
+   "obligaciones_criticas": "Exógena, RST anual, Patrimonio, Activos exterior, IVA mixto, ICA"
+  },
+  {
+   "nit": "806015489",
+   "razon_social": "TRANSPORTES Y SERVICIOS A FLOTE SAS",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "901221597",
+   "razon_social": "SISMA CORPORATION S.A.S",
+   "nivel": 5,
+   "etiqueta": "Alta",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "901378211",
+   "razon_social": "KLEVER S.A.S.",
+   "nivel": 4,
+   "etiqueta": "Media-alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, Activos exterior, IVA mixto, ICA"
+  },
+  {
+   "nit": "30899003",
+   "razon_social": "ARNELIS HURTADO CUETO",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto"
+  },
+  {
+   "nit": "45500445",
+   "razon_social": "ROSARIO DEL CARMEN ANGULO JIMENEZ",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto"
+  },
+  {
+   "nit": "900872098",
+   "razon_social": "JVA INGENIERIA S.A.S.",
+   "nivel": 4,
+   "etiqueta": "Media-alta",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "901970419",
+   "razon_social": "INGENIERIA OLA AZUL SAS",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "901546843",
+   "razon_social": "SEA INT. S.A.S SERVICIOS ESPECIALIZADOS A FLOTE INTERNACIONAL S.A.S.",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "901857397",
+   "razon_social": "BARRERA CAPITAL S.A.S",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "901709824",
+   "razon_social": "SUMIMARINOS S.A.S.",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Exógena, RST anual, ICA"
+  },
+  {
+   "nit": "1143338794",
+   "razon_social": "Stefany Barrera Caparroso",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Renta PN, ICA"
+  },
+  {
+   "nit": "900667474",
+   "razon_social": "OCEAN PROJECTS S.A.S",
+   "nivel": 5,
+   "etiqueta": "Alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "901597164",
+   "razon_social": "INVERSIONES COMERCIO GLOBAL S.A.S.",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Renta PJ, Exógena, Precios transferencia, IVA mixto, ICA"
+  },
+  {
+   "nit": "806006970",
+   "razon_social": "COMPANIA DE SERVICIOS MARITIMOS Y TERRESTRES S.A.S MAR & TER S.A.S",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "901322412",
+   "razon_social": "TRANSPORTES ECOLÓGICOS S.A.S",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "73214596",
+   "razon_social": "ALCOCER BALLESTAS EUSTORGIO",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "RST anual"
+  },
+  {
+   "nit": "802003123",
+   "razon_social": "CONDOMINIO ISLARENA",
+   "nivel": 4,
+   "etiqueta": "Media-alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "802021386",
+   "razon_social": "ACUEDUCTO EL ARENAL",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "900489398",
+   "razon_social": "ASYS IMPORTACIONES S.A.S.",
+   "nivel": 4,
+   "etiqueta": "Media-alta",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "9148258",
+   "razon_social": "JUAN BALLESTAS JAIME MANZUR",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "RST anual"
+  },
+  {
+   "nit": "73581519",
+   "razon_social": "JUAN BALLESTAS JAVIER EDUARDO",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "RST anual"
+  },
+  {
+   "nit": "824006522",
+   "razon_social": "SOLUCIONES AMBIENTALES DEL CARIBE S.A. E.S.P.",
+   "nivel": 6,
+   "etiqueta": "Crítica",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "901301328",
+   "razon_social": "TRANSPORTE OPTIMO EXPRESS S.A.S.",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Exógena, RST anual, ICA"
+  },
+  {
+   "nit": "901365136",
+   "razon_social": "IMPORTACIONES JS TOOLS S.A.S",
+   "nivel": 6,
+   "etiqueta": "Crítica",
+   "obligaciones_criticas": "Renta PJ, Exógena, Activos exterior, IVA mixto, ICA"
+  },
+  {
+   "nit": "70903822",
+   "razon_social": "SERNA GIRALDO JOHN JAIME",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Exógena, RST anual, Patrimonio, Activos exterior, IVA mixto, ICA"
+  },
+  {
+   "nit": "1235046503",
+   "razon_social": "SERNA GIL MARCELA",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto"
+  },
+  {
+   "nit": "1047485486",
+   "razon_social": "SERNA GIL MILENA PAOLA",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "RST anual, IVA mixto"
+  },
+  {
+   "nit": "900200129",
+   "razon_social": "DESCARGUES BARAHONA J.I S.A.S.",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "901486181",
+   "razon_social": "ASESORIAS, SOLUCIONES Y SERVICIOS COMERCIALES S.A.S.",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "RST anual, ICA"
+  },
+  {
+   "nit": "900690389",
+   "razon_social": "SOLUCION ADUANERA INTEGRAL S.A.S",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "9146620",
+   "razon_social": "DIAZ GAMARRA JAIME ALFONSO",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, Patrimonio"
+  },
+  {
+   "nit": "98667006",
+   "razon_social": "URIBE RUDA JOHNNATAN FERNANDO",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, ICA"
+  },
+  {
+   "nit": "901092448",
+   "razon_social": "ALIMENTO REAL SAS",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "73126569",
+   "razon_social": "GOSSAIN ROGNINI JORGE FRANCISCO",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, Patrimonio, Activos exterior, ICA"
+  },
+  {
+   "nit": "901476727",
+   "razon_social": "INVERSIONES ALL IN PETS COLOMBIA S.A.S",
+   "nivel": 5,
+   "etiqueta": "Alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "900310203",
+   "razon_social": "INVERSIONES GOSSAIN DELGADO S.A.S.",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "901546069",
+   "razon_social": "PROMOTORA MINT S.A.S.",
+   "nivel": 4,
+   "etiqueta": "Media-alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "900825730",
+   "razon_social": "TRES ESTRELLAS DEL BERDAUNI S.A.S",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "900838110",
+   "razon_social": "MEDIINSUMOS S A S",
+   "nivel": 4,
+   "etiqueta": "Media-alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "901719745",
+   "razon_social": "ESTRUCTURACION Y PROMOCION DE PROYECTOS SAS.",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "45500344",
+   "razon_social": "DELGADO POMBO MARIA EUGENIA",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "RST anual"
+  },
+  {
+   "nit": "45764561",
+   "razon_social": "HERNANDEZ LOZANO KATIA PATRICIA",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto"
+  },
+  {
+   "nit": "901745166",
+   "razon_social": "INVERSIONES Y ALIMENTOS DEL CARIBE S.A.S.",
+   "nivel": 5,
+   "etiqueta": "Alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "63534355",
+   "razon_social": "FLOREZ CARREÑO VIVIANA ANDREA",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto"
+  },
+  {
+   "nit": "1047477747",
+   "razon_social": "GOSSAIN DELGADO JORGE FRANCISCO",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Renta PN"
+  },
+  {
+   "nit": "901782156",
+   "razon_social": "TECHCON SOLUTIONS S.A.S.",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "806004211",
+   "razon_social": "MARIA DEL SOCORRO GARCIA VIANA & CIA S EN C",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "45452671",
+   "razon_social": "Maria del Socorro Garcia Viaña",
+   "nivel": 3,
+   "etiqueta": "Media",
+   "obligaciones_criticas": "Exógena, RST anual, ICA"
+  },
+  {
+   "nit": "901036706",
+   "razon_social": "IT XPERTIX S.A.S.",
+   "nivel": 4,
+   "etiqueta": "Media-alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "1128427349",
+   "razon_social": "SIERRA VILLEGAS LESLI JULIETTE",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto"
+  },
+  {
+   "nit": "900224273",
+   "razon_social": "INTEGRAL DE SERVICIOS DE INGENIERIAS Y CONSTRUCCION SAS",
+   "nivel": 4,
+   "etiqueta": "Media-alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "901035051",
+   "razon_social": "LUMAS S.A.S",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "890401617",
+   "razon_social": "HOTEL CAPILLA DEL MAR",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "890404389",
+   "razon_social": "HOTEL LAS AMERICAS",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Exógena, ICA"
+  },
+  {
+   "nit": "901090749",
+   "razon_social": "AP WIRELESS COLOMBIA INVESTMENTS, S.A.S.",
+   "nivel": 6,
+   "etiqueta": "Crítica",
+   "obligaciones_criticas": "Renta PJ, Exógena, Precios transferencia, ICA"
+  },
+  {
+   "nit": "901090800",
+   "razon_social": "AP WIRELESS COLOMBIA SERVICES, S.A.S.",
+   "nivel": 5,
+   "etiqueta": "Alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "900814359",
+   "razon_social": "CENTRO DE SERVICIOS TECNICOS DE POLMARINE (CSTP) S.A.S",
+   "nivel": 4,
+   "etiqueta": "Media-alta",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "901735056",
+   "razon_social": "BOUTIQUE GRAZIA SAS",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, ICA"
+  },
+  {
+   "nit": "800104013",
+   "razon_social": "REFRICONFORT S.A.S.",
+   "nivel": 6,
+   "etiqueta": "Crítica",
+   "obligaciones_criticas": "Renta PJ, Exógena, IVA mixto, ICA"
+  },
+  {
+   "nit": "901090848",
+   "razon_social": "PROMOTORA SEAPORT S.A.S.",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "901138539",
+   "razon_social": "PROMOTORA TORRE PRIMI SAS",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "901110981",
+   "razon_social": "ROCKSTAR MEDIA S.A.S",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "901992548",
+   "razon_social": "AQUADROP SERVICES S.A.S",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "900473718",
+   "razon_social": "FRAGOLA & ASOCIADOS S.A.S.",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "901781136",
+   "razon_social": "INVERSIONES ADDAS S.A.S",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "71582184",
+   "razon_social": "RODRIGO DE JESUS VELASQUEZ RESTREPO",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, Patrimonio, Activos exterior"
+  },
+  {
+   "nit": "890400784",
+   "razon_social": "TEOFILO BARBUR S.A.S.",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "901741632",
+   "razon_social": "VELALBA S.A.S.",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Renta PJ, Exógena, ICA"
+  },
+  {
+   "nit": "900152715",
+   "razon_social": "CALISTO S.A.S.",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "RST anual, ICA"
+  },
+  {
+   "nit": "800104007",
+   "razon_social": "COACOSTA S.A.S",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Renta PJ, ICA"
+  },
+  {
+   "nit": "802011154",
+   "razon_social": "CONUTRIR S.A.S.",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Renta PJ, ICA"
+  },
+  {
+   "nit": "3226846",
+   "razon_social": "ERNESTO RESTREPO SILVA",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Renta PN, RST anual, Patrimonio, Activos exterior"
+  },
+  {
+   "nit": "32690774",
+   "razon_social": "MARIA CLAUDIA ALBARRACIN LARA",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Renta PN, Patrimonio"
+  },
+  {
+   "nit": "73104296",
+   "razon_social": "IBAÑEZ POMBO RODRIGO RAFAEL",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto"
+  },
+  {
+   "nit": "890406047",
+   "razon_social": "ADAN RAMIREZ MORA SAS",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual, IVA mixto, ICA"
+  },
+  {
+   "nit": "1140826267",
+   "razon_social": "ALEJANDRO GONZALEZ CRUZ",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Exógena, RST anual"
+  },
+  {
+   "nit": "42987950",
+   "razon_social": "STELLA MARIA ALVAREZ ALVEAR",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Renta PN, RST anual, Patrimonio, Activos exterior"
+  },
+  {
+   "nit": "1140852068",
+   "razon_social": "VELASQUEZ ALBARRACIN SANTIAGO",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Renta PN"
+  },
+  {
+   "nit": "42873829",
+   "razon_social": "ANGELA MARIA VELASQUEZ RESTREPO",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Renta PN"
+  },
+  {
+   "nit": "800233277",
+   "razon_social": "DISINCO SAS",
+   "nivel": 0,
+   "etiqueta": "No aplica",
+   "obligaciones_criticas": "Renta PJ, Exógena"
+  },
+  {
+   "nit": "55305552",
+   "razon_social": "YVETTE GONZALEZ CRUZ",
+   "nivel": 2,
+   "etiqueta": "Baja",
+   "obligaciones_criticas": "Renta PN"
+  },
+  {
+   "nit": "1047387989",
+   "razon_social": "Pablo Restrepo",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Renta PN"
+  },
+  {
+   "nit": "1140871146",
+   "razon_social": "VELASQUEZ ALBARRACIN DAVID",
+   "nivel": 1,
+   "etiqueta": "Muy baja",
+   "obligaciones_criticas": "Renta PN"
+  }
+ ]
+}

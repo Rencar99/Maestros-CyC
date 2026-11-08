@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 // Las tres dependencias de la aplicación entran por un solo archivo, que cada
 // una escribe una vez y el kit nunca sobrescribe: en Descargas DIAN el icono
 // vive en «./Icon» y en Maestros en «../ui». Sin esta indirección, la misma
@@ -29,6 +29,8 @@ export interface Column<T> {
   headerRender?: () => ReactNode; // encabezado libre (ej. casilla "seleccionar todos")
   tip?: (row: T) => string;       // tooltip azul (estándar CyC) por celda, aunque tenga render
   exportOnly?: boolean;           // no se dibuja en la grilla; solo sale en Exportar (ej. CUFE)
+  hideable?: boolean;             // el usuario puede ocultarla (botón «Columnas»); default true
+  defaultHidden?: boolean;        // arranca oculta: así una grilla ancha cabe sin barra horizontal (§2.8)
 }
 
 interface Props<T> {
@@ -49,6 +51,15 @@ interface Props<T> {
   // Alto de fila elástico (mín. 23 px) para que en el alto disponible quepa un número
   // entero de filas: la última nunca queda cortada. Lo usan las grillas a pantalla llena.
   fitRows?: boolean;
+  // Desplazamiento continuo (§2.9): con más de 150 filas se dibujan solo las que se
+  // ven. Se apaga con `virtual={false}`, solo en una grilla que nunca crece.
+  virtual?: boolean;
+  // Sub-filas expandibles: `renderSubRow(row)` se dibuja en un <tr> extra bajo la fila
+  // cuando su clave está en `expandedKeys`. El control (chevron) lo pone la pantalla en
+  // una celda. Mientras haya alguna abierta, la tabla se dibuja completa (sin ventana):
+  // las sub-filas rompen el alto uniforme que exige el desplazamiento continuo.
+  expandedKeys?: Set<string | number>;
+  renderSubRow?: (row: T) => ReactNode;
   // Barra de herramientas superior (búsqueda global + exportar). Por defecto
   // ENCENDIDAS (§13: la pantalla no pone su propio buscador ni exportar); una
   // pantalla que ya trae buscador propio las apaga explícitamente (false).
@@ -125,6 +136,14 @@ const nfMoney = new Intl.NumberFormat("es-CO", {
   minimumFractionDigits: 2, maximumFractionDigits: 2,
 });
 const nfInt = new Intl.NumberFormat("es-CO");
+// Un solo Collator para todo el componente: `localeCompare(…, opciones)` por par
+// de filas arma uno nuevo cada vez y con 10.000 filas el orden tardaba segundos.
+const collator = new Intl.Collator("es", { numeric: true });
+
+// Desde cuántas filas se dibuja solo la ventana visible (más un margen arriba y
+// abajo). Por debajo la tabla se dibuja completa, como siempre.
+const VIRTUAL_DESDE = 150;
+const MARGEN_FILAS = 12;
 
 /** ¿La columna ofrece «Totalizar columna» en su menú?
  *
@@ -199,6 +218,7 @@ function FilterPop(props: {
   onClear: () => void;
   sortDir: "asc" | "desc" | null;
   onSort: (d: "asc" | "desc") => void;
+  onHide?: () => void;
 }) {
   const [q, setQ] = useState("");
   const ref = useRef<HTMLInputElement>(null);
@@ -212,6 +232,7 @@ function FilterPop(props: {
          style={{ position: "fixed", left: Math.max(10, props.x - 230), top: props.y }}>
       <div className="fp-lbl">{props.label}</div>
       <SortRow dir={props.sortDir} onSort={props.onSort} />
+      {props.onHide && <button type="button" className="fp-hide" onClick={props.onHide}>Ocultar esta columna</button>}
       {props.filterable && (
         <>
           <input ref={ref} placeholder="Buscar valor…" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -351,9 +372,24 @@ function DateFilterPop(props: {
 }
 
 
+/** Iconos del menú de columnas. Van dentro del componente porque no todos los
+ *  aplicativos tienen `columns`, `eye`, `eye-off` o `lock` en su Icon. */
+function KitIcon({ name, size = 14 }: { name: "columns" | "eye" | "eye-off" | "lock"; size?: number }) {
+  const p = {
+    columns: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16M15 4v16" /></>,
+    eye: <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
+    "eye-off": <><path d="M17.9 17.9A10.4 10.4 0 0 1 12 19c-6.4 0-10-7-10-7a18.6 18.6 0 0 1 5.1-5.9M9.9 5.2A9.7 9.7 0 0 1 12 5c6.4 0 10 7 10 7a18.5 18.5 0 0 1-2.2 3.2" /><path d="M14.1 14.1a3 3 0 1 1-4.2-4.2M2 2l20 20" /></>,
+    lock: <><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
+  }[name];
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor"
+         strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{p}</svg>
+  );
+}
+
 /** Resalta la coincidencia del buscador global en un texto plano (celdas sin
- *  render propio). A nivel de módulo (no depende de estado) para que la fila
- *  memoizada solo dependa del término, una primitiva estable. */
+ *  render propio). A nivel de módulo para que la fila memoizada dependa solo del
+ *  término, una primitiva estable. */
 function resaltarTerm(txt: string, term: string): ReactNode {
   if (!term) return txt;
   const i = txt.toLowerCase().indexOf(term.toLowerCase());
@@ -361,12 +397,15 @@ function resaltarTerm(txt: string, term: string): ReactNode {
   return <>{txt.slice(0, i)}<mark className="grid-mark">{txt.slice(i, i + term.length)}</mark>{txt.slice(i + term.length)}</>;
 }
 
-/** Fila de la grilla, MEMOIZADA. El cuerpo (celdas, render, formato, resaltado) solo
- *  se recalcula si cambia algo PROPIO de la fila. El estado volátil del grid que no
- *  afecta a esta fila —tip de hover en otra celda, cursor en otra fila, menú de
- *  totales, copiado…— llega como las mismas props ⇒ `memo` la salta. Todo lo que
- *  depende de cursor/selección entra como PRIMITIVAS (rowCur/curC/selC0/selC1), no
- *  como objetos nuevos por render, para que la comparación de `memo` sirva. */
+/** Fila de la grilla, MEMOIZADA (viene de Maestros 1.22.0, auditoría B3). El cuerpo
+ *  solo se recalcula si cambia algo PROPIO de la fila: el hover en otra celda, el
+ *  cursor en otra fila, el menú de totales o el aviso de copiado llegan como las
+ *  mismas props y `memo` la salta. Cursor y selección entran como PRIMITIVAS
+ *  (rowCur/curC/selC0/selC1), no como objetos nuevos por render. Complementa el
+ *  desplazamiento continuo: este recorta cuántas filas se dibujan; `memo`, cuántas
+ *  de las dibujadas se vuelven a calcular. Ojo: si una pantalla pinta con `render`
+ *  algo que depende de su estado, debe darle a `columns` (o a `actions`) una
+ *  identidad nueva cuando ese estado cambie; si no, la fila no se entera. */
 interface GridRowProps<T> {
   row: T;
   rowKey: string | number;
@@ -375,7 +414,7 @@ interface GridRowProps<T> {
   colW: Record<string, number>;
   frozenLeft: number[];
   rowCur: boolean;        // el cursor está en esta fila
-  curC: number;           // columna del cursor si rowCur, si no -1 (celda "cell-cur")
+  curC: number;           // columna del cursor si rowCur, si no -1
   selC0: number;          // rango de columnas seleccionado en esta fila, -1 si ninguna
   selC1: number;
   activo: boolean;        // fila "activa" (ámbar) que sigue un proceso
@@ -389,7 +428,7 @@ interface GridRowProps<T> {
   onCellLeave: () => void;
 }
 
-function GridRowInner<T>(p: GridRowProps<T>): JSX.Element {
+function GridRowInner<T>(p: GridRowProps<T>) {
   const { row, ocols, colW, frozenLeft, r } = p;
   const fz = (i: number) => i < frozenLeft.length
     ? { cls: "col-frozen" + (i === frozenLeft.length - 1 ? " col-frozen-last" : ""), left: frozenLeft[i] }
@@ -439,7 +478,7 @@ export function DataGrid<T>({
   columns: todasCols, rows, getKey, actions, label, emptyLabel, scrollClass, onView,
   defaultTotals, actionsLabel, actionsWidth, storageKey, searchable = true, exportable = true,
   toolbar, onClearbar, activeKey, frozen = 0, exportNombre, exportSubtitulo, onExportar,
-  rowClass, onRowClick, fitRows,
+  rowClass, onRowClick, fitRows, virtual: virtualProp = true, expandedKeys, renderSubRow,
 }: Props<T>) {
   // Columnas que se dibujan (las `exportOnly` solo viajan al Excel/CSV).
   const columns = useMemo(() => todasCols.filter((c) => !c.exportOnly), [todasCols]);
@@ -461,6 +500,12 @@ export function DataGrid<T>({
   const draggingRef = useRef(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const tblRef = useRef<HTMLTableElement>(null);
+  // Ventana visible (solo con muchas filas): dónde va el scroll, cuánto se ve y el
+  // alto real de una fila, medido de las que se dibujan.
+  const [scrollY, setScrollY] = useState(0);
+  const [altoVista, setAltoVista] = useState(600);
+  const [altoFila, setAltoFila] = useState(24);
+  const rafScroll = useRef(0);
 
   // Columnas inmovilizadas: la posición `left` de cada una es la suma de los anchos
   // reales de las anteriores. Se mide tras cada render y solo se guarda si cambió.
@@ -481,9 +526,10 @@ export function DataGrid<T>({
   // Desplaza la fila "activa" a la vista (para seguir un proceso en curso).
   useEffect(() => {
     if (activeKey == null) return;
-    wrapRef.current?.querySelector(`tr[data-k="${CSS.escape(String(activeKey))}"]`)
-      ?.scrollIntoView({ block: "nearest" });
-  }, [activeKey]);
+    const tr = wrapRef.current?.querySelector(`tr[data-k="${CSS.escape(String(activeKey))}"]`);
+    if (tr) tr.scrollIntoView({ block: "nearest" });
+    else verFila(view.findIndex((r) => getKey(r) === activeKey));
+  }, [activeKey]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Anchos de columna ajustables tipo Excel (px), por columna. Persisten si hay storageKey.
   const WKEY = storageKey ? "mx_colw_" + storageKey : "";
@@ -532,6 +578,54 @@ export function DataGrid<T>({
     for (const c of columns) { if (!seen.has(c.key)) { out.push(c); seen.add(c.key); } }
     return out;
   }, [columns, colOrder]);
+
+  // Columnas OCULTAS por el usuario (botón «Columnas» y menú ▼), viene del Calendario.
+  // Se guardan las ocultas y las conocidas: así una columna nueva aparece según su
+  // `defaultHidden` y no según lo que el usuario eligió antes de que existiera. Acepta
+  // el formato viejo del Calendario (solo la lista de ocultas).
+  const VISKEY = storageKey ? "mx_colvis_" + storageKey : "";
+  const ocultable = (c: Column<T>) => c.hideable !== false && c.type !== "actions" && !!c.label;
+  const [vis, setVis] = useState<{ h: string[]; k: string[] }>(() => {
+    const porDefecto = { h: columns.filter((c) => c.defaultHidden && ocultable(c)).map((c) => c.key), k: columns.map((c) => c.key) };
+    if (!VISKEY) return porDefecto;
+    try {
+      const g = JSON.parse(localStorage.getItem(VISKEY) || "null");
+      if (Array.isArray(g)) return { h: g, k: columns.map((c) => c.key) };
+      if (g && Array.isArray(g.h) && Array.isArray(g.k)) return g;
+    } catch { /* ignore */ }
+    return porDefecto;
+  });
+  useEffect(() => {
+    // Columnas que llegan después: se agregan a las conocidas con su `defaultHidden`.
+    const nuevas = columns.filter((c) => !vis.k.includes(c.key));
+    if (nuevas.length) setVis((v) => ({
+      h: [...v.h, ...nuevas.filter((c) => c.defaultHidden && ocultable(c)).map((c) => c.key)],
+      k: [...v.k, ...nuevas.map((c) => c.key)],
+    }));
+  }, [columns]);  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!VISKEY) return;
+    try { localStorage.setItem(VISKEY, JSON.stringify(vis)); } catch { /* ignore */ }
+  }, [vis, VISKEY]);
+  const [colsOpen, setColsOpen] = useState(false);   // menú del botón «Columnas»
+  const hiddenSet = useMemo(
+    () => new Set(vis.h.filter((k) => columns.some((c) => c.key === k && ocultable(c)))),
+    [vis, columns]);  // eslint-disable-line react-hooks/exhaustive-deps
+  // Columnas que se dibujan: orden del usuario, sin las ocultas. Indexan cursor, copia,
+  // totales, búsqueda y exportación.
+  const vcols = useMemo(() => ocols.filter((c) => !hiddenSet.has(c.key)), [ocols, hiddenSet]);
+  const elegibles = ocols.filter(ocultable);
+  // Ocultar una columna le quita su filtro: un filtro invisible esconde filas sin explicación.
+  const ocultarCol = (key: string) => {
+    setVis((v) => (v.h.includes(key) ? v : { ...v, h: [...v.h, key] }));
+    setFilters((f) => { if (!f[key]) return f; const c = { ...f }; delete c[key]; return c; });
+  };
+  const toggleCol = (key: string) => {
+    if (hiddenSet.has(key)) setVis((v) => ({ ...v, h: v.h.filter((k) => k !== key) }));
+    else ocultarCol(key);
+  };
+  const mostrarTodas = () => setVis((v) => ({ ...v, h: [] }));
+
   const dragKey = useRef<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
   // La columna de acciones queda fija al final: ni se mueve ni recibe otra
@@ -560,6 +654,7 @@ export function DataGrid<T>({
   };
   const resetGrid = () => {
     setColW({}); setColOrder(columns.map((c) => c.key));
+    setVis({ h: columns.filter((c) => c.defaultHidden && ocultable(c)).map((c) => c.key), k: columns.map((c) => c.key) });
     try { if (WKEY) localStorage.removeItem(WKEY); if (ORDKEY) localStorage.removeItem(ORDKEY); } catch { /* ignore */ }
   };
 
@@ -623,13 +718,23 @@ export function DataGrid<T>({
       }))
       .sort((a, b) => col.type === "money"
         ? Number(a.valor) - Number(b.valor)
-        : a.etiqueta.localeCompare(b.etiqueta, "es", { numeric: true }));
+        : collator.compare(a.etiqueta, b.etiqueta));
   }, [rows, columns]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const qn = searchable ? q.trim() : "";
-  // Filtrado + búsqueda + orden en un solo paso memoizado: solo se recalcula si
-  // cambian filas, columnas, filtros, el texto de búsqueda o el orden (no en cada
-  // render del Shell). El ordenamiento (localeCompare numérico) es lo más caro.
+  // El buscador espera a que se deje de escribir: con miles de filas, filtrar en
+  // cada tecla congelaba la escritura. Borrar la búsqueda aplica en el acto.
+  const [qBusca, setQBusca] = useState("");
+  useEffect(() => {
+    if (!q.trim()) { setQBusca(""); return; }
+    const t = window.setTimeout(() => setQBusca(q), 180);
+    return () => window.clearTimeout(t);
+  }, [q]);
+  // Buscador global: la fila pasa si ALGUNA columna coincide (sin tildes, con
+  // comodines estilo Excel: 800*, *800, 80?), igual que el buscador de columna.
+  const qn = searchable ? qBusca.trim() : "";
+
+  // La vista (filtros + búsqueda + orden) se calcula solo cuando cambia algo de
+  // eso, no en cada render (marcar una casilla, mover el cursor, pasar el mouse).
   const view = useMemo(() => {
     let v = [...rows];
     for (const col of columns) {
@@ -639,26 +744,23 @@ export function DataGrid<T>({
         v = v.filter((r) => set.has(val(col, r)));
       }
     }
-    // Buscador global: la fila pasa si ALGUNA columna coincide (sin tildes, con
-    // comodines estilo Excel: 800*, *800, 80?), igual que el buscador de columna.
-    if (qn) v = v.filter((r) => columns.some((c) => coincide(val(c, r), qn)));
-    if (sortKey) {
-      const col = columns.find((c) => c.key === sortKey);
-      if (col) {
-        v.sort((a, b) => {
-          const x = val(col, a), y = val(col, b);
-          const nx = Number(x.replace(/[.\s]/g, "")), ny = Number(y.replace(/[.\s]/g, ""));
-          let c: number;
-          if (!isNaN(nx) && !isNaN(ny) && x !== "" && y !== "") c = nx - ny;
-          else c = x.localeCompare(y, "es", { numeric: true });
-          return sortDir === "asc" ? c : -c;
-        });
-      }
+    if (qn) v = v.filter((r) => vcols.some((c) => coincide(val(c, r), qn)));
+    const col = sortKey ? columns.find((c) => c.key === sortKey) : undefined;
+    if (col) {
+      // Cada valor se lee y se convierte una sola vez, no en cada comparación.
+      const llaves = v.map((r) => {
+        const x = val(col, r);
+        const n = x === "" ? NaN : Number(x.replace(/[.\s]/g, ""));
+        return { r, x, n };
+      });
+      const signo = sortDir === "asc" ? 1 : -1;
+      llaves.sort((a, b) => signo * (!isNaN(a.n) && !isNaN(b.n) ? a.n - b.n : collator.compare(a.x, b.x)));
+      v = llaves.map((k) => k.r);
     }
     return v;
-  }, [rows, columns, filters, qn, sortKey, sortDir]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rows, columns, vcols, filters, qn, sortKey, sortDir]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const viewKey = useMemo(() => view.map((r) => getKey(r)).join(","), [view]); // eslint-disable-line
+  const viewKey = useMemo(() => view.map((r) => getKey(r)).join(","), [view]);  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { onView?.(view); }, [viewKey]); // eslint-disable-line
 
   useEffect(() => {
@@ -686,6 +788,15 @@ export function DataGrid<T>({
   }, [menuTotal]);
 
   useEffect(() => {
+    if (!colsOpen) return;
+    const onDown = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest(".grid-cols")) setColsOpen(false); };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === "Escape") setColsOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onEsc);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onEsc); };
+  }, [colsOpen]);
+
+  useEffect(() => {
     if (!expOpen) return;
     const onDown = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest(".grid-export")) setExpOpen(false); };
     document.addEventListener("mousedown", onDown);
@@ -707,7 +818,7 @@ export function DataGrid<T>({
 
   const activos = Object.entries(filters).filter(([, v]) => v.length);
   const limpiarTodos = () => { setFilters({}); setOpenFilter(null); };
-  const colCount = columns.length + (actions ? 1 : 0);
+  const colCount = vcols.length + (actions ? 1 : 0);
 
   // Reportar al contenedor el estado de filtros (para dibujar "Limpiar filtros" afuera).
   useEffect(() => {
@@ -715,7 +826,54 @@ export function DataGrid<T>({
   }, [activos.length]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const maxR = view.length - 1;
-  const maxC = ocols.length - 1;
+
+  // ---- Ventana visible: con muchas filas se dibujan solo las que se ven (más un
+  // margen) y el resto va como relleno del mismo alto, para que la barra de scroll
+  // se comporte igual que con la tabla completa. Exige una línea por fila.
+  const virtual = virtualProp && view.length > VIRTUAL_DESDE && !(renderSubRow && expandedKeys?.size);
+  const altoCabeza = tblRef.current?.tHead?.offsetHeight ?? 0;
+  let vIni = 0, vFin = view.length;
+  if (virtual) {
+    vIni = Math.max(0, Math.floor((scrollY - altoCabeza) / altoFila) - MARGEN_FILAS);
+    vFin = Math.min(view.length, vIni + Math.ceil(altoVista / altoFila) + 2 * MARGEN_FILAS);
+  }
+  // El rayado de la aplicación va por posición (tr:nth-child(even)): con el relleno
+  // de arriba, cada fila conserva la paridad que tendría en la tabla completa.
+  const rellenoPar = virtual && vIni % 2 === 0;
+  useLayoutEffect(() => {
+    if (!virtual) return;
+    const tr = tblRef.current?.tBodies[0]?.querySelector<HTMLElement>("tr[data-k]");
+    const h = tr?.getBoundingClientRect().height ?? 0;
+    if (h > 0 && Math.abs(h - altoFila) > 0.25) setAltoFila(h);
+  });
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const medir = () => setAltoVista(wrap.clientHeight);
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, []);
+  const alScroll = () => {
+    if (tip) setTip(null);
+    if (!virtual || rafScroll.current) return;
+    rafScroll.current = requestAnimationFrame(() => {
+      rafScroll.current = 0;
+      if (wrapRef.current) setScrollY(wrapRef.current.scrollTop);
+    });
+  };
+  // Lleva la fila `r` a la vista sin depender de que esté dibujada.
+  const verFila = (r: number) => {
+    const wrap = wrapRef.current;
+    if (!wrap || r < 0) return;
+    const pie = tblRef.current?.tFoot?.offsetHeight ?? 0;
+    const arriba = r * altoFila;
+    const abajo = arriba + altoFila + altoCabeza + pie;
+    if (arriba < wrap.scrollTop) wrap.scrollTop = arriba;
+    else if (abajo > wrap.scrollTop + wrap.clientHeight) wrap.scrollTop = abajo - wrap.clientHeight;
+  };
+  const maxC = vcols.length - 1;
   const rect = cursor && anchor ? {
     r0: Math.min(anchor.r, cursor.r), r1: Math.max(anchor.r, cursor.r),
     c0: Math.min(anchor.c, cursor.c), c1: Math.max(anchor.c, cursor.c),
@@ -727,9 +885,8 @@ export function DataGrid<T>({
     }
   }, [maxR, maxC]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Handlers de celda ESTABLES (useCallback sin deps): usan solo setters de estado
-  // y refs, todos estables. Así las props que recibe cada fila memoizada no cambian
-  // de identidad entre renders y el `memo` puede saltarse las filas no afectadas.
+  // Handlers de celda ESTABLES (useCallback): usan solo setters de estado y refs,
+  // así las props de cada fila memoizada no cambian de identidad entre renders.
   const seleccionar = useCallback((r: number, c: number, extender: boolean) => {
     setCursor({ r, c });
     if (!extender) setAnchor({ r, c });
@@ -739,8 +896,8 @@ export function DataGrid<T>({
     draggingRef.current = true; seleccionar(r, c, shift);
   }, [seleccionar]);
   const onCellLeave = useCallback(() => setTip(null), []);
-  // Tooltip azul: col.tip explícito, o solo si el texto de la celda está truncado
-  // (Estándar §7). En arrastre, extiende la selección (igual que antes).
+  // Tooltip azul: `col.tip` explícito, o solo si el texto de la celda está truncado
+  // (Estándar §7). Arrastrando, extiende la selección.
   const onCellEnter = useCallback((r: number, c: number, col: Column<T>, row: T, e: React.MouseEvent<HTMLTableCellElement>) => {
     if (draggingRef.current) { setCursor({ r, c }); return; }
     if (col.tip) {
@@ -762,7 +919,7 @@ export function DataGrid<T>({
     const lineas: string[] = [];
     for (let r = rect.r0; r <= rect.r1; r++) {
       const celdas: string[] = [];
-      for (let c = rect.c0; c <= rect.c1; c++) celdas.push(val(ocols[c], view[r]));
+      for (let c = rect.c0; c <= rect.c1; c++) celdas.push(val(vcols[c], view[r]));
       lineas.push(celdas.join("\t"));
     }
     const texto = lineas.join("\n");
@@ -799,7 +956,7 @@ export function DataGrid<T>({
     // Fuera las columnas de acciones y las sin título (p. ej. la casilla de selección):
     // una tabla de Excel no admite encabezados vacíos. Las de solo-exportar van detrás de
     // la columna que las precede en la definición (o al final si no hay ninguna visible).
-    const orden = [...ocols];
+    const orden = [...vcols];
     let previa: Column<T> | null = null;
     for (const c of todasCols) {
       if (!c.exportOnly) { previa = c; continue; }
@@ -821,10 +978,10 @@ export function DataGrid<T>({
 
   const onGridKey = (e: React.KeyboardEvent) => {
     const meta = e.ctrlKey || e.metaKey;
-    // Ctrl+Alt+R (con el foco en la grilla): restablecer anchos Y orden de columnas.
+    // Ctrl+Alt+R (con el foco en la grilla): restablecer anchos, orden y columnas ocultas.
     if (meta && e.altKey && (e.key === "r" || e.key === "R")) {
       e.preventDefault();
-      if (Object.keys(colW).length || colOrder.join() !== columns.map((c) => c.key).join()) resetGrid();
+      if (Object.keys(colW).length || colOrder.join() !== columns.map((c) => c.key).join() || hiddenSet.size) resetGrid();
       return;
     }
     if (meta && (e.key === "c" || e.key === "C")) { e.preventDefault(); void copiar(); return; }
@@ -853,6 +1010,7 @@ export function DataGrid<T>({
     e.preventDefault();
     setCursor({ r, c });
     if (!e.shiftKey) setAnchor({ r, c });
+    verFila(r);
   };
 
   // ---- Fila de totales (columnas marcadas con total / totalizadas por el usuario) ----
@@ -906,7 +1064,8 @@ export function DataGrid<T>({
           {searchable && (
             <div className="grid-search">
               <Icon name="search" size={15} />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en la tabla…" aria-label="Buscar en la tabla" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar en la tabla…" aria-label="Buscar en la tabla"
+                     autoComplete="off" name="grid-buscar" spellCheck={false} />
               {q && <button className="grid-search-x" onClick={() => setQ("")} aria-label="Limpiar búsqueda"><Icon name="x" size={13} /></button>}
             </div>
           )}
@@ -917,10 +1076,48 @@ export function DataGrid<T>({
           {activos.length >= 1 && (
             <button className="grid-clr" onClick={limpiarTodos} title="Quitar todos los filtros de columna"><Icon name="broom" size={14} /> Limpiar filtros</button>
           )}
+          {elegibles.length > 1 && (
+            <div className="grid-cols">
+              <button className={"btn sm grid-cols-btn" + (hiddenSet.size ? " on" : "")} onClick={() => setColsOpen((o) => !o)}
+                      aria-expanded={colsOpen} aria-label="Columnas"
+                      title={hiddenSet.size ? `Columnas · ${hiddenSet.size} oculta${hiddenSet.size === 1 ? "" : "s"}` : "Mostrar u ocultar columnas"}>
+                <KitIcon name="columns" size={16} />
+              </button>
+              {colsOpen && (
+                <div className="grid-cols-menu" role="menu">
+                  <div className="grid-cols-head">
+                    <KitIcon name="columns" size={14} />
+                    <span>Columnas</span>
+                    <span className="grid-cols-count">{vcols.filter(ocultable).length}/{elegibles.length}</span>
+                  </div>
+                  <div className="grid-cols-list">
+                    {elegibles.map((c) => {
+                      const visible = !hiddenSet.has(c.key);
+                      const bloqueada = visible && vcols.filter(ocultable).length <= 1;   // nunca sin columnas
+                      return (
+                        <button key={c.key} type="button" role="menuitemcheckbox" aria-checked={visible}
+                                className={"grid-cols-item" + (visible ? "" : " off")}
+                                disabled={bloqueada} onClick={() => toggleCol(c.key)}>
+                          <span className="gc-eye"><KitIcon name={visible ? "eye" : "eye-off"} size={14} /></span>
+                          <span className="grid-cols-name">{c.label}</span>
+                          {bloqueada && <span className="gc-lock" title="Debe quedar al menos una columna visible"><KitIcon name="lock" size={12} /></span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="grid-cols-foot">
+                    <button className="grid-cols-all" disabled={hiddenSet.size === 0} onClick={mostrarTodas}>
+                      <KitIcon name="eye" size={13} /> Mostrar todas
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {exportable && (
             <div className="grid-export">
-              <button className="btn sm" onClick={() => exportar("xlsx")} title="Exportar a Excel (la vista actual)" disabled={view.length === 0}>
-                <ExcelIcon size={18} /> Exportar
+              <button className="btn sm grid-export-main" onClick={() => exportar("xlsx")} title="Exportar a Excel (la vista actual)" aria-label="Exportar a Excel" disabled={view.length === 0}>
+                <ExcelIcon size={18} />
               </button>
               <button className="btn sm grid-export-caret" onClick={() => setExpOpen((o) => !o)}
                       aria-label="Elegir formato" aria-expanded={expOpen} disabled={view.length === 0}>▾</button>
@@ -941,13 +1138,13 @@ export function DataGrid<T>({
         </div>
       )}
       <div className={"tbl-wrap grid-scroll" + (scrollClass ? " " + scrollClass : "") + (copiado ? " copy-flash" : "")}
-           ref={wrapRef} tabIndex={0} onKeyDown={onGridKey} onScroll={() => tip && setTip(null)}
+           ref={wrapRef} tabIndex={0} onKeyDown={onGridKey} onScroll={alScroll}
            onMouseUp={() => { draggingRef.current = false; }}
            onMouseLeave={() => { draggingRef.current = false; setTip(null); }}>
         <table aria-label={label} ref={tblRef}>
           <thead>
             <tr>
-              {ocols.map((col, ci) => {
+              {vcols.map((col, ci) => {
                 const ariaSort = col.sortable
                   ? (sortKey === col.key ? (sortDir === "asc" ? "ascending" : "descending") : "none")
                   : undefined;
@@ -981,7 +1178,7 @@ export function DataGrid<T>({
                         )}
                       </button>
                       {conMenu && (
-                        <button type="button" className={"filter-ico" + (filters[col.key]?.length ? " act" : totals[col.key] ? " act tot" : "")}
+                        <button type="button" className={"filter-ico" + (filters[col.key]?.length ? " act" : "")}
                                 aria-label={`Menú de ${col.label}`} aria-expanded={openFilter?.key === col.key}
                                 title="Filtrar / ordenar" onClick={(e) => clickFilter(e, col.key)}>▼</button>
                       )}
@@ -1014,14 +1211,27 @@ export function DataGrid<T>({
             </tr>
           </thead>
           <tbody>
-            {view.map((row, r) => {
+            {virtual && (
+              <tr className="cyc-grid-relleno" aria-hidden="true">
+                <td colSpan={colCount} style={{ height: vIni * altoFila, padding: 0, border: 0 }} />
+              </tr>
+            )}
+            {rellenoPar && (
+              <tr className="cyc-grid-relleno" aria-hidden="true">
+                <td colSpan={colCount} style={{ height: 0, padding: 0, border: 0 }} />
+              </tr>
+            )}
+            {(virtual ? view.slice(vIni, vFin) : view).map((row, i) => {
+              const r = vIni + i;
               const rk = getKey(row);
               const rowCur = cursor?.r === r;
               const inSel = !!rect && r >= rect.r0 && r <= rect.r1;
+              const sub = renderSubRow && expandedKeys?.has(rk) ? renderSubRow(row) : null;
               return (
+                <Fragment key={rk}>
                 <GridRow<T>
-                  key={rk} row={row} rowKey={rk} r={r}
-                  ocols={ocols} colW={colW} frozenLeft={frozenLeft}
+                  row={row} rowKey={rk} r={r}
+                  ocols={vcols} colW={colW} frozenLeft={frozenLeft}
                   rowCur={rowCur} curC={rowCur ? cursor!.c : -1}
                   selC0={inSel ? rect!.c0 : -1} selC1={inSel ? rect!.c1 : -1}
                   activo={activeKey != null && rk === activeKey}
@@ -1030,8 +1240,15 @@ export function DataGrid<T>({
                   actions={actions} actionsWidth={actionsWidth} onRowClick={onRowClick}
                   onCellDown={onCellDown} onCellEnter={onCellEnter} onCellLeave={onCellLeave}
                 />
+                {sub && <tr className="grid-subrow"><td colSpan={colCount}>{sub}</td></tr>}
+                </Fragment>
               );
             })}
+            {virtual && vFin < view.length && (
+              <tr className="cyc-grid-relleno" aria-hidden="true">
+                <td colSpan={colCount} style={{ height: (view.length - vFin) * altoFila, padding: 0, border: 0 }} />
+              </tr>
+            )}
             {view.length === 0 && (
               <tr>
                 <td colSpan={colCount} className="grid-empty">
@@ -1050,7 +1267,7 @@ export function DataGrid<T>({
           {view.length > 0 && (
             <tfoot>
               <tr className="grid-total">
-                {ocols.map((col, i) => {
+                {vcols.map((col, i) => {
                   const f = fz(i);
                   const estilo = f ? { left: f.left } : undefined;
                   if (esAccion(col)) {
@@ -1138,6 +1355,8 @@ export function DataGrid<T>({
           onClear={() => setSel(openFilter.key, [])}
           sortDir={sortKey === openFilter.key ? sortDir : null}
           onSort={(d) => sortByKey(openFilter.key, d)}
+          onHide={colMenu && ocultable(colMenu) && vcols.filter(ocultable).length > 1
+            ? () => { ocultarCol(openFilter.key); setOpenFilter(null); } : undefined}
         />
       ))}
       {copiado > 0 && (

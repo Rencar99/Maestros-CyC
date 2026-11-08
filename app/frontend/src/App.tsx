@@ -9,12 +9,13 @@ import { Responsables as ResponsablesRaw } from "./pages/Responsables";
 import { Catalogos as CatalogosRaw } from "./pages/Catalogos";
 import { Facturacion as FacturacionRaw } from "./pages/Facturacion";
 import { CuentasCobro as CuentasCobroRaw } from "./pages/CuentasCobro";
-import { Cartera as CarteraRaw } from "./pages/Cartera";
+import { Cartera as CarteraRaw, GestionCxc as GestionCxcRaw, AgendaCobro as AgendaCobroRaw } from "./pages/Cartera";
 import { Claves as ClavesRaw } from "./pages/Claves";
 import { Consultas as ConsultasRaw } from "./pages/Consultas";
 import { ConsultasPublicas as ConsultasPublicasRaw } from "./pages/ConsultasPublicas";
 import { Config as ConfigRaw } from "./pages/Config";
 import { ServidorConfig } from "./components/ServidorConfig";
+import { TemaMenu } from "./tema/TemaMenu";
 
 // Páginas MEMOIZADAS: se mantienen montadas (keep-alive) y se ocultan con `display`.
 // Sin memo, cada render del Shell (abrir el menú de usuario, llegar la info del
@@ -27,12 +28,14 @@ const Catalogos = memo(CatalogosRaw);
 const Facturacion = memo(FacturacionRaw);
 const CuentasCobro = memo(CuentasCobroRaw);
 const Cartera = memo(CarteraRaw);
+const GestionCxc = memo(GestionCxcRaw);
+const AgendaCobro = memo(AgendaCobroRaw);
 const Claves = memo(ClavesRaw);
 const Consultas = memo(ConsultasRaw);
 const ConsultasPublicas = memo(ConsultasPublicasRaw);
 const Config = memo(ConfigRaw);
 
-type Page = "clientes" | "responsables" | "claves" | "catalogos" | "facturacion" | "cobros" | "cartera" | "consultas" | "generar" | "config";
+type Page = "clientes" | "responsables" | "claves" | "catalogos" | "facturacion" | "cobros" | "gestioncxc" | "agendacxc" | "cartera" | "consultas" | "generar" | "config";
 const TITLES: Record<Page, [string, string]> = {
   clientes: ["Clientes", "Catálogo general de clientes de la firma"],
   responsables: ["Responsables", "Personal de la firma (internos y externos)"],
@@ -40,6 +43,8 @@ const TITLES: Record<Page, [string, string]> = {
   catalogos: ["Catálogos", "Listas maestras editables"],
   facturacion: ["Facturación", "Generación mensual de la facturación"],
   cobros: ["Cuentas de cobro", "Generación y envío de cuentas de cobro"],
+  gestioncxc: ["Gestión de CxC", "Gestión de cobro por cliente (estado, historial, envíos)"],
+  agendacxc: ["Agenda de cobro", "Programador de acciones de cobro (asignar y ejecutar)"],
   cartera: ["Cartera", "Cartera por cobrar de la firma (CxC) y gestión de cobro"],
   consultas: ["Consultas", "Consultas disponibles para ejecutar"],
   generar: ["Generar Consultas", "Arma consultas sobre la base sin escribir SQL"],
@@ -47,18 +52,19 @@ const TITLES: Record<Page, [string, string]> = {
 };
 // Pantallas migradas al marco de grilla (gframe): la tarjeta llena el alto y
 // solo scrollea la grilla (se van sumando por fases).
-const GFRAME = new Set<Page>(["claves", "responsables", "clientes", "cobros", "cartera", "consultas", "facturacion"]);
+const GFRAME = new Set<Page>(["claves", "responsables", "clientes", "cobros", "gestioncxc", "agendacxc", "cartera", "consultas", "facturacion"]);
 // Grupo del menú al que pertenece cada pantalla (línea dorada sobre el título).
 const GRUPO: Record<Page, string> = {
   clientes: "Maestros", responsables: "Maestros", claves: "Maestros",
-  facturacion: "Maestros", cobros: "Maestros", cartera: "Maestros", consultas: "Maestros",
+  facturacion: "Comercial", cobros: "Comercial", gestioncxc: "Comercial", agendacxc: "Comercial", cartera: "Maestros", consultas: "Maestros",
   catalogos: "Sistema", generar: "Sistema", config: "Sistema",
 };
 // Permiso que habilita cada página. Catálogos es pantalla de edición =
 // catalogos.editar; Generar Consultas = consultas.generar; el resto = seccion.ver.
 // (Configuración se excluye del guard: es visible para todos por el Manual.)
 const CLAVE_VER = (p: Page) => (p === "catalogos" ? "catalogos.editar"
-  : p === "generar" ? "consultas.generar" : p === "cobros" ? "facturacion.ver" : p + ".ver");
+  : p === "generar" ? "consultas.generar" : p === "cobros" ? "facturacion.ver"
+  : p === "gestioncxc" || p === "agendacxc" ? "cartera.ver" : p + ".ver");
 
 export default function App() {
   const [user, setUser] = useState<Responsable | null>(null);
@@ -228,7 +234,7 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
   }, [user.rol, user.permisos]);
   // Si la página activa dejó de ser visible (por permisos), caer a la primera permitida.
   useEffect(() => {
-    const orden: Page[] = ["clientes", "responsables", "claves", "facturacion", "cobros", "cartera", "consultas", "catalogos", "generar", "config"];
+    const orden: Page[] = ["clientes", "responsables", "claves", "facturacion", "cobros", "gestioncxc", "cartera", "consultas", "catalogos", "generar", "config"];
     if (page !== "config" && !puede(CLAVE_VER(page))) {   // Configuración es visible para todos (Manual)
       const primera = orden.find((p) => puede(CLAVE_VER(p)));
       if (primera) setPage(primera);
@@ -257,16 +263,18 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
         {puede("clientes.ver") && <button className={"nav-item" + (page === "clientes" ? " on" : "")} title="Clientes" onClick={() => setPage("clientes")}><Icon name="clientes" /><span className="nav-txt">Clientes</span></button>}
         {puede("responsables.ver") && <button className={"nav-item" + (page === "responsables" ? " on" : "")} title="Responsables" onClick={() => setPage("responsables")}><Icon name="resp" /><span className="nav-txt">Responsables</span></button>}
         {puede("claves.ver") && <button className={"nav-item" + (page === "claves" ? " on" : "")} title="Claves" onClick={() => setPage("claves")}><Icon name="lock" /><span className="nav-txt">Claves</span></button>}
-        {puede("facturacion.ver") && (<>
-          <button className={"nav-item" + (page === "facturacion" ? " on" : "") + (page === "cobros" ? " on-child" : "")}
-            title="Facturación" onClick={() => { setPage("facturacion"); setFactOpen(true); }}>
-            <Icon name="briefcase" /><span className="nav-txt">Facturación</span>
-            {!colapsado && <span className={"nav-caret" + ((factOpen || page === "cobros") ? " open" : "")}
-              title={(factOpen || page === "cobros") ? "Ocultar" : "Mostrar"} onClick={(e) => { e.stopPropagation(); toggleFact(); }}><Icon name="chevron-right" size={13} /></span>}
+        {(puede("facturacion.ver") || puede("cartera.ver")) && (<>
+          <button className={"nav-item" + (["facturacion", "cobros", "gestioncxc", "agendacxc"].includes(page) ? " on-child" : "")}
+            title="Comercial" onClick={toggleFact}>
+            <Icon name="briefcase" /><span className="nav-txt">Comercial</span>
+            {!colapsado && <span className={"nav-caret" + ((factOpen || ["facturacion", "cobros", "gestioncxc", "agendacxc"].includes(page)) ? " open" : "")}><Icon name="chevron-right" size={13} /></span>}
           </button>
-          {(colapsado || factOpen || page === "cobros") && (
+          {(colapsado || factOpen || ["facturacion", "cobros", "gestioncxc", "agendacxc"].includes(page)) && (
             <div className={colapsado ? undefined : "nav-sub"}>
-              <button className={"nav-item" + (page === "cobros" ? " on" : "")} title="Cuentas de cobro" onClick={() => setPage("cobros")}><Icon name="file" /><span className="nav-txt">Cuentas de cobro</span></button>
+              {puede("facturacion.ver") && <button className={"nav-item" + (page === "facturacion" ? " on" : "")} title="Facturación" onClick={() => setPage("facturacion")}><Icon name="briefcase" /><span className="nav-txt">Facturación</span></button>}
+              {puede("facturacion.ver") && <button className={"nav-item" + (page === "cobros" ? " on" : "")} title="Cuentas de cobro" onClick={() => setPage("cobros")}><Icon name="file" /><span className="nav-txt">Cuentas de cobro</span></button>}
+              {puede("cartera.ver") && <button className={"nav-item" + (page === "gestioncxc" ? " on" : "")} title="Gestión de CxC" onClick={() => setPage("gestioncxc")}><Icon name="coins" /><span className="nav-txt">Gestión de CxC</span></button>}
+              {puede("cartera.ver") && <button className={"nav-item" + (page === "agendacxc" ? " on" : "")} title="Agenda de cobro" onClick={() => setPage("agendacxc")}><Icon name="calendar" /><span className="nav-txt">Agenda de cobro</span></button>}
             </div>
           )}
         </>)}
@@ -319,6 +327,7 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
               <h2>{TITLES[page][0]}</h2>
             </div>
             <div className="tb-user" ref={uMenuRef}>
+              <TemaMenu className="tb-tema" />
               <button className={"tb-who" + (uMenu ? " open" : "")} title={user.nombre}
                 onClick={() => setUMenu((o) => !o)} aria-haspopup="menu" aria-expanded={uMenu}>
                 <span className="avatar">{user.foto ? <img src={user.foto} alt="" /> : inicial}</span>
@@ -347,6 +356,8 @@ function Shell({ user, onUser }: { user: Responsable; onUser: (u: Responsable | 
           {vistas.has("facturacion") && puede("facturacion.ver") && <div style={{ display: page === "facturacion" ? "contents" : "none" }}><Facturacion usuario={user.usuario || user.nombre} puede={puede} active={page === "facturacion"} goFacturacion={goFacturacion} /></div>}
           {vistas.has("cobros") && puede("facturacion.ver") && <div style={{ display: page === "cobros" ? "contents" : "none" }}><CuentasCobro puede={puede} active={page === "cobros"} /></div>}
           {vistas.has("cartera") && puede("cartera.ver") && <div style={{ display: page === "cartera" ? "contents" : "none" }}><Cartera puede={puede} active={page === "cartera"} /></div>}
+          {vistas.has("gestioncxc") && puede("cartera.ver") && <div style={{ display: page === "gestioncxc" ? "contents" : "none" }}><GestionCxc puede={puede} active={page === "gestioncxc"} /></div>}
+          {vistas.has("agendacxc") && puede("cartera.ver") && <div style={{ display: page === "agendacxc" ? "contents" : "none" }}><AgendaCobro puede={puede} active={page === "agendacxc"} /></div>}
           {vistas.has("consultas") && puede("consultas.ver") && <div style={{ display: page === "consultas" ? "contents" : "none" }}><ConsultasPublicas /></div>}
           {vistas.has("generar") && puede("consultas.generar") && <div style={{ display: page === "generar" ? "contents" : "none" }}><Consultas active={page === "generar"} /></div>}
           {vistas.has("config") && <div style={{ display: page === "config" ? "contents" : "none" }}><Config active={page === "config"} puede={puede} /></div>}

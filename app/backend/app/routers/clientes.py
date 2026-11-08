@@ -22,9 +22,10 @@ from pydantic import BaseModel
 from ..concurrency import exigir_sin_conflicto
 from ..db import get_session
 from ..deps import get_current_user, require_perm, require_superadmin
-from ..models import (Cliente, ClienteClave, ClienteMunicipioIca, ClienteObligacion,
-                      ClienteServicio, CuentaCobro, FacturacionItem, ObligacionCumplimiento,
-                      ObligacionTipo, Portal, RolServicio, Software, Usuario)
+from ..models import (Cliente, ClienteClave, ClienteComplejidad, ClienteMunicipioIca,
+                      ClienteObligacion, ClienteServicio, CuentaCobro, FacturacionItem,
+                      ObligacionCumplimiento, ObligacionTipo, Portal, RolServicio, Software,
+                      Usuario)
 from ..obligaciones_dian import (codigos_resp as _codigos_resp, desincronizado,
                                  diff_mem, dian_tipos, ids_aplicables,
                                  present_map as _present_map)
@@ -1059,3 +1060,69 @@ def confirmar_importacion(data: ConfirmarImportIn, session: Session = Depends(ge
             creados += 1
     session.commit()
     return {"creados": creados, "omitidos": omitidos}
+
+
+# ======================================================= Complejidad (cliente × obligación)
+# Nivel 0..6 que modula los dias_antes de las etapas en el Calendario (más complejo →
+# etapas más tempranas). Tabla PROPIA ``ClienteComplejidad``: base del cliente
+# (obligacion_tipo_id NULL) + overrides por obligación. "Acción donde vive el dato": la
+# ficha edita AQUÍ; el Calendario solo LEE. Fila ausente = sin clasificar (≠ nivel 0).
+class ComplejidadIn(BaseModel):
+    base: Optional[int] = None                              # 0..6 | None = sin clasificar (borra base)
+    overrides: Optional[dict[int, Optional[int]]] = None    # {tipo_id: 0..6 | None para borrar}
+
+
+def _niv(v: Optional[int]) -> Optional[int]:
+    return None if v is None else max(0, min(6, int(v)))
+
+
+@router.get("/{cliente_id}/complejidad")
+def leer_complejidad(cliente_id: int, session: Session = Depends(get_session),
+                     _u: Usuario = Depends(get_current_user)):
+    """Nivel de complejidad del cliente: base (obligacion_tipo_id NULL) + overrides por tipo."""
+    if not session.get(Cliente, cliente_id):
+        raise HTTPException(404, "Cliente no encontrado")
+    filas = session.exec(select(ClienteComplejidad).where(
+        ClienteComplejidad.cliente_id == cliente_id)).all()
+    base = next((f.nivel for f in filas if f.obligacion_tipo_id is None), None)
+    overrides = {f.obligacion_tipo_id: f.nivel for f in filas if f.obligacion_tipo_id is not None}
+    return {"cliente_id": cliente_id, "base": base, "overrides": overrides}
+
+
+@router.put("/{cliente_id}/complejidad")
+def guardar_complejidad(cliente_id: int, data: ComplejidadIn,
+                        session: Session = Depends(get_session),
+                        user: Usuario = Depends(require_perm("clientes.editar"))):
+    """Fija la base del cliente y/o overrides por obligación. nivel None = borra esa
+    clasificación (queda 'sin clasificar'). El Calendario resuelve override ?? base ?? sin."""
+    if not session.get(Cliente, cliente_id):
+        raise HTTPException(404, "Cliente no encontrado")
+    quien = user.usuario or user.nombre
+    ahora = datetime.utcnow()
+
+    def _upsert(tipo_id: Optional[int], nivel: Optional[int]) -> None:
+        fila = session.exec(select(ClienteComplejidad).where(
+            ClienteComplejidad.cliente_id == cliente_id,
+            ClienteComplejidad.obligacion_tipo_id == tipo_id)).first()
+        if nivel is None:
+            if fila:
+                session.delete(fila)
+            return
+        if fila:
+            fila.nivel = nivel
+            fila.actualizado_at = ahora
+            fila.actualizado_por = quien
+            session.add(fila)
+        else:
+            session.add(ClienteComplejidad(
+                cliente_id=cliente_id, obligacion_tipo_id=tipo_id, nivel=nivel,
+                actualizado_at=ahora, actualizado_por=quien))
+
+    # La base solo se toca si 'base' viene en el payload (None EXPLÍCITO = borrar; si no
+    # viene, no se altera). Igual los overrides que lleguen.
+    if "base" in data.model_fields_set:
+        _upsert(None, _niv(data.base))
+    for tid, niv in (data.overrides or {}).items():
+        _upsert(int(tid), _niv(niv))
+    session.commit()
+    return leer_complejidad(cliente_id, session, user)

@@ -81,12 +81,14 @@ PERMISOS_CAT = [
                   # otras apps vía la vista de permisos efectivos (Liquidador, Descargas
                   # DIAN). Solo roles de gestión; NO derivar de permisos de escritura.
                   ("ver_todos", "Ver todos los clientes")]),
-    ("responsables", [("ver", "Ver"), ("crear", "Crear"), ("editar", "Editar"), ("eliminar", "Eliminar")]),
+    ("responsables", [("ver", "Ver"), ("crear", "Crear"), ("editar", "Editar"), ("eliminar", "Eliminar"),
+                      ("reasignar", "Reasignar clientes / suplencias")]),
     ("claves", [("ver", "Ver"), ("crear", "Crear"), ("editar", "Editar"),
                 ("eliminar", "Eliminar"), ("revelar", "Revelar clave"), ("exportar", "Exportar")]),
     ("facturacion", [("ver", "Ver"), ("crear", "Crear"), ("editar", "Editar"),
                      ("eliminar", "Eliminar"), ("exportar", "Exportar"), ("aprobar", "Aprobar"), ("validar", "Validar")]),
     ("cartera", [("ver", "Ver"), ("editar", "Gestionar cobro"),
+                 ("programar", "Programar agenda de cobro"),
                  ("sincronizar", "Sincronizar con GLERP")]),
     ("catalogos", [("ver", "Ver"), ("editar", "Editar")]),
     ("consultas", [("ver", "Ver y ejecutar"), ("generar", "Generar consultas")]),
@@ -132,6 +134,8 @@ def bootstrap_roles() -> None:
         nuevo_generar = False
         nuevo_ver_todos = False
         nuevo_cartera = False
+        nuevo_programar = False
+        nuevo_reasignar = False
         vivas: set[str] = set()
         for sec, accs in PERMISOS_CAT:
             for acc, etq in accs:
@@ -144,6 +148,10 @@ def bootstrap_roles() -> None:
                         nuevo_ver_todos = True
                     if clave == "cartera.ver":
                         nuevo_cartera = True
+                    if clave == "cartera.programar":
+                        nuevo_programar = True
+                    if clave == "responsables.reasignar":
+                        nuevo_reasignar = True
                     s.add(Permiso(clave=clave, seccion=sec, accion=acc, etiqueta=etq,
                                   orden=orden, app="maestros", activo=True))
                 else:
@@ -211,6 +219,30 @@ def bootstrap_roles() -> None:
                     for c in ("cartera.ver", "cartera.editar", "cartera.sincronizar"):
                         if c not in claves:
                             s.add(RolPermiso(rol_id=rol.id, permiso_clave=c))
+            s.commit()
+        # 3e) Migración única al estrenar "cartera.programar" (agenda de cobro):
+        #     concederlo a los roles que ya gestionan cobro (tienen cartera.editar).
+        #     Super lo tiene por `sistema`; Renzo ajusta en la matriz (p.ej. dejar
+        #     que un rol solo EJECUTE la agenda y otro la PROGRAME).
+        if nuevo_programar:
+            for rol in s.exec(select(Rol)).all():
+                if rol.sistema:
+                    continue
+                claves = set(s.exec(select(RolPermiso.permiso_clave).where(
+                    RolPermiso.rol_id == rol.id)).all())
+                if "cartera.editar" in claves and "cartera.programar" not in claves:
+                    s.add(RolPermiso(rol_id=rol.id, permiso_clave="cartera.programar"))
+            s.commit()
+        # 3f) Migración única al estrenar "responsables.reasignar" (suplencias):
+        #     concederlo a los roles que ya editan responsables (responsables.editar).
+        if nuevo_reasignar:
+            for rol in s.exec(select(Rol)).all():
+                if rol.sistema:
+                    continue
+                claves = set(s.exec(select(RolPermiso.permiso_clave).where(
+                    RolPermiso.rol_id == rol.id)).all())
+                if "responsables.editar" in claves and "responsables.reasignar" not in claves:
+                    s.add(RolPermiso(rol_id=rol.id, permiso_clave="responsables.reasignar"))
             s.commit()
         # (El grant inicial de calendario.carga/generar a gestión ya se hizo en v1.22.1;
         #  las claves ahora son de Calendario (app='calendario'). Un futuro permiso de

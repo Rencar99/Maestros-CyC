@@ -5,6 +5,7 @@ import { RolesPermisos } from "./RolesPermisos";
 import { ManualUsuario } from "../components/ManualUsuario";
 import { ServidorConfig } from "../components/ServidorConfig";
 import { Explorador } from "../components/Explorador";
+import { AutoTextarea } from "../components/AutoTextarea";
 
 /** Datos de pago (banco/cuenta/titular) + carpeta donde se guardan los PDF, que usan
  *  las cuentas de cobro. Editable solo por Super; guardado como parámetros clave-valor. */
@@ -40,8 +41,8 @@ function DatosCobroCard() {
               <input value={f.carpeta} onChange={(e) => set({ carpeta: e.target.value })} placeholder="Carpeta base donde se guardan los PDF (se organiza por año)" />
             </div>
             <div className="f" style={{ marginTop: 10 }}><label>Nota art. 383 ET</label>
-              <textarea value={f.nota_383} onChange={(e) => set({ nota_383: e.target.value })} rows={3}
-                placeholder="Texto de la nota del art. 383 ET" style={{ resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />
+              <AutoTextarea value={f.nota_383} onChange={(e) => set({ nota_383: e.target.value })} minRows={3}
+                placeholder="Texto de la nota del art. 383 ET" />
             </div>
             <div style={{ marginTop: 14, padding: "10px 12px", background: "var(--card-2)", border: "1px solid var(--line)", borderRadius: 8, fontSize: 12.5, lineHeight: 1.6, color: "var(--ink-2)" }}>
               <b>Así saldrá en la cuenta de cobro:</b><br />
@@ -80,8 +81,118 @@ function CorreoEnvioCard() {
         {cargando ? <div className="hint">Cargando…</div> : (
           <>
             <div className="f"><label>Asunto del correo</label><input value={f.asunto} onChange={(e) => set({ asunto: e.target.value })} /></div>
-            <div className="f" style={{ marginTop: 10 }}><label>Cuerpo del correo</label><textarea rows={5} value={f.cuerpo} onChange={(e) => set({ cuerpo: e.target.value })} style={{ width: "100%", resize: "vertical" }} /></div>
+            <div className="f" style={{ marginTop: 10 }}><label>Cuerpo del correo</label><AutoTextarea value={f.cuerpo} onChange={(e) => set({ cuerpo: e.target.value })} minRows={5} /></div>
             <div style={{ marginTop: 6, fontSize: 12, color: "var(--ink-3)" }}>Variables disponibles: {"{numero} {mes} {anio} {cliente} {emisor}"}</div>
+            <div style={{ marginTop: 16 }}><button className="btn primary" onClick={guardar} disabled={guardando}><Icon name="save" size={16} />{guardando ? "Guardando…" : "Guardar"}</button></div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Texto base del aviso de reasignación (asunto + introducción + cierre). La tabla la
+ *  arma la app; aquí solo el texto, editable también por-envío en el modal. Solo Super. */
+function CorreoReasignacionCard() {
+  const toast = useToast();
+  const [f, setF] = useState({ asunto: "", intro: "", cierre: "" });
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  useEffect(() => {
+    api.get("/config/reasig-correo").then((d: any) => setF({ asunto: d.asunto, intro: d.intro, cierre: d.cierre }))
+      .catch((e: any) => toast(e.message, true)).finally(() => setCargando(false));
+  }, []); // eslint-disable-line
+  const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
+  const guardar = async () => {
+    setGuardando(true);
+    try { const d: any = await api.put("/config/reasig-correo", f); setF({ asunto: d.asunto, intro: d.intro, cierre: d.cierre }); toast("Texto base guardado ✓"); }
+    catch (e: any) { toast(e.message, true); } finally { setGuardando(false); }
+  };
+  return (
+    <div className="card">
+      <div className="card-h"><SecTitle icon="mail">Correo de reasignación</SecTitle></div>
+      <div style={{ padding: "14px 16px 18px", maxWidth: 680 }}>
+        {cargando ? <div className="hint">Cargando…</div> : (
+          <>
+            <div className="f"><label>Asunto</label><input value={f.asunto} onChange={(e) => set({ asunto: e.target.value })} /></div>
+            <div className="f" style={{ marginTop: 10 }}><label>Introducción</label><AutoTextarea value={f.intro} onChange={(e) => set({ intro: e.target.value })} minRows={3} /></div>
+            <div className="f" style={{ marginTop: 10 }}><label>Cierre</label><AutoTextarea value={f.cierre} onChange={(e) => set({ cierre: e.target.value })} minRows={5} /></div>
+            <div style={{ marginTop: 6, fontSize: 12, color: "var(--ink-3)" }}>Variables disponibles: {"{responsable} {periodo} {mes_nom} {anio}"}</div>
+            <div style={{ marginTop: 16 }}><button className="btn primary" onClick={guardar} disabled={guardando}><Icon name="save" size={16} />{guardando ? "Guardando…" : "Guardar"}</button></div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Pie de correo corporativo (firma/contacto) que va al pie de los correos de la
+ *  firma — hoy el estado de cuenta de cartera. Editable solo por Super. */
+function PieCorreoCard() {
+  const toast = useToast();
+  const [f, setF] = useState({ nit: "", nombre: "", cargo: "", telefono: "", correo: "", ciudad: "", web: "", facebook: "", instagram: "", legal: "" });
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  useEffect(() => {
+    api.get("/config/pie-correo").then((d: any) => setF(d)).catch((e: any) => toast(e.message, true)).finally(() => setCargando(false));
+  }, []); // eslint-disable-line
+  const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
+  const guardar = async () => {
+    setGuardando(true);
+    try { const d: any = await api.put("/config/pie-correo", f); setF(d); toast("Pie de correo guardado ✓"); }
+    catch (e: any) { toast(e.message, true); } finally { setGuardando(false); }
+  };
+  return (
+    <div className="card">
+      <div className="card-h"><SecTitle icon="mail">Pie de correo</SecTitle></div>
+      <div style={{ padding: "14px 16px 18px", maxWidth: 620 }}>
+        {cargando ? <div className="hint">Cargando…</div> : (
+          <>
+            <div className="grid2">
+              <div className="f"><label>NIT de la firma</label><input value={f.nit} onChange={(e) => set({ nit: e.target.value })} /></div>
+              <div className="f"><label>Ciudad</label><input value={f.ciudad} onChange={(e) => set({ ciudad: e.target.value })} /></div>
+              <div className="f"><label>Nombre (contacto)</label><input value={f.nombre} onChange={(e) => set({ nombre: e.target.value })} /></div>
+              <div className="f"><label>Cargo</label><input value={f.cargo} onChange={(e) => set({ cargo: e.target.value })} /></div>
+              <div className="f"><label>Teléfono</label><input value={f.telefono} onChange={(e) => set({ telefono: e.target.value })} /></div>
+              <div className="f"><label>Correo</label><input value={f.correo} onChange={(e) => set({ correo: e.target.value })} /></div>
+              <div className="f"><label>Página web</label><input value={f.web} onChange={(e) => set({ web: e.target.value })} /></div>
+              <div className="f"><label>Facebook</label><input value={f.facebook} onChange={(e) => set({ facebook: e.target.value })} /></div>
+              <div className="f"><label>Instagram</label><input value={f.instagram} onChange={(e) => set({ instagram: e.target.value })} /></div>
+            </div>
+            <div className="f" style={{ marginTop: 10 }}><label>Línea legal</label>
+              <AutoTextarea value={f.legal} onChange={(e) => set({ legal: e.target.value })} minRows={2} />
+            </div>
+            <div style={{ marginTop: 16 }}><button className="btn primary" onClick={guardar} disabled={guardando}><Icon name="save" size={16} />{guardando ? "Guardando…" : "Guardar"}</button></div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Plantilla del mensaje de WhatsApp de cartera (editable por Super). */
+function WaPlantillaCard() {
+  const toast = useToast();
+  const [plantilla, setPlantilla] = useState("");
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  useEffect(() => {
+    api.get("/config/wa").then((d: any) => setPlantilla(d.plantilla)).catch((e: any) => toast(e.message, true)).finally(() => setCargando(false));
+  }, []); // eslint-disable-line
+  const guardar = async () => {
+    setGuardando(true);
+    try { const d: any = await api.put("/config/wa", { plantilla }); setPlantilla(d.plantilla); toast("Mensaje de WhatsApp guardado ✓"); }
+    catch (e: any) { toast(e.message, true); } finally { setGuardando(false); }
+  };
+  return (
+    <div className="card">
+      <div className="card-h"><SecTitle icon="whatsapp">Mensaje WhatsApp</SecTitle></div>
+      <div style={{ padding: "14px 16px 18px", maxWidth: 620 }}>
+        {cargando ? <div className="hint">Cargando…</div> : (
+          <>
+            <div className="f"><label>Plantilla del mensaje</label>
+              <AutoTextarea value={plantilla} onChange={(e) => setPlantilla(e.target.value)} minRows={6} /></div>
+            <div style={{ marginTop: 6, fontSize: 12, color: "var(--ink-3)" }}>Variables: {"{saludo} {cliente} {total} {firma} {banco} {tipo_cuenta} {numero_cuenta} {titular}"}</div>
             <div style={{ marginTop: 16 }}><button className="btn primary" onClick={guardar} disabled={guardando}><Icon name="save" size={16} />{guardando ? "Guardando…" : "Guardar"}</button></div>
           </>
         )}
@@ -250,6 +361,9 @@ export function Config({ active = true, puede }: { active?: boolean; puede: (c: 
     ...(sup ? [{ k: "sesiones", lbl: "Sesiones", icon: "resp" }] : []),
     ...(sup ? [{ k: "cobro", lbl: "Datos de cobro", icon: "coins" }] : []),
     ...(sup ? [{ k: "correo", lbl: "Plantilla del correo", icon: "mail" }] : []),
+    ...(sup ? [{ k: "reasig", lbl: "Correo de reasignación", icon: "mail" }] : []),
+    ...(sup ? [{ k: "pie", lbl: "Pie de correo", icon: "mail" }] : []),
+    ...(sup ? [{ k: "wa", lbl: "Mensaje WhatsApp", icon: "whatsapp" }] : []),
     ...(sup ? [{ k: "servidor", lbl: "Servidor de datos", icon: "gear" }] : []),
   ];
   const [tab, setTab] = useState(tabs[0].k);
@@ -269,6 +383,9 @@ export function Config({ active = true, puede }: { active?: boolean; puede: (c: 
       {tab === "micorreo" && <MiCorreoCard />}
       {tab === "cobro" && sup && <DatosCobroCard />}
       {tab === "correo" && sup && <CorreoEnvioCard />}
+      {tab === "reasig" && sup && <CorreoReasignacionCard />}
+      {tab === "pie" && sup && <PieCorreoCard />}
+      {tab === "wa" && sup && <WaPlantillaCard />}
       {tab === "servidor" && sup && <ServidorConfig variant="panel" />}
     </>
   );

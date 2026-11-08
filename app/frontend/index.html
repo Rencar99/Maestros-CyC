@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-tema-app="mx" data-tema-base="azul" data-tema-modo-base="auto">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,6 +7,21 @@
     <link rel="icon" type="image/x-icon" href="/assets/favicon.ico" />
     <link rel="apple-touch-icon" href="/assets/favicon.png" />
     <title>Maestros CyC — Clientes y Responsables</title>
+    <!-- Tema CyC: fija modo y paleta en <html> ANTES de pintar (sin parpadeo). Ver ESTANDAR_TEMA_CYC.md. -->
+    <script>
+      (function () {
+        try {
+          var r = document.documentElement, a = r.getAttribute("data-tema-app") || "cyc";
+          var b = r.getAttribute("data-tema-base") || "navy", mb = r.getAttribute("data-tema-modo-base") || "auto";
+          var P = ["navy", "azul", "verde", "grafito"];
+          var m = localStorage.getItem(a + "_modo") || mb, p = localStorage.getItem(a + "_paleta") || b;
+          if (P.indexOf(p) < 0) p = b;
+          var d = m === "oscuro" || (m === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          r.setAttribute("data-theme", d ? "oscuro" : "claro");
+          r.setAttribute("data-palette", p);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

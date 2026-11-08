@@ -16,7 +16,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import JSON, Column, Numeric
+from sqlalchemy import JSON, Column, ForeignKey, Integer, Numeric, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -90,8 +90,11 @@ class ObligacionTipo(SQLModel, table=True):
     digitos_nit: int = 1           # (compat) nº de últimos dígitos; ver 'criterio'
     criterio: str = "nit1"         # cómo vence: nit1 | nit2 | fijo | grupo | municipio
     origen: str = "manual"         # "dian" (auto-derivada del perfil) | "manual" (pestaña Otras Obligaciones)
-    disparador: str = ""           # QUÉ la activa (anclaje estable, no depende del código):
-    #   renta_jur | renta_nat | renta_gc | retencion | iva_bim | iva_cuat | exogena_jn | exogena_gc
+    disparador: str = ""           # QUÉ la activa (anclaje estable, no depende del código).
+    #   Fuente de verdad: obligaciones_dian.aplica_disparador() + seed.OBLIGACIONES_CANON.
+    #   DIAN activos (13): renta_jur | renta_nat | renta_gc | retencion | inc | iva_bim |
+    #   iva_cuat | iva_anual | rst_anual | rst_anticipo | exogena_jn | exogena_gc | beneficiarios
+    #   (reteiva: catálogo histórico, obligación INACTIVA — se liquida en el 350 de retención).
     # --- Parámetros de generación (tabla compartida con Calendario) ---
     # Maestros es dueño de escritura de tam_intervalo / paso_dias_habiles (se editan aquí);
     # modo_generacion es de Calendario: se mapea para preservarlo, NO se edita en Maestros.
@@ -131,6 +134,11 @@ class ObligacionEtapa(SQLModel, table=True):
     dias_antes: int = 0              # días HÁBILES antes del vencimiento de la obligación
     activa: bool = True
     nota: str = ""
+    # Gate por complejidad: la etapa SOLO aplica si el nivel del cliente para esa
+    # obligación ≥ nivel_min (0 = aplica siempre). El Calendario lo LEE por
+    # ``origen_etapa_id`` al materializar. Ej.: "Revisión socio" con nivel_min=5
+    # (solo clientes Alta/Crítica). Maestros es dueño de escritura (editor de Etapas).
+    nivel_min: int = 0
 
 
 class Cargo(SQLModel, table=True):
@@ -384,6 +392,8 @@ class Cliente(SQLModel, table=True):
     firma_revisor_id: Optional[int] = Field(default=None, foreign_key="usuario.id")
     responsable_cliente: str = ""              # persona de contacto del lado del cliente
     email_responsable_cliente: str = ""
+    contacto_cobro: str = ""                   # persona a la que se le cobra (nombre; Comercial)
+    celular_cobro: str = ""                    # celular del contacto de cobro (para WhatsApp)
     grupo: str = ""
     notas: str = ""
     archivo_propuesta: str = ""    # ruta al archivo de la propuesta (una por cliente)
@@ -445,6 +455,53 @@ class ClienteObligacion(SQLModel, table=True):
     desde: str = ""                 # "AAAA-MM": mes/año desde que se adquiere la obligación
     observaciones: str = ""
     creado_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ClienteComplejidad(SQLModel, table=True):
+    """Nivel de complejidad (0..6) del cliente por obligación, para que el Calendario
+    module los ``dias_antes`` de las etapas (más complejo → etapas más tempranas → el
+    Coordinador arma el calendario de entrega a los Responsables).
+
+    TABLA PROPIA a propósito (NO columna en ``ClienteObligacion``): el guardado por-cliente
+    borra+reinserta ClienteObligacion, y hay instalados VIEJOS escribiendo esta misma BD;
+    una columna allí se borraría en silencio. Aquí nadie la toca salvo su dueño (Maestros).
+
+    Grano = cliente × obligación:
+      · ``obligacion_tipo_id`` NULL   → BASE del cliente (UNA por cliente; lo que siembra el Excel).
+      · ``obligacion_tipo_id`` NOT NULL → OVERRIDE por obligación (fase fina; hoy vacío).
+    Resolver (lo aplica el Calendario): ``override(c,t) ?? base(c) ?? sin clasificar``.
+    Fila AUSENTE = sin clasificar (≠ nivel 0, que es "No aplica" CLASIFICADO: factor 1.0).
+    La ref a ``obligaciontipo`` es SOFT (sin FK) para no romper el borrado de obligaciones de
+    los instalados viejos; el borrado de cliente CASCADEA (los viejos borran hijas por tupla
+    fija y no conocen esta tabla). La unicidad de la BASE la fuerza un índice PARCIAL en db.py
+    (un UNIQUE normal no sirve: Postgres trata los NULL como distintos)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    cliente_id: int = Field(sa_column=Column(
+        Integer, ForeignKey("cliente.id", ondelete="CASCADE"), nullable=False, index=True))
+    obligacion_tipo_id: Optional[int] = Field(default=None, index=True)  # NULL = base del cliente
+    nivel: int = 0                                                       # 0..6 (0 = "No aplica")
+    actualizado_at: datetime = Field(default_factory=datetime.utcnow)
+    actualizado_por: str = ""
+    __table_args__ = (UniqueConstraint("cliente_id", "obligacion_tipo_id",
+                                       name="uq_clicomplej_pair"),)
+
+
+class ClienteCarpeta(SQLModel, table=True):
+    """Referencia ESTABLE a una carpeta del cliente en la nube (OneDrive de la firma),
+    por ``drive_id`` + ``item_id`` de Microsoft Graph. Reemplaza, para abrir archivos,
+    a las rutas de disco (que NO son portables entre equipos de colaboradores). Tipada:
+    un cliente puede tener varias (trabajo, facturas de venta, …). Convive con
+    ``cliente.ruta_trabajo`` (fallback y fuente de migración)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    cliente_id: int = Field(foreign_key="cliente.id", index=True)
+    tipo: str = Field(default="trabajo", index=True)   # "trabajo" | "facturas_venta" | …
+    drive_id: str = ""
+    item_id: str = ""
+    nombre: str = ""                                   # nombre de la carpeta (para mostrar)
+    actualizado_at: datetime = Field(default_factory=datetime.utcnow)
+    actualizado_por: str = ""
 
 
 class ClienteClave(SQLModel, table=True):
@@ -717,6 +774,74 @@ class CxcNota(SQLModel, table=True):
     usuario: str = ""
     texto: str = ""
     estado: str = ""              # foto del estado al momento de anotar
+    tipo: str = "nota"            # interacción: llamada·correo·whatsapp·visita·acuerdo·nota
+
+
+class CxcAccion(SQLModel, table=True):
+    """Acción de cobro PROGRAMADA (agenda tipo CRM): un supervisor la crea y la
+    asigna a un gestor, que la ejecuta y deja la traza en el historial (``CxcNota``).
+    Puntual (una fecha); al cerrarla se puede programar la siguiente a mano."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    alcance: str = "cliente"           # "cliente" | "grupo"
+    nit: str = Field(default="", index=True)    # objetivo si alcance=cliente
+    grupo: str = Field(default="", index=True)  # objetivo si alcance=grupo
+    tipo: str = "llamada"              # llamada·correo·whatsapp·visita·otro
+    fecha_programada: date = Field(index=True)
+    asignado_a: str = Field(default="", index=True)   # usuario.usuario (login) del gestor
+    prioridad: str = "media"           # alta·media·baja
+    instruccion: str = ""              # qué hacer / contexto del supervisor
+    estado: str = Field(default="pendiente", index=True)  # pendiente·hecha·cancelada
+    creado_por: str = ""               # usuario.usuario del supervisor
+    creado_at: datetime = Field(default_factory=datetime.utcnow)
+    resuelto_por: str = ""
+    resuelto_at: Optional[datetime] = None
+    resultado: str = ""                # resultado al cerrar (va también al historial)
+
+
+class ReasignacionLote(SQLModel, table=True):
+    """Un lote de reasignación de clientes de un responsable que sale (vacaciones o
+    traspaso definitivo). Guarda el estado para poder REVERTIR exacto (ver
+    ``ReasignacionItem``). Cambia los FK del cliente directo (así las demás apps ven
+    al reemplazo al instante); el lote es la memoria para deshacer y auditar."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    saliente_id: int = Field(foreign_key="usuario.id", index=True)   # quien sale
+    tipo: str = "vacaciones"           # "vacaciones" (revertible) | "definitiva"
+    fecha_retorno: Optional[date] = None               # solo vacaciones
+    estado: str = Field(default="activa", index=True)  # activa | revertida | revertida_parcial
+    nota: str = ""
+    creado_por: str = ""
+    creado_at: datetime = Field(default_factory=datetime.utcnow)
+    revertida_por: str = ""
+    revertida_at: Optional[datetime] = None
+
+
+class ReasignacionItem(SQLModel, table=True):
+    """Detalle de un lote: un cliente+rol que cambió, con su valor anterior (de_id)
+    para restaurarlo. La reversa solo restaura si el cliente sigue en ``a_id`` (no se
+    pisa un cambio manual posterior)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    lote_id: int = Field(foreign_key="reasignacionlote.id", index=True)
+    cliente_id: int = Field(foreign_key="cliente.id", index=True)
+    rol: str = ""                      # nombre del campo FK en Cliente (p.ej. responsable_impuestos_id)
+    de_id: Optional[int] = None        # responsable anterior (para revertir)
+    a_id: Optional[int] = None         # responsable nuevo
+    revertido: bool = False
+
+
+class ReasignacionCorreo(SQLModel, table=True):
+    """Bitácora de los correos de notificación de un lote (uno por destinatario =
+    Responsable de Impuestos avisado). Permite mostrar "Enviado ✓ fecha" y pedir
+    confirmación antes de reenviar."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    lote_id: int = Field(foreign_key="reasignacionlote.id", index=True)
+    destinatario_id: int = Field(foreign_key="usuario.id", index=True)
+    para: str = ""
+    enviado_at: datetime = Field(default_factory=datetime.utcnow)
+    enviado_por: str = ""
 
 
 class Sesion(SQLModel, table=True):

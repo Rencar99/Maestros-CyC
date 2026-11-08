@@ -160,6 +160,14 @@ def _ensure_columns() -> None:
         # IF NOT EXISTS es defensivo para instalaciones nuevas, no re-hace el backfill).
         conn.execute(text(
             "ALTER TABLE obligaciontipo ADD COLUMN IF NOT EXISTS familia VARCHAR NOT NULL DEFAULT 'otras'"))
+        # Tipo de interacción de cada anotación del historial de cartera (CRM).
+        conn.execute(text(
+            "ALTER TABLE cxcnota ADD COLUMN IF NOT EXISTS tipo VARCHAR NOT NULL DEFAULT 'nota'"))
+        # Contacto de cobro (persona a la que se le cobra: nombre + celular para WhatsApp).
+        conn.execute(text(
+            "ALTER TABLE cliente ADD COLUMN IF NOT EXISTS contacto_cobro VARCHAR NOT NULL DEFAULT ''"))
+        conn.execute(text(
+            "ALTER TABLE cliente ADD COLUMN IF NOT EXISTS celular_cobro VARCHAR NOT NULL DEFAULT ''"))
         # Cuenta de cobro: ruta donde se guardó el PDF al generar en firme.
         conn.execute(text(
             "ALTER TABLE cuentacobro ADD COLUMN IF NOT EXISTS ruta_pdf VARCHAR NOT NULL DEFAULT ''"))
@@ -221,6 +229,19 @@ def _ensure_columns() -> None:
             "ALTER TABLE usuario ADD COLUMN IF NOT EXISTS actualizado_at TIMESTAMP"))
         conn.execute(text(
             "ALTER TABLE usuario ADD COLUMN IF NOT EXISTS actualizado_por VARCHAR NOT NULL DEFAULT ''"))
+        # Complejidad por cliente×obligación (modula dias_antes de las etapas; la LEE el
+        # Calendario). La tabla ``clientecomplejidad`` la crea ``create_all``; aquí va el
+        # índice único PARCIAL de la BASE (obligacion_tipo_id NULL = UNA por cliente): un
+        # UNIQUE normal no sirve porque Postgres trata los NULL como distintos.
+        conn.execute(text(
+            'CREATE UNIQUE INDEX IF NOT EXISTS uq_clicomplej_base '
+            f'ON "{DB_SCHEMA}".clientecomplejidad (cliente_id) '
+            'WHERE obligacion_tipo_id IS NULL'))
+        # Gate por complejidad en la PLANTILLA de etapas: la etapa aplica si el nivel del
+        # cliente para esa obligación ≥ nivel_min (0 = aplica siempre).
+        conn.execute(text(
+            "ALTER TABLE obligacionetapa ADD COLUMN IF NOT EXISTS nivel_min INTEGER NOT NULL DEFAULT 0"))
+        _sembrar_rev_socio(conn)
 
 
 def _ensure_views() -> None:
@@ -285,6 +306,44 @@ SELECT u.id, u.usuario, f.codigo_calendario, f.numero, f.id
         if conn.execute(text("SELECT 1 FROM pg_roles WHERE rolname='cardona_app'")).first():
             for v in ("usuario_permiso_efectivo", "usuario_formulario_autorizado"):
                 conn.execute(text(f'GRANT SELECT ON "{s}".{v} TO cardona_app'))
+
+
+def _sembrar_rev_socio(conn) -> None:
+    """Siembra la etapa 'Revisión socio' (nivel_min=5 → solo clientes Alta/Crítica) ANTES
+    de la última etapa ('Presentación') en los 3 tipos que ya tienen etapas de preparación.
+
+    IDEMPOTENTE por (obligacion_tipo_id, codigo='REV_SOCIO'): si ya existe, no toca nada
+    (así no se repite en cada arranque ni pisa lo que Renzo reordene/edite después). Abre el
+    hueco subiendo +1 el ``orden`` de la última etapa (Presentación es la última en los 3).
+    ``dias_antes`` es un DEFAULT (ajustable en el editor de Etapas): el spacing fino lo decide
+    la firma — ver nota de colisión con factor≥2.5 en el handoff."""
+    DIAS_DEFECTO = {"RETEFUENTE": 2, "EXOG_OC": 3, "RENTA_NAT": 2}   # Renzo ajusta en la UI
+    for cod, dias in DIAS_DEFECTO.items():
+        tid = conn.execute(text(
+            "SELECT id FROM obligaciontipo WHERE codigo=:c"), {"c": cod}).scalar()
+        if not tid:
+            continue
+        ya = conn.execute(text(
+            "SELECT 1 FROM obligacionetapa WHERE obligacion_tipo_id=:t AND codigo='REV_SOCIO'"),
+            {"t": tid}).first()
+        if ya:
+            continue
+        maxord = conn.execute(text(
+            "SELECT COALESCE(MAX(orden),0) FROM obligacionetapa WHERE obligacion_tipo_id=:t"),
+            {"t": tid}).scalar() or 0
+        if maxord < 1:
+            continue   # tipo sin etapas: no insertamos suelto
+        # Abre el hueco en maxord: sube la última (Presentación) a maxord+1…
+        conn.execute(text(
+            "UPDATE obligacionetapa SET orden = orden + 1 "
+            "WHERE obligacion_tipo_id=:t AND orden=:o"), {"t": tid, "o": maxord})
+        # …e inserta Revisión socio en el slot liberado, justo antes de Presentación.
+        conn.execute(text(
+            "INSERT INTO obligacionetapa "
+            "(obligacion_tipo_id, orden, nombre, codigo, dias_antes, activa, nota, nivel_min) "
+            "VALUES (:t, :o, :n, 'REV_SOCIO', :d, TRUE, :nota, 5)"),
+            {"t": tid, "o": maxord, "n": "Revisión socio", "d": dias,
+             "nota": "Aprobación previa del socio (control para clientes Alta/Crítica)."})
 
 
 def _sembrar_pago(conn) -> None:

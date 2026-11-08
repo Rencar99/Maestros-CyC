@@ -19,7 +19,7 @@
   align-items: center;
   margin-left: 4px;
   padding: 0 1px;
-  color: #93a4bb;
+  color: var(--gk-move, #93a4bb);
   font-size: 11px;
   line-height: 1;
   letter-spacing: -2px;
@@ -28,15 +28,15 @@
   border-radius: 3px;
   flex: 0 0 auto;
 }
-.cyc-grid-move:hover { color: #0836c7; background: #e8edf7; }
-.cyc-grid-move:focus-visible { outline: 2px solid #0836c7; outline-offset: 1px; color: #0836c7; }
+.cyc-grid-move:hover { color: var(--gk-move-act, #0836c7); background: var(--gk-move-bg, #e8edf7); }
+.cyc-grid-move:focus-visible { outline: 2px solid var(--gk-move-act, #0836c7); outline-offset: 1px; color: var(--gk-move-act, #0836c7); }
 .cyc-grid-move:active { cursor: grabbing; }
 
 /* La columna de acciones no se mueve: ocupa el mismo hueco para que los
    encabezados no bailen. */
 .cyc-grid-move-hueco { display: inline-block; width: 11px; flex: 0 0 auto; }
 
-th.th-drag-over { box-shadow: inset 3px 0 0 #0836c7; }
+th.th-drag-over { box-shadow: inset 3px 0 0 var(--gk-move-act, #0836c7); }
 
 /* --- Fila de totales (§2.6) ----------------------------------------------- */
 /* El ▼ va siempre a la izquierda, igual en todas las columnas, y el total se
@@ -57,7 +57,7 @@ th.th-drag-over { box-shadow: inset 3px 0 0 #0836c7; }
   grid-column: 2;
   overflow: hidden;
   padding-left: 4px;
-  color: #062d65;
+  color: var(--gk-sum-ink, #062d65);
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   text-align: left;
@@ -81,15 +81,16 @@ th.th-drag-over { box-shadow: inset 3px 0 0 #0836c7; }
   border: 0;
   border-radius: 3px;
   background: transparent;
-  color: #53657c;
+  color: var(--gk-sum-btn, #53657c);
   cursor: pointer;
   font-size: 8px;
 }
 
-/* La columna que tiene total puesto se reconoce por el ámbar de la casa. */
+/* La columna con total puesto se reconoce por el propio valor en la fila (y la flecha
+   en navy); sin relleno ámbar en el toggle. */
 .cyc-grid-summary > button.active {
-  background: #d99b2b;
-  color: #062d65;
+  background: transparent;
+  color: var(--gk-sum-ink, #062d65);
 }
 
 .cyc-grid-summary-menu {
@@ -99,9 +100,9 @@ th.th-drag-over { box-shadow: inset 3px 0 0 #0836c7; }
   z-index: 20;
   min-width: 105px;
   padding: 4px;
-  border: 1px solid #aebdce;
+  border: 1px solid var(--gk-pop-line, #aebdce);
   border-radius: 4px;
-  background: #fff;
+  background: var(--gk-pop-bg, #fff);
   box-shadow: 0 8px 20px #20324f33;
 }
 
@@ -111,19 +112,19 @@ th.th-drag-over { box-shadow: inset 3px 0 0 #0836c7; }
   min-height: 26px;
   padding: 0 8px;
   border: 0;
-  background: #fff;
-  color: #25334a;
+  background: var(--gk-pop-bg, #fff);
+  color: var(--gk-pop-ink, #25334a);
   font-size: 11px;
   text-align: left;
   cursor: pointer;
 }
 
-.cyc-grid-summary-menu button:hover { background: #eef3f8; color: #062d65; }
+.cyc-grid-summary-menu button:hover { background: var(--gk-pop-hover, #eef3f8); color: var(--gk-sum-ink, #062d65); }
 
 .cyc-grid-summary-menu button.elegida {
   font-weight: 700;
-  color: #062d65;
-  background: #eef3f8;
+  color: var(--gk-sum-ink, #062d65);
+  background: var(--gk-pop-hover, #eef3f8);
 }
 .cyc-grid-summary-menu button.elegida::after { content: " ✓"; }
 
@@ -131,7 +132,7 @@ th.th-drag-over { box-shadow: inset 3px 0 0 #0836c7; }
 .cyc-grid-summary-sep {
   height: 1px;
   margin: 3px 0;
-  background: #d5dde8;
+  background: var(--gk-pop-sep, #d5dde8);
 }
 
 /* Marca de la función que muestra la fila de totales (Σ, máx, mín, x̄). */
@@ -140,8 +141,8 @@ th.th-drag-over { box-shadow: inset 3px 0 0 #0836c7; }
   margin-left: 5px;
   padding: 0 4px;
   border-radius: 3px;
-  background: #d5e3f4;
-  color: #0a3a7a;
+  background: var(--gk-mark-bg, #d5e3f4);
+  color: var(--gk-mark-ink, #0a3a7a);
   font-size: 9px;
   font-weight: 700;
   line-height: 14px;
@@ -168,14 +169,14 @@ tfoot tr.grid-total td {
   height: 23px;
   padding: 0 2px;
   overflow: visible;
-  border-top: 1px solid #aebdce;
+  border-top: 1px solid var(--gk-pop-line, #aebdce);
   border-right: 0;
   border-bottom: 0;
-  background: #dbe5f2;
+  background: var(--gk-foot-bg, #dbe5f2);
   /* Con la celda `sticky` y `border-collapse`, el border-top de arriba NO se
      pinta mientras la fila está pegada al fondo (se vio en Descargas DIAN,
      20-oct-2026). La línea se dibuja como sombra interior, que sí se pinta. */
-  box-shadow: inset 0 1px 0 #aebdce;
+  box-shadow: inset 0 1px 0 var(--gk-pop-line, #aebdce);
 }
 
 /* Una columna congelada va por encima del resto del pie al desplazarse en
@@ -227,7 +228,7 @@ tbody tr.row-click { cursor: pointer; }
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #0a3a7a;
+  color: var(--gk-act, #0a3a7a);
   font-family: inherit;
   /* 15 y no 14: a 14 el dibujo se lee chico al lado de los demás de la fila. */
   font-size: 15px;
@@ -243,7 +244,7 @@ tbody tr.row-click { cursor: pointer; }
 
 .act-btns button:hover:not(:disabled),
 .act-btns a:hover {
-  background: #eaf0f9;
+  background: var(--gk-act-hover, #eaf0f9);
 }
 
 .act-btns button:disabled {
@@ -253,10 +254,10 @@ tbody tr.row-click { cursor: pointer; }
 
 /* El color dice el significado, no el relleno ni el tamaño. El azul de arriba
    es abrir o ver; estos tres, el resto. */
-.act-btns .cyc-accion-borrar { color: #b42318 }
-.act-btns .cyc-accion-borrar:hover { color: #7f1d1d }
-.act-btns .cyc-accion-ok { color: #0f766e }
-.act-btns .cyc-accion-aviso { color: #9a6700 }
+.act-btns .cyc-accion-borrar { color: var(--gk-borrar, #b42318) }
+.act-btns .cyc-accion-borrar:hover { color: var(--gk-borrar-h, #7f1d1d) }
+.act-btns .cyc-accion-ok { color: var(--gk-ok, #0f766e) }
+.act-btns .cyc-accion-aviso { color: var(--gk-aviso, #9a6700) }
 
 /* --- Marco de grilla (§2.17) -----------------------------------------------
  * Los mismos valores de grilla/cyc-grid.css. Si cambia un número, cambia en
@@ -295,13 +296,13 @@ tbody tr.row-click { cursor: pointer; }
   font-style: normal;
   font-size: 15px;
   line-height: 1;
-  color: var(--blue, #0a3a7a);
+  color: var(--blue, var(--gk-act, #0a3a7a));
 }
 
 .gframe-h h2 {
   margin: 0;
   font-size: 14px;
-  color: var(--blue, #0a3a7a);
+  color: var(--blue, var(--gk-act, #0a3a7a));
 }
 
 .gframe-body {
@@ -337,3 +338,62 @@ tbody tr.row-click { cursor: pointer; }
   height: 1px;
   background: var(--gold, #f7931e);
 }
+
+/* ---- Botón «Columnas» (1.8.0, viene del Calendario): mostrar u ocultar columnas.
+   Va antes de Exportar; el margen automático lo empuja a la derecha. */
+.grid-cols { position: relative; display: inline-flex; margin-left: auto; }
+.grid-cols + .grid-export { margin-left: 0; }
+.grid-cols-btn { padding: 0; width: 34px; min-width: 34px; display: inline-flex; align-items: center; justify-content: center; }
+.grid-cols-btn svg { width: 16px; height: 16px; flex: none; }
+.grid-cols-btn.on { color: var(--primary, #0836c7); border-color: var(--primary, #0836c7); background: var(--info-bg, #eaf1fb); }
+.grid-cols-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60; min-width: 232px; max-height: 380px;
+  display: flex; flex-direction: column; overflow: hidden; background: var(--card, #fff);
+  border: 1px solid var(--line-2, #d5dbe5); border-radius: 12px;
+  box-shadow: var(--shadow-2, 0 10px 30px rgba(9, 47, 97, .18));
+  transform-origin: top right; animation: cyc-gcm-in .14s cubic-bezier(.2, .8, .3, 1);
+}
+@keyframes cyc-gcm-in { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+.grid-cols-head {
+  display: flex; align-items: center; gap: 8px; padding: 11px 13px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .6px; color: var(--primary-ink, #062d65);
+  background: var(--info-bg, #eaf1fb); border-bottom: 1px solid var(--line, #e8ecf2);
+}
+.grid-cols-head svg { color: var(--primary, #0836c7); }
+.grid-cols-count {
+  margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 0; color: var(--primary, #0836c7);
+  background: var(--info-bg, #eaf1fb); border-radius: 20px; padding: 2px 9px; font-variant-numeric: tabular-nums;
+}
+.grid-cols-list { overflow: auto; padding: 6px; display: flex; flex-direction: column; gap: 1px; }
+.grid-cols-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: none;
+  font: inherit; font-size: 13px; color: var(--ink, #1c2b3f); padding: 7px 9px; border-radius: 8px; cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.grid-cols-item:hover:not(:disabled) { background: var(--info-bg, #eaf1fb); }
+.grid-cols-item .gc-eye, .grid-cols-item .gc-lock { display: inline-flex; flex: none; }
+.grid-cols-item .gc-eye svg { color: var(--primary, #0836c7); }
+.grid-cols-item .gc-lock svg { color: var(--ink-3, #8a97a8); }
+.grid-cols-item .grid-cols-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grid-cols-item.off { color: var(--ink-3, #8a97a8); }
+.grid-cols-item.off .gc-eye svg { color: var(--ink-3, #8a97a8); }
+.grid-cols-item.off .grid-cols-name { text-decoration: line-through; text-decoration-color: var(--line-2, #d5dbe5); }
+.grid-cols-item:disabled { cursor: default; }
+.grid-cols-foot { border-top: 1px solid var(--line, #e8ecf2); background: var(--card-2, #f6f8fb); padding: 7px; }
+.grid-cols-all {
+  display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; border: none; background: none;
+  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--primary, #0836c7); padding: 8px; border-radius: 8px;
+  cursor: pointer; transition: background .12s;
+}
+.grid-cols-all:hover:not(:disabled) { background: var(--info-bg, #eaf1fb); }
+.grid-cols-all:disabled { color: var(--ink-3, #8a97a8); cursor: default; }
+/* «Ocultar esta columna» en el menú ▼ de la columna. */
+.fp-hide {
+  display: block; width: 100%; text-align: left; border: none; background: none; font: inherit; font-size: 12.5px;
+  color: var(--ink-2, #4a5a70); padding: 7px 10px; margin-bottom: 6px; border-radius: 6px; cursor: pointer;
+}
+.fp-hide:hover { background: var(--card-2, #f6f8fb); color: var(--err, #c62828); }
+
+/* Exportar va solo con el icono de Excel (1.8.1, del Calendario): el titulo y el
+   aria-label dicen que hace; asi la barra no empuja una barra horizontal. */
+.grid-export-main { padding: 6px 9px; }

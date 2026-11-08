@@ -112,6 +112,45 @@ def leer_texto(data: bytes) -> list[str]:
     return [(p.extract_text() or "") for p in PdfReader(BytesIO(data)).pages]
 
 
+# La tarjeta profesional vive en su propia celda del PDF; como fragmento de texto
+# sale limpia (p. ej. "7 8 3 2 9 T"). El texto plano, en cambio, pega la columna
+# "DV" (un dígito) delante de la tarjeta cuando la identificación es corta, así que
+# la línea queda contaminada ("4 7 8 3 2 9 T"). Por eso tomamos las tarjetas de sus
+# fragmentos y, al leer cada línea, usamos la celda limpia que sea sufijo.
+_TP_FRAG = re.compile(r"^\s*(\d(?: \d)*)\s*T\s*$")
+
+
+def _tarjetas_limpias(data: bytes) -> list[str]:
+    """Tarjetas profesionales leídas desde el fragmento de su columna (sin DV ni
+    dígitos de la identificación pegados). P. ej. ['78329T', '208352T', ...]."""
+    out: list[str] = []
+    try:
+        for page in PdfReader(BytesIO(data)).pages:
+            t = page.extract_text() or ""
+            if "REVISOR" in t.upper() and "CONTADOR" in t.upper():
+                def _v(text, cm, tm, fontDict, fontSize):  # noqa: ANN001
+                    m = _TP_FRAG.match(text or "")
+                    if m:
+                        out.append(_digs(m.group(1)) + "T")
+                page.extract_text(visitor_text=_v)
+                break
+    except Exception:  # noqa: BLE001 — si el visitor falla, se usa la TP de la línea
+        return []
+    return out
+
+
+def _mejor_tp(linea: str, limpias: list[str]) -> str:
+    """Devuelve la tarjeta de celda que coincide con la leída en la línea: exacta si
+    la hay, si no la celda limpia que sea sufijo (la línea puede traer DV delante)."""
+    ld = linea[:-1] if linea.endswith("T") else linea
+    if not ld:
+        return linea
+    if linea in limpias:
+        return linea
+    cand = [c for c in limpias if len(c) <= len(linea) and ld.endswith(c[:-1])]
+    return max(cand, key=len) if cand else linea
+
+
 def parse_rut(data: bytes) -> dict:
     pgs = leer_texto(data)
     if not pgs:
@@ -321,6 +360,7 @@ def parse_rut(data: bytes) -> dict:
     # cupos van a ~8 líneas de distancia → 0=revisor ppal, 1=contador, 2=suplente.
     rc = next((pg for pg in pgs if "REVISOR" in pg.upper() and "CONTADOR" in pg.upper()), "")
     if rc:
+        limpias = _tarjetas_limpias(data)   # TP desde su celda (sin DV pegado)
         data = rc.split("Hoja 5")[-1] if "Hoja 5" in rc else rc
         lines = [l.rstrip() for l in data.splitlines()]
         base = next((i for i, l in enumerate(lines)
@@ -328,9 +368,12 @@ def parse_rut(data: bytes) -> dict:
         i = 0
         while i < len(lines):
             l = lines[i]
-            mt = re.search(r"\s{3,}([\d ]+?)\s*T?\s*$", l)   # tarjeta tras gran espacio ("T" opcional)
+            # Tarjeta profesional: la corrida de dígitos pegada a la "T" final de la
+            # línea; luego se reemplaza por la celda limpia (sufijo) para quitar el
+            # DV que el texto plano pega delante cuando la identificación es corta.
+            mt = re.search(r"(\d(?: ?\d)+)\s*T\s*$", l)
             if mt and re.search(r"documento|c[ée]dula", l, re.I):
-                tarjeta = _digs(mt.group(1)) + "T"
+                tarjeta = _mejor_tp(_digs(mt.group(1)) + "T", limpias)
                 nombre = ""
                 j = i + 1
                 while j < len(lines) and j < i + 6:

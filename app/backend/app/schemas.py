@@ -200,6 +200,8 @@ class ClienteBase(SQLModel):
     firma_revisor_id: Optional[int] = None
     responsable_cliente: str = ""
     email_responsable_cliente: str = ""
+    contacto_cobro: str = ""
+    celular_cobro: str = ""
     grupo: str = ""
     notas: str = ""
     archivo_propuesta: str = ""

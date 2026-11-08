@@ -1,10 +1,10 @@
 {
     "estandar":  "Grilla CyC (React)",
-    "version":  "1.6.5",
-    "fecha":  "2026-10-23 11:58:14",
+    "version":  "1.8.2",
+    "fecha":  "2026-11-08 15:06:45",
     "origen":  "C:\\Users\\COMPUMAX\\Documents\\Aplicativos Excel C\u0026C\\estandar-cyc",
     "archivos":  {
-                     "DataGrid.tsx":  "f02b224ee5f96a7b3278830f3d38bb3179e9b38f7e85ef838fdad60bbb0cb635",
-                     "cyc-grid-react.css":  "a714f22153db6fe29c1cd959b41e19804e99d63f908f79334859656c08b29077"
+                     "DataGrid.tsx":  "cda3c8b7341c71587cdcb2e79c24e1073cec5d6aed18d5d17cb63d983ff868d1",
+                     "cyc-grid-react.css":  "9d75b02ad7280dc40fb8fc9a2f1740f5f9201b1d80039ffe958910c0e52361fc"
                  }
 }

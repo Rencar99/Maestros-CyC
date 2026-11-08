@@ -173,12 +173,16 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
     if ((await confirmar({ titulo: "Eliminar etapa", mensaje: `Se eliminará la etapa «${r.nombre}».`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
     try { await api.del(`/catalogos/etapa/${r.id}`); cargarEtapas(); toast("Etapa eliminada ✓"); } catch (e: any) { toast(e.message, true); }
   };
-  const nuevaEtapa = (): Etapa => ({ id: 0, obligacion_tipo_id: obl.id, orden: 0, nombre: "", codigo: "", dias_antes: 0, activa: true, nota: "" });
+  const nuevaEtapa = (): Etapa => ({ id: 0, obligacion_tipo_id: obl.id, orden: 0, nombre: "", codigo: "", dias_antes: 0, activa: true, nota: "", nivel_min: 0 });
   const colsEtapa: Column<Etapa>[] = [
     { key: "orden", label: "#", align: "center", width: "44px", value: (r) => String(r.orden), render: (r) => <span className="pill">{r.orden}</span> },
     { key: "nombre", label: "Etapa", value: (r) => r.nombre, render: (r) => <div>{r.nombre}{r.nota && <div className="cc-sub">{r.nota}</div>}</div> },
     { key: "codigo", label: "Código", align: "center", width: "90px", value: (r) => r.codigo, render: (r) => r.codigo ? <span className="pill">{r.codigo}</span> : <span style={{ color: "var(--ink-3)" }}>—</span> },
     { key: "dias_antes", label: "Días háb.", align: "center", width: "90px", value: (r) => String(r.dias_antes) },
+    { key: "nivel_min", label: "Solo si ≥", align: "center", width: "92px", value: (r) => String(r.nivel_min),
+      render: (r) => r.nivel_min > 0
+        ? <span className="pill" title={`Solo clientes con complejidad ≥ ${NIVELES[r.nivel_min]}`}>≥ {NIVELES[r.nivel_min]}</span>
+        : <span style={{ color: "var(--ink-3)" }}>Todos</span> },
     { key: "activa", label: "Activa", align: "center", width: "80px", value: (r) => (r.activa ? "Sí" : "No"), render: (r) => <SiNo v={r.activa} /> },
   ];
   // Crear entidad al vuelo (patrón "+") desde el campo Ente.
@@ -321,18 +325,19 @@ function ObligacionModal({ obl, entidades, formularios, onEntidadCreada, onClose
   );
 }
 
-interface Etapa { id: number; obligacion_tipo_id: number; orden: number; nombre: string; codigo: string; dias_antes: number; activa: boolean; nota: string; }
+interface Etapa { id: number; obligacion_tipo_id: number; orden: number; nombre: string; codigo: string; dias_antes: number; activa: boolean; nota: string; nivel_min: number; }
+const NIVELES = ["Sin clasificar", "Muy baja", "Baja", "Media", "Media-alta", "Alta", "Crítica"];
 
 /** Formulario de una etapa (subtarea) de la obligación. */
 function EtapaModal({ tid, etapa, onClose, onSaved }: { tid: number; etapa: Etapa | null; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const editando = !!etapa && etapa.id > 0;
-  const [f, setF] = useState<Etapa>(etapa ?? { id: 0, obligacion_tipo_id: tid, orden: 0, nombre: "", codigo: "", dias_antes: 0, activa: true, nota: "" });
+  const [f, setF] = useState<Etapa>(etapa ?? { id: 0, obligacion_tipo_id: tid, orden: 0, nombre: "", codigo: "", dias_antes: 0, activa: true, nota: "", nivel_min: 0 });
   const set = (p: Partial<Etapa>) => setF((x) => ({ ...x, ...p }));
   const nombreRef = useRef<HTMLInputElement>(null);
   const guardar = async () => {
     if (!f.nombre.trim()) { toast("El nombre de la etapa es obligatorio", true); return; }
-    const payload = { nombre: f.nombre.trim(), codigo: f.codigo.trim(), dias_antes: Number(f.dias_antes) || 0, activa: f.activa, nota: f.nota.trim() };
+    const payload = { nombre: f.nombre.trim(), codigo: f.codigo.trim(), dias_antes: Number(f.dias_antes) || 0, activa: f.activa, nota: f.nota.trim(), nivel_min: Number(f.nivel_min) || 0 };
     try {
       if (editando) {
         await api.put(`/catalogos/etapa/${f.id}`, payload);
@@ -359,6 +364,12 @@ function EtapaModal({ tid, etapa, onClose, onSaved }: { tid: number; etapa: Etap
           <label className="cq-fld"><span>Días hábiles antes</span>
             <input type="number" min={0} value={f.dias_antes} title="Días hábiles antes del vencimiento de la obligación (el Calendario deriva la fecha)"
                    onChange={(e) => set({ dias_antes: Number(e.target.value) || 0 })} /></label>
+          <label className="cq-fld"><span>Solo si complejidad ≥</span>
+            <select value={f.nivel_min} title="La etapa solo aplica a clientes cuyo nivel de complejidad para esta obligación alcance este mínimo. «Todos» = sin filtro."
+                    onChange={(e) => set({ nivel_min: Number(e.target.value) || 0 })}>
+              <option value={0}>Todos (sin filtro)</option>
+              {NIVELES.slice(1).map((n, i) => <option key={i + 1} value={i + 1}>≥ {n}</option>)}
+            </select></label>
           <label className="cq-fld obl-wide"><span>Nota (opcional)</span>
             <input value={f.nota} onChange={(e) => set({ nota: e.target.value })} /></label>
           <div className="obl-wide"><Toggle label="Activa" color="green" checked={f.activa} onChange={(v) => set({ activa: v })} /></div>

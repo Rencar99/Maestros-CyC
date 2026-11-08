@@ -139,6 +139,21 @@ async function openPdf(path: string): Promise<void> {
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
+// Trae un PDF (con auth) como object URL para mostrarlo EMBEBIDO (iframe/embed).
+// El que llama debe revocar el URL (URL.revokeObjectURL) al cerrar el visor.
+async function blobUrl(path: string): Promise<string> {
+  const headers: Record<string, string> = {};
+  const tok = getToken();
+  if (tok) headers["Authorization"] = `Bearer ${tok}`;
+  const r = await fetch(`/api${path}`, { headers });
+  if (!r.ok) {
+    let msg = r.statusText;
+    try { const j = await r.json(); if (j?.detail) msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail); } catch { /* */ }
+    throw new Error(msg);
+  }
+  return URL.createObjectURL(await r.blob());
+}
+
 export const api = {
   get: (p: string) => req("GET", p),
   post: (p: string, b?: unknown) => req("POST", p, b ?? {}),
@@ -152,6 +167,7 @@ export const api = {
   download,
   downloadPost,
   openPdf,
+  blobUrl,
   // Cierra la sesión en el servidor (libera el "una sola sesión por equipo").
   logout: () => req("POST", "/auth/logout").catch(() => {}),
   // Latido: mantiene fresca la sesión mientras la App esté abierta.

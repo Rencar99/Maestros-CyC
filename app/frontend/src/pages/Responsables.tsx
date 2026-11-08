@@ -6,6 +6,8 @@ import { fmtTel, Icon, soloDig, Toggle, useConfirm, useToast } from "../ui";
 import { Column, DataGrid } from "../components/DataGrid";
 import { Modal } from "../components/Modal";
 import { Cat, CatSelect } from "../components/CatSelect";
+import { RespCombo } from "../components/RespCombo";
+import { DateInput } from "../components/DateInput";
 
 const FORM: Record<number, string> = { 1: "Profesional", 2: "Postgrado", 3: "Maestría", 4: "Doctorado", 5: "Otros" };
 /** Sugerencia de apodo (nombre en formato "Apellido1 Apellido2 Nombre1 …"):
@@ -30,6 +32,7 @@ export function Responsables({ esSuper = false, puede, active = true }: { esSupe
   const [edit, setEdit] = useState<Responsable | null>(null);
   const [cargos, setCargos] = useState<Cat[]>([]);
   const [orden, setOrden] = useState<number[]>([]);   // orden visible de la grilla (para navegar)
+  const [supl, setSupl] = useState(false);            // modal Reasignar / Suplencias
 
   const vecino = (dir: "prev" | "next"): number | undefined => {
     if (!edit || !edit.id) return undefined;
@@ -79,7 +82,10 @@ export function Responsables({ esSuper = false, puede, active = true }: { esSupe
           <DataGrid columns={cols} rows={rows} getKey={(r) => r.id} label="Responsables" emptyLabel="Sin responsables."
             storageKey="responsables" fitRows
             onView={(rs) => setOrden(rs.map((r) => r.id))}
-            toolbar={puede("responsables.crear") ? <span className="gf-end"><button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nuevo responsable</button></span> : undefined}
+            toolbar={(puede("responsables.crear") || puede("responsables.reasignar")) ? <span className="gf-end">
+              {puede("responsables.reasignar") && <button className="btn sm" onClick={() => setSupl(true)}><Icon name="resp" size={16} />Reasignar / Suplencias</button>}
+              {puede("responsables.crear") && <button className="btn primary sm" onClick={() => setEdit(vacio())}><Icon name="plus" size={16} />Nuevo responsable</button>}
+            </span> : undefined}
             actionsWidth={puede("responsables.eliminar") ? "72px" : undefined}
             actions={(puede("responsables.editar") || puede("responsables.eliminar")) ? (r) => (
               <>
@@ -98,6 +104,8 @@ export function Responsables({ esSuper = false, puede, active = true }: { esSupe
         formaciones={[...new Set(rows.map((r) => r.formacion_nombre).filter(Boolean))].sort()}
         prevId={vecino("prev") ?? null} nextId={vecino("next") ?? null} onGo={abrirId} reload={load}
         onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />}
+      {supl && <SuplenciasModal responsables={rows} confirmar={confirmar}
+        onClose={() => setSupl(false)} onDone={load} />}
     </>
   );
 }
@@ -263,6 +271,299 @@ function Ficha({ resp, esSuper, puede, cargos, onCargo, formaciones, prevId, nex
               <div className="empty">Los responsables externos no inician sesión en el aplicativo.</div>
             )}
           </div>
+    </Modal>
+  );
+}
+
+
+/** Checkbox de 3 estados (marcado / parcial / vacío) para el "seleccionar todo". */
+function TriBox({ checked, partial, onChange }: { checked: boolean; partial: boolean; onChange: () => void }) {
+  const r = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (r.current) r.current.indeterminate = partial && !checked; }, [partial, checked]);
+  return <input ref={r} type="checkbox" checked={checked} onChange={onChange} />;
+}
+
+type FilaRep = { cliente_id: number; rol: string; rol_label: string; nombre: string; grupo: string; confidencial: boolean; oculto: boolean };
+const kFila = (r: FilaRep) => `${r.cliente_id}|${r.rol}`;
+
+/** Reasignar los clientes de un responsable que sale (vacaciones o traspaso): grilla
+ *  con casillas para repartir UNO A UNO o por BLOQUES (filtrar Rol + seleccionar todo)
+ *  a distintos reemplazos; + ver/revertir suplencias activas. Reutiliza DataGrid,
+ *  RespCombo y DateInput. Las firmas (contador/revisor) son legales: no se reparten. */
+function SuplenciasModal({ responsables, confirmar, onClose, onDone }: {
+  responsables: Responsable[];
+  confirmar: (o: any) => Promise<string>;
+  onClose: () => void; onDone: () => void;
+}) {
+  const toast = useToast();
+  const [tab, setTab] = useState<"nueva" | "activas">("nueva");
+  const [salienteId, setSalienteId] = useState<number | null>(null);
+  const [filas, setFilas] = useState<FilaRep[]>([]);
+  const [asign, setAsign] = useState<Record<string, number | null>>({});  // rowKey → reemplazo (pendiente)
+  const [sel, setSel] = useState<Set<string>>(new Set());                 // filas marcadas
+  const [visibles, setVisibles] = useState<string[]>([]);                 // rowKeys visibles (filtro+búsqueda)
+  const [reempBulk, setReempBulk] = useState<number | null>(null);        // reemplazo del "asignar a seleccionados"
+  const [tipo, setTipo] = useState<"vacaciones" | "definitiva">("vacaciones");
+  const [retorno, setRetorno] = useState("");
+  const [cargando, setCargando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [lotes, setLotes] = useState<any[]>([]);
+  const [min, setMin] = useState(false);
+  const [correoLid, setCorreoLid] = useState<number | null>(null);   // modal de aviso del lote
+
+  const opts = responsables.filter((r) => r.tipo === "Int" && r.activo).map((r) => ({ id: r.id, nombre: r.nombre }));
+  const optsRepl = opts.filter((o) => o.id !== salienteId);
+  const nombreRep = (id: number | null | undefined) => (id ? (responsables.find((r) => r.id === id)?.nombre ?? "?") : "");
+
+  const traerClientes = (uid: number, conservar = false) =>
+    api.get(`/responsables/${uid}/clientes`).then((d: any) => {
+      const rows: FilaRep[] = d.rows || [];
+      setFilas(rows);
+      setSel(new Set());
+      if (!conservar) { setAsign({}); return; }
+      const keys = new Set(rows.map(kFila));                      // podar asignaciones huérfanas
+      setAsign((prev) => { const n: Record<string, number | null> = {}; Object.entries(prev).forEach(([k, v]) => { if (v && keys.has(k)) n[k] = v; }); return n; });
+    });
+
+  useEffect(() => {
+    setFilas([]); setAsign({}); setSel(new Set()); setReempBulk(null);
+    if (!salienteId) return;
+    setCargando(true);
+    traerClientes(salienteId).catch((e: any) => toast(e.message, true)).finally(() => setCargando(false));
+  }, [salienteId]); // eslint-disable-line
+
+  const cargarActivas = () => api.get("/responsables/reasignaciones?estado=activa")
+    .then((d: any) => setLotes(d.rows || [])).catch((e: any) => toast(e.message, true));
+  useEffect(() => { if (tab === "activas") cargarActivas(); }, [tab]); // eslint-disable-line
+
+  const toggle = (key: string) => setSel((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const allSel = visibles.length > 0 && visibles.every((v) => sel.has(v));
+  const someSel = !allSel && visibles.some((v) => sel.has(v));
+  const toggleTodos = () => setSel((p) => { const n = new Set(p); if (allSel) visibles.forEach((v) => n.delete(v)); else visibles.forEach((v) => n.add(v)); return n; });
+  const asignarSel = (a_id: number) => {
+    if (!a_id || sel.size === 0) return;
+    const cnt = sel.size;
+    setAsign((prev) => { const n = { ...prev }; sel.forEach((k) => (n[k] = a_id)); return n; });
+    setSel(new Set()); setReempBulk(null);
+    toast(`${cnt} cliente${cnt === 1 ? "" : "s"} → ${nombreRep(a_id)}`);
+  };
+  const quitarSel = () => { setAsign((prev) => { const n = { ...prev }; sel.forEach((k) => delete n[k]); return n; }); setSel(new Set()); };
+
+  const items = Object.entries(asign).filter(([, v]) => v).map(([k, v]) => { const [cid, rol] = k.split("|"); return { cliente_id: Number(cid), rol, a_id: v as number }; });
+  const puedeAplicar = !!salienteId && items.length > 0 && !guardando;
+
+  const cols: Column<FilaRep>[] = [
+    {
+      key: "sel", label: "", width: "40px", align: "center",
+      headerRender: () => <span onClick={(e) => e.stopPropagation()}><TriBox checked={allSel} partial={someSel} onChange={toggleTodos} /></span>,
+      render: (r) => <input type="checkbox" readOnly checked={sel.has(kFila(r))} />,
+    },
+    {
+      key: "nombre", label: "Cliente", filterable: true, sortable: true, minWidth: "16ch",
+      render: (r) => <span className={r.oculto ? "supl-oculta" : ""}>{r.nombre}</span>, value: (r) => r.nombre,
+    },
+    {
+      key: "grupo", label: "Grupo económico", filterable: true, sortable: true, width: "18ch",
+      render: (r) => r.grupo ? <span>{r.grupo}</span> : <span className="supl-rep-off">—</span>, value: (r) => r.grupo,
+    },
+    { key: "rol_label", label: "Rol", filterable: true, sortable: true, width: "20ch" },
+    {
+      key: "reemplazo", label: "Reemplazo", filterable: true, sortable: true, width: "18ch",
+      render: (r) => { const a = asign[kFila(r)]; return a ? <span className="supl-rep-on">{nombreRep(a)}</span> : <span className="supl-rep-off">—</span>; },
+      value: (r) => nombreRep(asign[kFila(r)]),
+    },
+  ];
+
+  const bulkBar = (
+    <div className="supl-bulk">
+      <RespCombo value={reempBulk} options={optsRepl} onChange={setReempBulk} placeholder="Reemplazo…" />
+      <button className="btn sm" disabled={!reempBulk || sel.size === 0} onClick={() => asignarSel(reempBulk!)}>
+        <Icon name="resp" size={14} />Asignar{sel.size ? ` (${sel.size})` : ""}
+      </button>
+      <button className="btn sm" disabled={sel.size === 0} onClick={quitarSel}>Quitar</button>
+      <span className="supl-count">Repartidos <b>{items.length}</b> / {filas.length}</span>
+    </div>
+  );
+
+  const aplicar = async () => {
+    if (!puedeAplicar) return;
+    if (tipo === "vacaciones" && retorno && !/^\d{4}-\d{2}-\d{2}$/.test(retorno)) { toast("Fecha de retorno inválida (AAAA-MM-DD).", true); return; }
+    setGuardando(true);
+    try {
+      const r: any = await api.post("/responsables/reasignar", {
+        saliente_id: salienteId, tipo,
+        fecha_retorno: tipo === "vacaciones" && retorno ? retorno : null,
+        items,
+      });
+      toast(`Reasignados ${r.total} cliente${r.total === 1 ? "" : "s"} ✓`);
+      onDone();
+      setSalienteId(null); setAsign({}); setSel(new Set()); setReempBulk(null); setRetorno(""); setFilas([]);
+      setTab("activas"); cargarActivas();
+      setCorreoLid(r.lote_id);                 // ofrecer el aviso por correo del lote recién creado
+    } catch (e: any) {
+      toast(e.message, true);
+      if (salienteId) traerClientes(salienteId, true).catch(() => {});   // la lista pudo quedar obsoleta → refrescar
+    } finally { setGuardando(false); }
+  };
+
+  const revertir = async (l: any) => {
+    if ((await confirmar({ titulo: "Revertir reasignación", mensaje: `Se devolverán ${l.total} cliente(s) a ${l.saliente}. Los que se hayan cambiado a mano no se tocan.`, confirmar: "Revertir" })) !== "si") return;
+    try {
+      const r: any = await api.post(`/responsables/reasignaciones/${l.id}/revertir`, {});
+      if (r.omitidos?.length) toast(`Revertidos ${r.restaurados}; ${r.omitidos.length} omitido(s) por cambio manual.`, true);
+      else toast(`Revertido ✓ (${r.restaurados})`);
+      cargarActivas(); onDone();
+    } catch (e: any) { toast(e.message, true); }
+  };
+
+  return (
+    <>
+    <Modal title="Reasignar clientes / Suplencias" icon="resp" size="lg" onClose={onClose}
+      onSave={tab === "nueva" ? aplicar : undefined} canSave={puedeAplicar} saving={guardando}
+      saveLabel="Aplicar reasignación" saveIcon="resp"
+      onMinimize={() => setMin(true)} minimized={min} onRestore={() => setMin(false)}
+      aviso={tab === "nueva" && items.length > 0 ? "Listo para aplicar arriba" : undefined} avisoTone="ok">
+      <div className="supl-tabs">
+        <button className={"supl-tab" + (tab === "nueva" ? " on" : "")} onClick={() => setTab("nueva")}>Nueva reasignación</button>
+        <button className={"supl-tab" + (tab === "activas" ? " on" : "")} onClick={() => setTab("activas")}>Suplencias activas</button>
+      </div>
+      {tab === "nueva" ? (
+        <div className="supl-body">
+          <div className="f"><label>Responsable que sale</label>
+            <RespCombo value={salienteId} options={opts} onChange={setSalienteId} placeholder="Elige al responsable…" />
+          </div>
+          {cargando ? <div className="hint">Cargando…</div>
+            : salienteId && filas.length === 0 ? <div className="hint">No tiene clientes en roles de gestión.</div>
+            : filas.length > 0 && (
+              <>
+                <DataGrid<FilaRep> columns={cols} rows={filas} getKey={kFila}
+                  label="Clientes del saliente" emptyLabel="Sin clientes."
+                  searchable exportable={false} toolbar={bulkBar}
+                  onView={(rs) => setVisibles(rs.map(kFila))}
+                  onRowClick={(r) => toggle(kFila(r))}
+                  rowClass={(r) => (asign[kFila(r)] ? "supl-fila-on" : r.oculto ? "supl-fila-off" : undefined)}
+                  storageKey="supl-reparto" scrollClass="supl-grid-scroll" />
+                <div className="supl-modo">
+                  <div className="supl-tipo">
+                    <button className={"supl-pill" + (tipo === "vacaciones" ? " on" : "")} onClick={() => setTipo("vacaciones")}>Vacaciones (revertible)</button>
+                    <button className={"supl-pill" + (tipo === "definitiva" ? " on" : "")} onClick={() => setTipo("definitiva")}>Definitiva</button>
+                  </div>
+                  {tipo === "vacaciones" && <div className="f"><label>Fecha de retorno (opcional)</label>
+                    <DateInput value={retorno} onChange={setRetorno} /></div>}
+                </div>
+              </>
+            )}
+        </div>
+      ) : (
+        <div className="supl-body">
+          {lotes.length === 0 ? <div className="hint">No hay suplencias activas.</div>
+            : lotes.map((l) => (
+              <div className={"supl-lote" + (l.vence ? " vence" : "")} key={l.id}>
+                <div className="supl-lote-top">
+                  <b>{l.saliente}</b>
+                  <span className={"supl-badge " + l.tipo}>{l.tipo === "vacaciones" ? "Vacaciones" : "Definitiva"}</span>
+                  {l.fecha_retorno && <span className={"supl-ret" + (l.vence ? " due" : "")}>Retorno {l.fecha_retorno}{l.vence ? " · vencida" : ""}</span>}
+                  <span className="supl-grow" />
+                  <button className="btn sm" onClick={() => setCorreoLid(l.id)}><Icon name="mail" size={14} />Correo</button>
+                  <button className="btn sm" onClick={() => revertir(l)}><Icon name="refresh" size={14} />Revertir</button>
+                </div>
+                <div className="supl-lote-det">
+                  {l.detalle.map((d: any, i: number) => <span key={i} className="supl-chip">{d.rol} → {d.a} <b>({d.n})</b></span>)}
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+    </Modal>
+    {correoLid != null && <CorreoReasignacionModal lid={correoLid} confirmar={confirmar} onClose={() => setCorreoLid(null)} />}
+    </>
+  );
+}
+
+/** Aviso por correo de un lote de reasignación: un borrador por Responsable de Impuestos
+ *  afectado (tabla célula/cliente/supervisor autogenerada), editable, enviado desde el
+ *  buzón del operador (Graph delegado). La tabla la arma el servidor; aquí solo se edita
+ *  el texto. Se puede reenviar (con confirmación). */
+function CorreoReasignacionModal({ lid, confirmar, onClose }: {
+  lid: number; confirmar: (o: any) => Promise<string>; onClose: () => void;
+}) {
+  const toast = useToast();
+  const [data, setData] = useState<any>(null);
+  const [cargando, setCargando] = useState(true);
+  const [sel, setSel] = useState<number | null>(null);
+  const [ed, setEd] = useState<Record<number, { para: string; asunto: string; intro: string; cierre: string }>>({});
+  const [enviadosLocal, setEnviadosLocal] = useState<Record<number, boolean>>({});
+  const [enviando, setEnviando] = useState(false);
+
+  useEffect(() => {
+    setCargando(true);
+    api.get(`/responsables/reasignaciones/${lid}/correos`)
+      .then((d: any) => {
+        setData(d);
+        const rs = d.recipientes || [];
+        const m: any = {};
+        rs.forEach((r: any) => (m[r.destinatario_id] = { para: r.para, asunto: r.asunto, intro: r.intro, cierre: r.cierre }));
+        setEd(m);
+        setSel((rs.find((r: any) => !r.enviado) || rs[0])?.destinatario_id ?? null);
+      })
+      .catch((e: any) => toast(e.message, true))
+      .finally(() => setCargando(false));
+  }, [lid]); // eslint-disable-line
+
+  const rec = data?.recipientes?.find((r: any) => r.destinatario_id === sel) || null;
+  const campos = sel != null ? ed[sel] : null;
+  const setCampo = (k: string, v: string) => sel != null && setEd((m) => ({ ...m, [sel]: { ...m[sel], [k]: v } }));
+  const yaEnviado = (r: any) => !!enviadosLocal[r.destinatario_id] || !!r.enviado;
+
+  const enviar = async () => {
+    if (!rec || !campos) return;
+    if (!campos.para.trim()) { toast("El destinatario no tiene correo.", true); return; }
+    if (yaEnviado(rec) && (await confirmar({ titulo: "Reenviar correo", mensaje: `Ya se le envió el aviso a ${rec.nombre}. ¿Reenviar?`, confirmar: "Reenviar" })) !== "si") return;
+    setEnviando(true);
+    try {
+      await api.post(`/responsables/reasignaciones/${lid}/correo`, {
+        destinatario_id: rec.destinatario_id, para: campos.para, asunto: campos.asunto, intro: campos.intro, cierre: campos.cierre,
+      });
+      toast(`Correo enviado a ${rec.nombre} ✓`);
+      setEnviadosLocal((m) => ({ ...m, [rec.destinatario_id]: true }));
+      const sig = data.recipientes.find((r: any) => r.destinatario_id !== rec.destinatario_id && !yaEnviado(r) && r.tiene_correo);
+      if (sig) setSel(sig.destinatario_id);
+    } catch (e: any) { toast(e.message, true); } finally { setEnviando(false); }
+  };
+
+  return (
+    <Modal title="Enviar aviso de reasignación" icon="mail" size="lg" portal onClose={onClose}
+      onSave={rec ? enviar : undefined} canSave={!!data?.conectado && !!campos?.para?.trim() && !enviando}
+      saving={enviando} saveLabel={rec && yaEnviado(rec) ? "Reenviar correo" : "Enviar correo"} saveIcon="mail"
+      aviso={!cargando && data && !data.conectado ? "Conecta tu correo de Microsoft 365 (Configuración → Mi correo) para poder enviar." : undefined} avisoTone="warn">
+      {cargando ? <div className="hint">Cargando…</div>
+        : !data?.recipientes?.length ? <div className="hint">Esta reasignación no genera avisos (no fueron roles tributarios).</div>
+        : <div className="cre-body">
+            <div className="f"><label>De</label><input value={data.de || "(sin correo conectado)"} disabled /></div>
+            <div className="cre-dests">
+              {data.recipientes.map((r: any) => (
+                <button key={r.destinatario_id} type="button"
+                  className={"cre-dest" + (r.destinatario_id === sel ? " on" : "") + (yaEnviado(r) ? " sent" : "")}
+                  onClick={() => setSel(r.destinatario_id)}>
+                  {yaEnviado(r) && <Icon name="check" size={12} />}{r.nombre}
+                  <span className="cre-n">({r.n_clientes})</span>
+                  {!r.tiene_correo && <span className="cre-nomail">sin correo</span>}
+                </button>
+              ))}
+            </div>
+            {rec && campos && <>
+              <div className="cre-f2">
+                <div className="f"><label>Para</label><input value={campos.para} onChange={(e) => setCampo("para", e.target.value)} placeholder="correo@…" /></div>
+                <div className="f"><label>Asunto</label><input value={campos.asunto} onChange={(e) => setCampo("asunto", e.target.value)} /></div>
+              </div>
+              <div className="f"><label>Introducción</label><textarea rows={3} value={campos.intro} onChange={(e) => setCampo("intro", e.target.value)} /></div>
+              <table className="cre-tabla"><thead><tr><th>Cliente principal / célula</th><th>Cliente</th><th>Supervisor encargado</th></tr></thead>
+                <tbody>{rec.filas.map((f: any, i: number) => (<tr key={i}><td>{f.celula}</td><td>{f.clientes}</td><td>{f.supervisor}</td></tr>))}</tbody></table>
+              <div className="f"><label>Cierre</label><textarea rows={4} value={campos.cierre} onChange={(e) => setCampo("cierre", e.target.value)} /></div>
+            </>}
+            {data.sin_responsable?.length > 0 && <div className="cre-note"><Icon name="alert" size={13} />{data.sin_responsable.length} cliente(s) movido(s) sin Responsable de Impuestos — no entran en ningún aviso.</div>}
+            {data.omitidos_no_tributarios > 0 && <div className="cre-note"><Icon name="info" size={13} />{data.omitidos_no_tributarios} movimiento(s) financiero/registro — no generan aviso.</div>}
+          </div>}
     </Modal>
   );
 }

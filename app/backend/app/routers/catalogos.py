@@ -269,7 +269,7 @@ def borrar_obligacion_tipo(item_id: int, session: Session = Depends(get_session)
 def _etapa_dict(e: ObligacionEtapa) -> dict:
     return {"id": e.id, "obligacion_tipo_id": e.obligacion_tipo_id, "orden": e.orden,
             "nombre": e.nombre, "codigo": e.codigo, "dias_antes": e.dias_antes,
-            "activa": e.activa, "nota": e.nota}
+            "activa": e.activa, "nota": e.nota, "nivel_min": e.nivel_min}
 
 
 class EtapaIn(BaseModel):
@@ -278,6 +278,7 @@ class EtapaIn(BaseModel):
     dias_antes: int = 0
     activa: bool = True
     nota: str = ""
+    nivel_min: int = 0   # 0 = aplica siempre; ≥1 = solo si el nivel del cliente ≥ nivel_min
 
 
 class OrdenIn(BaseModel):
@@ -306,7 +307,8 @@ def crear_etapa(tid: int, data: EtapaIn, session: Session = Depends(get_session)
     e = ObligacionEtapa(
         obligacion_tipo_id=tid, orden=(ultimo.orden + 1) if ultimo else 1,
         nombre=data.nombre.strip(), codigo=data.codigo.strip(),
-        dias_antes=max(0, data.dias_antes), activa=data.activa, nota=data.nota.strip())
+        dias_antes=max(0, data.dias_antes), activa=data.activa, nota=data.nota.strip(),
+        nivel_min=max(0, min(6, data.nivel_min)))
     session.add(e)
     session.commit()
     session.refresh(e)
@@ -326,6 +328,7 @@ def actualizar_etapa(eid: int, data: EtapaIn, session: Session = Depends(get_ses
     e.dias_antes = max(0, data.dias_antes)
     e.activa = data.activa
     e.nota = data.nota.strip()
+    e.nivel_min = max(0, min(6, data.nivel_min))
     session.add(e)
     session.commit()
     return _etapa_dict(e)

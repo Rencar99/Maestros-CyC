@@ -1,0 +1,11 @@
+{
+    "estandar":  "TemaCyC",
+    "version":  "1.0.0",
+    "fecha":  "2026-11-08 15:06:45",
+    "origen":  "C:\\Users\\COMPUMAX\\Documents\\Aplicativos Excel C\u0026C\\estandar-cyc",
+    "archivos":  {
+                     "cyc-tema.css":  "d7e061c599f532864d02a2de31f3aedc0fa22bac012e41d47faa6c770662d8ee",
+                     "cyc-tema.ts":  "dc60bf84329dc957a9f1b73b7977151d5077e85cfe11ff672e1ae8a8860a1a6c",
+                     "TemaMenu.tsx":  "022526958938795427c892c9dbce6d93dacee6e8b2518464810efb5c5aba4e92"
+                 }
+}

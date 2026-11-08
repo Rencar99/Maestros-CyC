@@ -7,6 +7,7 @@ import { Column, DataGrid } from "../components/DataGrid";
 import { CiiuCombo } from "../components/CiiuCombo";
 import { MunicipioCombo } from "../components/MunicipioCombo";
 import { RespCombo } from "../components/RespCombo";
+import { FirmaCombo } from "../components/FirmaCombo";
 import { useReveladas } from "../useReveladas";
 import { Explorador } from "../components/Explorador";
 import { CatSelect } from "../components/CatSelect";
@@ -267,7 +268,7 @@ function vacio(): Cliente {
     facturador_electronico: null, gran_contribuyente: null, estado: "Act", confidencial: false, cliente_desde: "", responsable_impuestos_id: null,
     coordinador_impuestos_id: null, responsable_financiero_id: null, coordinador_financiero_id: null, responsable_registro_id: null,
     firma_contador_id: null, firma_revisor_id: null,
-    responsable_cliente: "", email_responsable_cliente: "",
+    responsable_cliente: "", email_responsable_cliente: "", contacto_cobro: "", celular_cobro: "",
     grupo: "", notas: "", archivo_propuesta: "", ruta_trabajo: "", ruta_generador: "", rut_actualizado: "", servicios: [], municipios_ica: [], obligaciones: [],
   };
 }
@@ -408,6 +409,8 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
 }
 
 const TABS = [["ident", "Identificación"], ["trib", "Tributario"], ["comercial", "Comercial"], ["ica", "Municipios ICA"], ["obligaciones", "Obligaciones"], ["claves", "Claves"], ["gestion", "Gestión"]] as const;
+// Escala de complejidad del cliente (índice 0..6). "" (vacío) = sin clasificar.
+const NIV_CLI = ["No aplica", "Muy baja", "Baja", "Media", "Media-alta", "Alta", "Crítica"];
 
 interface RutDiff { label: string; actual: string; propuesto: string; check: boolean; apply: (o: Cliente) => Cliente; info?: boolean; }
 
@@ -467,6 +470,16 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
   // Claves de portales: se cargan al abrir la pestaña; la clave en claro se pide aparte.
   const cargarClaves = () => { if (cliente.id) api.get(`/clientes/${cliente.id}/claves`).then(setClaves).catch(() => {}); };
   useEffect(() => { ocultarClaves(); if (tab === "claves") cargarClaves(); }, [tab]); // eslint-disable-line
+  // Complejidad (nivel BASE del cliente): tabla propia, se edita aquí y se guarda sola
+  // (no entra en el payload del cliente). El Calendario la LEE para modular las etapas.
+  const [complej, setComplej] = useState<number | null>(null);
+  useEffect(() => { if (tab === "obligaciones" && cliente.id) api.get(`/clientes/${cliente.id}/complejidad`).then((r) => setComplej(r.base ?? null)).catch(() => {}); }, [tab]); // eslint-disable-line
+  const guardarComplej = async (v: number | null) => {
+    if (!cliente.id) return;
+    const prev = complej; setComplej(v);
+    try { await api.put(`/clientes/${cliente.id}/complejidad`, { base: v }); toast("Complejidad actualizada ✓"); }
+    catch (e: any) { setComplej(prev); toast(e.message, true); }
+  };
   const borrarClave = async (k: ClienteClave) => {
     if ((await confirmar({ titulo: "Eliminar clave", mensaje: `Se eliminará la credencial de "${k.portal || "portal"}" (${k.usuario || "sin usuario"}).`, peligro: true, confirmar: "Eliminar" })) !== "si") return;
     try { await api.del(`/clientes/${cliente.id}/claves/${k.id}`); cargarClaves(); toast("Eliminada"); }
@@ -757,22 +770,27 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     add("Código Seccional (RUT 12)", c.seccional_codigo, p.seccional_codigo, (o) => ({ ...o, seccional_codigo: p.seccional_codigo }));
     // Contador / Revisor fiscal: empatar el nombre del RUT con un responsable de la firma.
     const nombreDe = (id: number | null) => resp.find((r) => r.id === id)?.nombre || "(ninguno)";
-    const firmaDiff = (label: string, nombreRut: string | undefined, actualId: number | null, key: keyof Cliente) => {
+    // Firma: el nombre del RUT se empata con un responsable de la firma; si ninguno
+    // empata, se guarda como nombre libre (externo), sin FK (contador/revisor ajeno).
+    const firmaDiff = (label: string, nombreRut: string | undefined, actualId: number | null, nomActual: string, idKey: keyof Cliente, nomKey: keyof Cliente) => {
       if (!nombreRut) return;
+      const actual = actualId ? nombreDe(actualId) : (nomActual || "(ninguno)");
       const id = matchResponsable(nombreRut, resp);
-      if (id && id !== actualId) {
-        out.push({ label, actual: nombreDe(actualId), propuesto: `${nombreDe(id)}  (RUT: ${nombreRut})`, check: true,
-          apply: (o) => ({ ...o, [key]: id }) as Cliente });
-      } else if (!id) {
-        // No hay responsable que empate: solo aviso (crear en Responsables).
-        out.push({ label, actual: nombreDe(actualId), propuesto: `${nombreRut} — no está en Responsables (créalo)`, check: false, info: true, apply: (o) => o });
+      if (id) {
+        if (id !== actualId)
+          out.push({ label, actual, propuesto: `${nombreDe(id)}  (RUT: ${nombreRut})`, check: true,
+            apply: (o) => ({ ...o, [idKey]: id, [nomKey]: "" }) as Cliente });
+      } else if (nombreRut.trim().toLowerCase() !== (nomActual || "").trim().toLowerCase()) {
+        // Externo: no está en la firma; se registra el nombre tal cual.
+        out.push({ label, actual, propuesto: `${nombreRut}  (externo)`, check: true,
+          apply: (o) => ({ ...o, [idKey]: null, [nomKey]: nombreRut }) as Cliente });
       }
     };
     const cont = p.contador || {}, rev = p.revisor || {};
-    firmaDiff("Firma Contador", cont.nombre, c.firma_contador_id, "firma_contador_id");
+    firmaDiff("Firma Contador", cont.nombre, c.firma_contador_id, c.contador_nombre, "firma_contador_id", "contador_nombre");
     add("Contador · tarjeta prof.", c.contador_tarjeta, cont.tarjeta, (o) => ({ ...o, contador_tarjeta: cont.tarjeta }));
     add("Contador · nombramiento", c.contador_desde, cont.desde, (o) => ({ ...o, contador_desde: cont.desde }));
-    firmaDiff("Firma Revisor Fiscal", rev.nombre, c.firma_revisor_id, "firma_revisor_id");
+    firmaDiff("Firma Revisor Fiscal", rev.nombre, c.firma_revisor_id, c.revisor_nombre, "firma_revisor_id", "revisor_nombre");
     add("Revisor fiscal · tarjeta prof.", c.revisor_tarjeta, rev.tarjeta, (o) => ({ ...o, revisor_tarjeta: rev.tarjeta }));
     add("Revisor fiscal · nombramiento", c.revisor_desde, rev.desde, (o) => ({ ...o, revisor_desde: rev.desde }));
     const codes: string[] = p.responsabilidades || [];
@@ -898,10 +916,18 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
     catch (e: any) { toast(e.message, true); }
   };
 
-  // Select de responsables (reutilizable para impuestos/financiero/firmas).
+  // Select de responsables (reutilizable para impuestos/financiero).
   const RSel = (label: string, value: number | null, key: keyof Cliente, disabled?: boolean) => (
     <div className="f"><label>{label}</label>
       <RespCombo value={value} options={resp} disabled={disabled} onChange={(id) => set(key, id)} />
+    </div>
+  );
+  // Firma del Contador / Revisor: responsable de la firma (idKey) o nombre libre
+  // externo (nomKey); son excluyentes, por eso al fijar uno se limpia el otro.
+  const FSel = (label: string, idVal: number | null, idKey: keyof Cliente, nomVal: string, nomKey: keyof Cliente, disabled?: boolean) => (
+    <div className="f"><label>{label}</label>
+      <FirmaCombo id={idVal} nombre={nomVal} options={resp} disabled={disabled}
+        onChange={(id, nom) => setC((o) => ({ ...o, [idKey]: id, [nomKey]: nom }))} />
     </div>
   );
 
@@ -1066,6 +1092,12 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
                     </select>
                   </div>
                 </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 16, marginTop: 12 }}>
+                  <div className="f"><label>Contacto de cobro</label>
+                    <input value={c.contacto_cobro} placeholder="Persona a la que se le cobra" onChange={(e) => set("contacto_cobro", e.target.value)} /></div>
+                  <div className="f"><label>Celular de cobro</label>
+                    <input value={c.celular_cobro} placeholder="Para WhatsApp (+57)" onChange={(e) => set("celular_cobro", e.target.value)} /></div>
+                </div>
               </div>
               <div className="fieldgroup srv-group">
                 <div className="fg-head"><h4>Servicios contratados</h4>
@@ -1112,6 +1144,15 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
           {tab === "obligaciones" && (
             <div className="fieldgroup">
               <div className="fg-head"><h4>Obligaciones del cliente</h4>
+                {cliente.id && (
+                  <label className="cli-complej" title="Nivel de complejidad del cliente. Modula qué tan temprano entran las etapas en el Calendario y qué controles aplican (p. ej. «Revisión socio» para Alta/Crítica). Sin clasificar = no modula.">
+                    <span>Complejidad</span>
+                    <select value={complej ?? ""} onChange={(e) => guardarComplej(e.target.value === "" ? null : Number(e.target.value))}>
+                      <option value="">Sin clasificar</option>
+                      {NIV_CLI.map((n, i) => <option key={i} value={i}>{i} · {n}</option>)}
+                    </select>
+                  </label>
+                )}
                 <span style={{ flex: 1 }} />
                 <button type="button" className="btn sm" onClick={abrirRevisar} disabled={revisando}><Icon name="check-circle" size={14} />{revisando ? "Revisando…" : "Revisar obligaciones"}</button>
                 <button type="button" className="btn primary sm" onClick={abrirNuevaObl}><Icon name="plus" size={15} />Nueva obligación</button>
@@ -1225,12 +1266,12 @@ function Ficha({ cliente, autoRut, software, setSoftware, roles, setRoles, oblig
               </div>
               <div className="fieldgroup"><h4>Contador y Revisor fiscal {jur ? "(tarjeta y nombramiento del RUT)" : "(no aplica a Persona Natural)"}</h4>
                 <div className="firma-row">
-                  {RSel("Firma Contador", c.firma_contador_id, "firma_contador_id", !jur)}
+                  {FSel("Firma Contador", c.firma_contador_id, "firma_contador_id", c.contador_nombre, "contador_nombre", !jur)}
                   <div className="f"><label>Tarjeta prof.</label><input value={c.contador_tarjeta} disabled={!jur} onChange={(e) => set("contador_tarjeta", e.target.value)} /></div>
                   <div className="f"><label>Nombramiento</label><input value={c.contador_desde} disabled={!jur} placeholder="AAAA-MM-DD" onChange={(e) => set("contador_desde", e.target.value)} /></div>
                 </div>
                 <div className="firma-row" style={{ marginTop: 14 }}>
-                  {RSel("Firma Revisor Fiscal", c.firma_revisor_id, "firma_revisor_id", !jur)}
+                  {FSel("Firma Revisor Fiscal", c.firma_revisor_id, "firma_revisor_id", c.revisor_nombre, "revisor_nombre", !jur)}
                   <div className="f"><label>Tarjeta prof.</label><input value={c.revisor_tarjeta} disabled={!jur} onChange={(e) => set("revisor_tarjeta", e.target.value)} /></div>
                   <div className="f"><label>Nombramiento</label><input value={c.revisor_desde} disabled={!jur} placeholder="AAAA-MM-DD" onChange={(e) => set("revisor_desde", e.target.value)} /></div>
                 </div>
