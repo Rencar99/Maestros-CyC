@@ -80,7 +80,7 @@ def crear(data: ResponsableCreate, session: Session = Depends(get_session),
     return _read(u)
 
 
-@router.get("/{uid}", response_model=ResponsableRead)
+@router.get("/{uid:int}", response_model=ResponsableRead)
 def obtener(uid: int, session: Session = Depends(get_session),
             _u=Depends(get_current_user)):
     """Un responsable por id (para recargar la ficha ante un conflicto de edición)."""
@@ -90,7 +90,7 @@ def obtener(uid: int, session: Session = Depends(get_session),
     return _read(u)
 
 
-@router.put("/{uid}", response_model=ResponsableRead)
+@router.put("/{uid:int}", response_model=ResponsableRead)
 def actualizar(uid: int, data: ResponsableUpdate, base: Optional[str] = None,
                session: Session = Depends(get_session),
                admin: Usuario = Depends(require_perm("responsables.editar"))):
@@ -122,7 +122,7 @@ def actualizar(uid: int, data: ResponsableUpdate, base: Optional[str] = None,
     return _read(u)
 
 
-@router.get("/{uid}/password")
+@router.get("/{uid:int}/password")
 def ver_password(uid: int, session: Session = Depends(get_session),
                  _su=Depends(require_perm("config.roles"))):
     """Devuelve la clave de login en claro (solo superusuario). Vacío si se
@@ -150,7 +150,7 @@ _ROLES_CLIENTE: list[tuple[str, str]] = [
 ]
 
 
-@router.delete("/{uid}", status_code=204)
+@router.delete("/{uid:int}", status_code=204)
 def borrar(uid: int, session: Session = Depends(get_session), admin=Depends(require_perm("responsables.eliminar"))):
     u = session.get(Usuario, uid)
     if not u:
@@ -184,7 +184,7 @@ _ROLES_GESTION_SET = {campo for campo, _ in _ROLES_GESTION}
 _LBL_ROL = dict(_ROLES_CLIENTE)
 
 
-@router.get("/{uid}/clientes")
+@router.get("/{uid:int}/clientes")
 def clientes_de_saliente(uid: int, session: Session = Depends(get_session),
                          admin: Usuario = Depends(require_perm("responsables.reasignar"))):
     """Asignaciones de gestión del saliente, UNA FILA por (cliente, rol), para repartir
@@ -323,7 +323,7 @@ def lista_reasignaciones(estado: str = "activa", session: Session = Depends(get_
     return {"rows": rows}
 
 
-@router.post("/reasignaciones/{lid}/revertir")
+@router.post("/reasignaciones/{lid:int}/revertir")
 def revertir_reasignacion(lid: int, session: Session = Depends(get_session),
                           admin: Usuario = Depends(require_perm("responsables.reasignar"))):
     """Revierte un lote: devuelve cada cliente a su responsable anterior, pero SOLO si
@@ -523,7 +523,7 @@ def _html_correo(intro: str, filas: list[dict], cierre: str, firmante: dict, con
             f"line-height:1.45\">{_parrafos(intro)}{tabla}{_parrafos(cierre)}{firma}</div>")
 
 
-@router.get("/reasignaciones/{lid}/correos")
+@router.get("/reasignaciones/{lid:int}/correos")
 def correos_lote(lid: int, session: Session = Depends(get_session),
                  operador: Usuario = Depends(require_perm("responsables.reasignar"))):
     """Borradores (uno por Responsable de Impuestos a avisar) del lote, para el modal."""
@@ -545,7 +545,7 @@ class CorreoReasigIn(BaseModel):
     cierre: str
 
 
-@router.post("/reasignaciones/{lid}/correo")
+@router.post("/reasignaciones/{lid:int}/correo")
 def enviar_correo_lote(lid: int, datos: CorreoReasigIn, session: Session = Depends(get_session),
                        operador: Usuario = Depends(require_perm("responsables.reasignar"))):
     """Compone y envía (desde el buzón del operador, Graph delegado) el aviso a UN
