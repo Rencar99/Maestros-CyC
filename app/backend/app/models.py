@@ -567,7 +567,7 @@ class ObligacionCumplimiento(SQLModel, table=True):
     obligacion_tipo_id: int = Field(foreign_key="obligaciontipo.id", index=True)
     anio: int
     periodo: int = 1
-    estado: str = "presentado"     # "presentado" | "na" (no aplica) ; "pendiente" = sin fila
+    estado: str = "presentado"     # "presentado" | "na" (no aplica) | "en_revision" (eje unificado del Calendario, F5) ; "pendiente" = sin fila. Maestros NO ramifica por este valor. La columna legada `revision` ya no es fuente de verdad (el ORM no la mapea).
     presentado_at: Optional[datetime] = None
     presentado_por: str = ""
     nota: str = ""
