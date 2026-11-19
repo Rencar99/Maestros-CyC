@@ -532,7 +532,8 @@ def datos_rl(cid: int, session: Session = Depends(get_session),
     return {"nit": c.num_id, "dv": calcular_dv(c.num_id), "nombre": c.nombre,
             "tipo_contribuyente": c.tipo_contribuyente,
             "rl_num_id": c.representante_num_id, "rl_nombre": c.representante_nombre,
-            "rl_tipo_doc": c.representante_tipo_documento}
+            "rl_tipo_doc": c.representante_tipo_documento,
+            "tiene_password": bool(c.password_enc)}   # clave del portal DIAN (cifrada)
 
 
 @router.post("/{cid}/claves", status_code=201)

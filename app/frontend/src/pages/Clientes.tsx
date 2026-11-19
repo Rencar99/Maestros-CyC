@@ -220,55 +220,67 @@ function ClavesClienteModal({ cliente, onClose }: { cliente: ClienteListItem; on
  *  portal cuyo comentario contiene "Revisor Fiscal". Solo Admin/Super. */
 function ClavesDianModal({ cliente, onClose }: { cliente: ClienteListItem; onClose: () => void }) {
   const toast = useToast();
-  const [rl, setRl] = useState<{ nit: string; dv: number | null; rl_num_id: string; rl_nombre: string } | null>(null);
+  const [rl, setRl] = useState<{ nit: string; rl_num_id: string; rl_nombre: string; tiene_password: boolean } | null>(null);
   const [claves, setClaves] = useState<ClienteClave[]>([]);
   const [cargando, setCargando] = useState(true);
-  const { reveladas, toggle: revelar } = useReveladas((id) => `/clientes/${cliente.id}/claves/${id}/revelar`, toast);
+  const [dianPass, setDianPass] = useState<string | undefined>(undefined);   // clave del portal DIAN revelada
+  const { reveladas, toggle: revelarRf } = useReveladas((id) => `/clientes/${cliente.id}/claves/${id}/revelar`, toast);
   useEffect(() => {
     Promise.all([
       api.get(`/clientes/${cliente.id}/rl`).then(setRl).catch((e: any) => toast(e.message, true)),
       api.get(`/clientes/${cliente.id}/claves`).then(setClaves).catch((e: any) => toast(e.message, true)),
     ]).finally(() => setCargando(false));
   }, []); // eslint-disable-line
+  // Clave del portal DIAN (cifrada en Cliente.password_enc): su reveal devuelve {password},
+  // distinto a las claves de portal ({clave}), por eso no usa useReveladas.
+  const revelarDian = async () => {
+    if (dianPass !== undefined) { setDianPass(undefined); return; }
+    try { const r: any = await api.get(`/clientes/${cliente.id}/password`); setDianPass(r.password || ""); }
+    catch (e: any) { toast(e.message, true); }
+  };
   const rf = claves.find((k) => (k.comentario || "").toLowerCase().includes("revisor fiscal"));
-  const nit = rl ? `${rl.nit}${rl.dv != null ? "-" + rl.dv : ""}` : cliente.num_id;
+  const cp = (txt: string) => <button className="drf-cp" title="Copiar" onClick={() => copiar(txt, toast)}><Icon name="copy" size={13} /></button>;
   return (
     <Modal title={`Claves DIAN — ${cliente.nombre}`} sub={cliente.num_id} icon="landmark" size="md" onClose={onClose}>
       <div className="dian-rf">
         <div className="drf-row">
           <span className="drf-k">Id (NIT)</span>
-          <span className="drf-v">{nit}
-            <button className="drf-cp" title="Copiar" onClick={() => copiar(rl?.nit || cliente.num_id, toast)}><Icon name="copy" size={13} /></button>
-          </span>
+          <span className="drf-v">{cliente.num_id} {cp(cliente.num_id)}</span>
         </div>
+
+        <div className="drf-sec">Acceso · Representante Legal</div>
         <div className="drf-row">
           <span className="drf-k">Documento del RL</span>
           <span className="drf-v">
             {rl?.rl_num_id
-              ? <>{rl.rl_num_id}<button className="drf-cp" title="Copiar" onClick={() => copiar(rl.rl_num_id, toast)}><Icon name="copy" size={13} /></button>
-                  {rl.rl_nombre && <em className="drf-sub">{rl.rl_nombre}</em>}</>
+              ? <>{rl.rl_num_id} {cp(rl.rl_num_id)}{rl.rl_nombre && <em className="drf-sub">{rl.rl_nombre}</em>}</>
               : <span className="hint">— sin representante legal registrado</span>}
           </span>
         </div>
-        {rf?.usuario && (
-          <div className="drf-row">
-            <span className="drf-k">Usuario del portal</span>
-            <span className="drf-v">{rf.usuario}
-              <button className="drf-cp" title="Copiar" onClick={() => copiar(rf.usuario, toast)}><Icon name="copy" size={13} /></button>
-            </span>
-          </div>
-        )}
         <div className="drf-row">
           <span className="drf-k">Clave del portal</span>
           <span className="drf-v">
-            {rf
-              ? <ClaveCell revealed={reveladas[rf.id]} tiene_clave={rf.tiene_clave}
-                  onToggle={() => revelar(rf.id)} onCopy={(t) => copiar(t, toast)} />
-              : <span className="hint">{cargando ? "Cargando…" : 'Sin clave con comentario "Revisor Fiscal".'}</span>}
+            {rl?.tiene_password
+              ? <ClaveCell revealed={dianPass} tiene_clave={true} onToggle={revelarDian} onCopy={(t) => copiar(t, toast)} />
+              : <span className="hint">{cargando ? "Cargando…" : "— sin clave del portal DIAN"}</span>}
           </span>
         </div>
-        {rf && (rf.portal || rf.comentario) && (
-          <div className="drf-foot">{[rf.portal, rf.comentario].filter(Boolean).join(" · ")}</div>
+
+        <div className="drf-sec">Acceso · Revisor Fiscal</div>
+        {rf ? <>
+          <div className="drf-row">
+            <span className="drf-k">Usuario</span>
+            <span className="drf-v">{rf.usuario || "—"} {rf.usuario && cp(rf.usuario)}</span>
+          </div>
+          <div className="drf-row">
+            <span className="drf-k">Clave del portal</span>
+            <span className="drf-v"><ClaveCell revealed={reveladas[rf.id]} tiene_clave={rf.tiene_clave}
+              onToggle={() => revelarRf(rf.id)} onCopy={(t) => copiar(t, toast)} /></span>
+          </div>
+        </> : (
+          <div className="drf-row"><span className="drf-v">
+            <span className="hint">{cargando ? "Cargando…" : 'Sin credencial con comentario "Revisor Fiscal".'}</span>
+          </span></div>
         )}
       </div>
     </Modal>
@@ -436,19 +448,16 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
 
   // Menú de clic derecho (reemplaza la columna "Acciones", que crecía mucho).
   const menuItems = (r: ClienteListItem): MenuItem[] => {
-    const out: MenuItem[] = [];
-    if (puede("claves.ver")) out.push(
+    const top: MenuItem[] = [];      // Abrir ficha primero, separado del resto.
+    if (puede("clientes.editar")) top.push({ label: "Abrir ficha", icon: "edit", iconColor: "var(--primary)", onClick: () => abrir(r.id) });
+    const rest: MenuItem[] = [];
+    if (puede("claves.ver")) rest.push(
       { label: "Ver claves del cliente", icon: "lock", onClick: () => setVerClaves(r) },
       { label: "Ver claves DIAN", icon: "landmark", iconColor: "var(--primary)", onClick: () => setVerDian(r) },
     );
-    if (puede("clientes.editar")) {
-      if (out.length) out.push({ sep: true, label: "" });
-      out.push(
-        { label: "Comparar con RUT", icon: "upload", onClick: () => abrir(r.id, true) },
-        { label: "Abrir ficha", icon: "edit", iconColor: "var(--primary)", onClick: () => abrir(r.id) },
-      );
-    }
-    return out;
+    if (puede("clientes.editar")) rest.push({ label: "Comparar con RUT", icon: "upload", onClick: () => abrir(r.id, true) });
+    if (top.length && rest.length) top.push({ sep: true, label: "" });
+    return [...top, ...rest];
   };
   const { onContextMenu, menu } = useGridMenu({ rows, getKey: (r) => r.id, items: menuItems });
 
