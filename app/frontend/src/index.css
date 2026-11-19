@@ -535,6 +535,35 @@ td.center,th.center{text-align:center}
 :root[data-theme="oscuro"] .toast.err{background:var(--err);border-color:transparent}
 .empty{padding:26px;text-align:center;color:var(--ink-3);font-size:13px}
 .banner{background:var(--info-bg);border:1px solid #cfe0f3;color:#194a80;border-radius:8px;padding:9px 14px;font-size:12.5px;margin-bottom:16px;display:flex;gap:8px;align-items:center}
+
+/* === Menú contextual (clic derecho en grillas) — reemplaza la columna "Acciones" === */
+.ctx-menu{position:fixed;z-index:1200;min-width:214px;max-width:320px;padding:5px;background:var(--card);
+  border:1px solid var(--line-2);border-radius:9px;box-shadow:var(--shadow-2);
+  font-size:13px;color:var(--ink);user-select:none;animation:ctx-in .09s ease-out}
+@keyframes ctx-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.ctx-item{display:flex;align-items:center;gap:10px;width:100%;padding:7px 11px 7px 9px;border:none;
+  border-radius:6px;background:none;color:inherit;font:inherit;text-align:left;white-space:nowrap;cursor:pointer}
+.ctx-item:hover,.ctx-item.on{background:color-mix(in srgb,var(--primary) 12%,transparent);color:var(--primary)}
+.ctx-item.danger{color:var(--err)}
+.ctx-item.danger:hover,.ctx-item.danger.on{background:color-mix(in srgb,var(--err) 13%,transparent);color:var(--err)}
+.ctx-item:disabled{opacity:.45;cursor:default;background:none;color:var(--ink)}
+.ctx-ic{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;flex:0 0 auto;color:var(--ink-3)}
+.ctx-item:hover .ctx-ic,.ctx-item.on .ctx-ic{color:var(--primary)}
+.ctx-item.danger:hover .ctx-ic{color:var(--err)}
+.ctx-lbl{flex:1 1 auto}
+.ctx-hint{color:var(--ink-3);font-size:11px;margin-left:18px}
+.ctx-sep{height:1px;background:var(--line);margin:4px 7px}
+
+/* === Modal "Claves DIAN" (lista compacta: NIT · doc RL · clave del portal) === */
+.dian-rf{display:flex;flex-direction:column;gap:2px}
+.dian-rf .drf-row{display:flex;align-items:flex-start;gap:14px;padding:9px 2px;border-bottom:1px solid var(--line)}
+.dian-rf .drf-row:last-child{border-bottom:none}
+.dian-rf .drf-k{flex:0 0 140px;color:var(--ink-2);font-size:12.5px;padding-top:2px}
+.dian-rf .drf-v{flex:1 1 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:600;color:var(--ink);font-size:14px}
+.dian-rf .drf-sub{flex-basis:100%;font-style:normal;font-weight:400;color:var(--ink-3);font-size:12px}
+.dian-rf .drf-cp{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1px solid var(--line-2);border-radius:6px;background:var(--card);color:var(--ink-3);cursor:pointer}
+.dian-rf .drf-cp:hover{color:var(--primary);border-color:var(--primary)}
+.dian-rf .drf-foot{margin-top:8px;color:var(--ink-3);font-size:11.5px}
 .spin{padding:40px;text-align:center;color:var(--ink-3)}
 
 /* ===================== Campos (login) ===================== */

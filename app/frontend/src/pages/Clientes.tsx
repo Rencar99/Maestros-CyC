@@ -9,6 +9,8 @@ import { MunicipioCombo } from "../components/MunicipioCombo";
 import { RespCombo } from "../components/RespCombo";
 import { FirmaCombo } from "../components/FirmaCombo";
 import { useReveladas } from "../useReveladas";
+import { useGridMenu } from "../components/useGridMenu";
+import type { MenuItem } from "../components/ContextMenu";
 import { Explorador } from "../components/Explorador";
 import { CatSelect } from "../components/CatSelect";
 import { CodeSelect } from "../components/CodeSelect";
@@ -213,6 +215,66 @@ function ClavesClienteModal({ cliente, onClose }: { cliente: ClienteListItem; on
   );
 }
 
+/** Modal compacto "Claves DIAN" (desde el clic derecho): NIT, documento del
+ *  representante legal (usuario de acceso a la DIAN en jurídicas) y la clave del
+ *  portal cuyo comentario contiene "Revisor Fiscal". Solo Admin/Super. */
+function ClavesDianModal({ cliente, onClose }: { cliente: ClienteListItem; onClose: () => void }) {
+  const toast = useToast();
+  const [rl, setRl] = useState<{ nit: string; dv: number | null; rl_num_id: string; rl_nombre: string } | null>(null);
+  const [claves, setClaves] = useState<ClienteClave[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const { reveladas, toggle: revelar } = useReveladas((id) => `/clientes/${cliente.id}/claves/${id}/revelar`, toast);
+  useEffect(() => {
+    Promise.all([
+      api.get(`/clientes/${cliente.id}/rl`).then(setRl).catch((e: any) => toast(e.message, true)),
+      api.get(`/clientes/${cliente.id}/claves`).then(setClaves).catch((e: any) => toast(e.message, true)),
+    ]).finally(() => setCargando(false));
+  }, []); // eslint-disable-line
+  const rf = claves.find((k) => (k.comentario || "").toLowerCase().includes("revisor fiscal"));
+  const nit = rl ? `${rl.nit}${rl.dv != null ? "-" + rl.dv : ""}` : cliente.num_id;
+  return (
+    <Modal title={`Claves DIAN — ${cliente.nombre}`} sub={cliente.num_id} icon="landmark" size="md" onClose={onClose}>
+      <div className="dian-rf">
+        <div className="drf-row">
+          <span className="drf-k">Id (NIT)</span>
+          <span className="drf-v">{nit}
+            <button className="drf-cp" title="Copiar" onClick={() => copiar(rl?.nit || cliente.num_id, toast)}><Icon name="copy" size={13} /></button>
+          </span>
+        </div>
+        <div className="drf-row">
+          <span className="drf-k">Documento del RL</span>
+          <span className="drf-v">
+            {rl?.rl_num_id
+              ? <>{rl.rl_num_id}<button className="drf-cp" title="Copiar" onClick={() => copiar(rl.rl_num_id, toast)}><Icon name="copy" size={13} /></button>
+                  {rl.rl_nombre && <em className="drf-sub">{rl.rl_nombre}</em>}</>
+              : <span className="hint">— sin representante legal registrado</span>}
+          </span>
+        </div>
+        {rf?.usuario && (
+          <div className="drf-row">
+            <span className="drf-k">Usuario del portal</span>
+            <span className="drf-v">{rf.usuario}
+              <button className="drf-cp" title="Copiar" onClick={() => copiar(rf.usuario, toast)}><Icon name="copy" size={13} /></button>
+            </span>
+          </div>
+        )}
+        <div className="drf-row">
+          <span className="drf-k">Clave del portal</span>
+          <span className="drf-v">
+            {rf
+              ? <ClaveCell revealed={reveladas[rf.id]} tiene_clave={rf.tiene_clave}
+                  onToggle={() => revelar(rf.id)} onCopy={(t) => copiar(t, toast)} />
+              : <span className="hint">{cargando ? "Cargando…" : 'Sin clave con comentario "Revisor Fiscal".'}</span>}
+          </span>
+        </div>
+        {rf && (rf.portal || rf.comentario) && (
+          <div className="drf-foot">{[rf.portal, rf.comentario].filter(Boolean).join(" · ")}</div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 const DEPTOS: Record<string, string> = {
   "05": "Antioquia", "08": "Atlántico", "11": "Bogotá D.C.", "13": "Bolívar", "15": "Boyacá",
   "17": "Caldas", "18": "Caquetá", "19": "Cauca", "20": "Cesar", "23": "Córdoba", "25": "Cundinamarca",
@@ -280,6 +342,7 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
   const [quick, setQuick] = useState("");   // filtro rápido activo
   const [edit, setEdit] = useState<Cliente | null>(null);
   const [verClaves, setVerClaves] = useState<ClienteListItem | null>(null);
+  const [verDian, setVerDian] = useState<ClienteListItem | null>(null);
   const [software, setSoftware] = useState<CatItem[]>([]);
   const [roles, setRoles] = useState<CatItem[]>([]);
   const [obligTipos, setObligTipos] = useState<ObligTipo[]>([]);
@@ -371,10 +434,28 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
     { key: "ica", label: "Mun. ICA", align: "center", total: true, filterable: true, value: (r) => r.n_municipios, render: (r) => <span className="pill">{r.n_municipios}</span> },
   ], []);
 
+  // Menú de clic derecho (reemplaza la columna "Acciones", que crecía mucho).
+  const menuItems = (r: ClienteListItem): MenuItem[] => {
+    const out: MenuItem[] = [];
+    if (puede("claves.ver")) out.push(
+      { label: "Ver claves del cliente", icon: "lock", onClick: () => setVerClaves(r) },
+      { label: "Ver claves DIAN", icon: "landmark", iconColor: "var(--primary)", onClick: () => setVerDian(r) },
+    );
+    if (puede("clientes.editar")) {
+      if (out.length) out.push({ sep: true, label: "" });
+      out.push(
+        { label: "Comparar con RUT", icon: "upload", onClick: () => abrir(r.id, true) },
+        { label: "Abrir ficha", icon: "edit", iconColor: "var(--primary)", onClick: () => abrir(r.id) },
+      );
+    }
+    return out;
+  };
+  const { onContextMenu, menu } = useGridMenu({ rows, getKey: (r) => r.id, items: menuItems });
+
   return (
     <>
       <div className="card gframe gframe-sinh">
-        <div className="gframe-body">
+        <div className="gframe-body" onContextMenu={onContextMenu}>
           <DataGrid columns={cols} rows={filtered} getKey={(r) => r.id} label="Clientes" emptyLabel="Sin clientes."
             storageKey="clientes" searchable exportable={puede("clientes.exportar")} fitRows
             toolbar={<>
@@ -387,12 +468,7 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
               </div>
               {puede("clientes.crear") && <span className="gf-end"><button className="btn primary sm" onClick={() => { setAutoRut(false); setEdit(vacio()); }}><Icon name="plus" size={16} />Nuevo cliente</button></span>}
             </>}
-            onView={(rs) => setOrden(rs.map((r) => r.id))}
-            actions={(r) => <>
-              {puede("claves.ver") && <button className="act-btn" title="Ver claves del cliente" onClick={() => setVerClaves(r)}><Icon name="lock" size={15} /></button>}
-              {puede("clientes.editar") && <button className="act-btn rut" title="Comparar con RUT (abre la ficha)" onClick={() => abrir(r.id, true)}><Icon name="upload" size={15} /></button>}
-              {puede("clientes.editar") && <button className="act-btn edit" title="Abrir ficha" onClick={() => abrir(r.id)}><Icon name="edit" size={15} /></button>}
-            </>} />
+            onView={(rs) => setOrden(rs.map((r) => r.id))} />
         </div>
         <div className="gframe-foot">
           {rows.length} cliente{rows.length === 1 ? "" : "s"}
@@ -404,6 +480,8 @@ export function Clientes({ esSuper, esAdmin, puede, active = true }: { esSuper: 
         prevId={vecino("prev") ?? null} nextId={vecino("next") ?? null} onGo={abrir} reload={load}
         onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load(); }} />}
       {verClaves && <ClavesClienteModal cliente={verClaves} onClose={() => setVerClaves(null)} />}
+      {verDian && <ClavesDianModal cliente={verDian} onClose={() => setVerDian(null)} />}
+      {menu}
     </>
   );
 }

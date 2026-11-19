@@ -520,6 +520,21 @@ def listar_claves(cid: int, session: Session = Depends(get_session), _admin=Depe
     return [_clave_dict(k, portales) for k in ks]
 
 
+@router.get("/{cid}/rl")
+def datos_rl(cid: int, session: Session = Depends(get_session),
+             _admin=Depends(require_perm("claves.ver"))):
+    """Datos para el modal 'Claves DIAN': NIT del cliente + documento/nombre del
+    representante legal (el RL es el usuario de acceso a la DIAN en jurídicas).
+    La clave en claro no viaja aquí: se revela con /{cid}/claves/{kid}/revelar."""
+    c = session.get(Cliente, cid)
+    if not c:
+        raise HTTPException(404, "Cliente no encontrado")
+    return {"nit": c.num_id, "dv": calcular_dv(c.num_id), "nombre": c.nombre,
+            "tipo_contribuyente": c.tipo_contribuyente,
+            "rl_num_id": c.representante_num_id, "rl_nombre": c.representante_nombre,
+            "rl_tipo_doc": c.representante_tipo_documento}
+
+
 @router.post("/{cid}/claves", status_code=201)
 def crear_clave(cid: int, data: ClaveIn, session: Session = Depends(get_session),
                 _admin=Depends(require_perm("claves.crear"))):
